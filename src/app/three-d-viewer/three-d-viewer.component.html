@@ -18,7 +18,11 @@
   <div class="model-toolbar">
     <label>
       <span>Representación</span>
-      <select [value]="representation()" (change)="setRepresentation($any($event.target).value)">
+      <select
+        [value]="representation()"
+        [disabled]="!!webglError()"
+        (change)="setRepresentation($any($event.target).value)"
+      >
         <option value="ball-stick">Bolas y varillas</option>
         <option value="spacefill">Espacio ocupado</option>
         <option value="wireframe">Alambre</option>
@@ -28,6 +32,7 @@
       type="button"
       class="tool-button"
       [class.active]="showHydrogens()"
+      [disabled]="!!webglError()"
       (click)="toggleHydrogens()"
     >
       <span class="hydrogen-mark">H</span>
@@ -38,6 +43,7 @@
       class="icon-button"
       title="Restablecer cámara"
       aria-label="Restablecer cámara"
+      [disabled]="!!webglError()"
       (click)="resetView()"
     >
       <app-icon name="view3d" />
@@ -47,6 +53,7 @@
       class="icon-button"
       title="Exportar imagen 3D"
       aria-label="Exportar imagen 3D"
+      [disabled]="!!webglError()"
       (click)="exportSnapshot()"
     >
       <app-icon name="download" />
@@ -54,7 +61,14 @@
   </div>
 
   <div class="viewport" #viewport>
-    @if (!molecule().atoms.length) {
+    @if (webglError()) {
+      <div class="webgl-unavailable" role="status">
+        <app-icon name="warning" />
+        <strong>Representación 3D no disponible</strong>
+        <span>{{ webglError() }}</span>
+        <small>Comprueba la aceleración gráfica del navegador o prueba otro dispositivo.</small>
+      </div>
+    } @else if (!molecule().atoms.length) {
       <div class="empty-model">
         <app-icon name="view3d" />
         <strong>No hay una estructura que representar</strong>

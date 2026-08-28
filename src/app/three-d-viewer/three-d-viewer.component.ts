@@ -48,6 +48,7 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
   readonly representation = signal<Representation>('ball-stick');
   readonly showHydrogens = signal(true);
   readonly isReady = signal(false);
+  readonly webglError = signal<string | null>(null);
 
   @ViewChild('viewport', { static: true }) private viewportRef!: ElementRef<HTMLDivElement>;
 
@@ -115,11 +116,20 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
     this.camera.position.set(0, 1.6, 8.5);
 
-    this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      preserveDrawingBuffer: true,
-    });
+    try {
+      this.renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true,
+      });
+    } catch {
+      this.zone.run(() => {
+        this.webglError.set(
+          'Este navegador no ha podido activar WebGL. La estructura 2D sigue siendo totalmente editable.',
+        );
+      });
+      return;
+    }
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;

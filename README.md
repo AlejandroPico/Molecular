@@ -1,6 +1,6 @@
 # Molecular
 
-**Versión 0.1.0**
+**Versión 0.1.1**
 
 Molecular es un estudio químico visual para construir estructuras en dos dimensiones, comprobar sus propiedades básicas y explorarlas como modelos tridimensionales interactivos. El proyecto toma como referencia conceptual el flujo 2D → 3D popularizado por herramientas educativas como [MolView](https://molview.org/), pero utiliza una interfaz, una arquitectura y un motor propios.
 
@@ -10,7 +10,7 @@ Molecular es un estudio químico visual para construir estructuras en dos dimens
 
 El despliegue se actualiza automáticamente al publicar cambios en `main`.
 
-## Funciones de la versión 0.1.0
+## Funciones de la versión 0.1.1
 
 ### Lienzo molecular 2D
 
@@ -90,7 +90,7 @@ El despliegue se actualiza automáticamente al publicar cambios en `main`.
 
 ## Por qué no hay un servidor Python en esta versión
 
-GitHub Pages no puede ejecutar Python ni un SQLite de servidor. La 0.1.0 funciona completamente en el navegador para que el editor, el guardado y el 3D sean inmediatos y no necesiten infraestructura.
+GitHub Pages no puede ejecutar Python ni un SQLite de servidor. La 0.1.1 funciona completamente en el navegador para que el editor, el guardado y el 3D sean inmediatos y no necesiten infraestructura.
 
 La evolución prevista conserva dos vías:
 
@@ -136,7 +136,7 @@ Molecular/
 
 ## Alcance científico
 
-La validación de la 0.1.0 es educativa: usa valencias habituales y una geometría 3D aproximada derivada del dibujo. Todavía no calcula estereoquímica, resonancia, aromaticidad formal, cargas parciales, energía, espectros u orbitales. No sustituye herramientas de química computacional ni debe emplearse para validar resultados de investigación.
+La validación de la 0.1.1 es educativa: usa valencias habituales y una geometría 3D aproximada derivada del dibujo. Todavía no calcula estereoquímica, resonancia, aromaticidad formal, cargas parciales, energía, espectros u orbitales. No sustituye herramientas de química computacional ni debe emplearse para validar resultados de investigación.
 
 ## Roadmap inmediato
 

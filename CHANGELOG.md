@@ -1,5 +1,12 @@
 # Historial de versiones
 
+## 0.1.1 — 2026-08-28
+
+### Corregido
+
+- El visor 3D muestra ahora un estado de compatibilidad claro cuando el navegador no puede crear un contexto WebGL, en lugar de dejar un panel vacío.
+- Los controles exclusivos del visor quedan desactivados mientras WebGL no está disponible.
+
 ## 0.1.0 — 2026-08-28
 
 Primera versión funcional de Molecular.

@@ -63,6 +63,13 @@ h2 {
   background: var(--accent-soft);
 }
 
+.icon-button:disabled,
+.tool-button:disabled,
+select:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
 .model-toolbar {
   min-height: 58px;
   display: flex;
@@ -178,6 +185,39 @@ select {
 .empty-model span {
   max-width: 260px;
   font-size: 0.78rem;
+}
+
+.webgl-unavailable {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 28px;
+  color: var(--muted-strong);
+  text-align: center;
+}
+
+.webgl-unavailable app-icon {
+  width: 42px;
+  height: 42px;
+  margin-bottom: 4px;
+  color: var(--danger);
+}
+
+.webgl-unavailable strong {
+  color: var(--text);
+}
+.webgl-unavailable span {
+  max-width: 330px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+.webgl-unavailable small {
+  color: var(--muted);
+  font-size: 0.64rem;
 }
 
 .model-footer {

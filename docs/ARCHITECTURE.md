@@ -1,6 +1,6 @@
 # Arquitectura de Molecular
 
-## Decisión de la versión 0.1.0
+## Decisión de la versión 0.1.1
 
 Molecular se publica en GitHub Pages. Ese alojamiento sirve archivos estáticos y no ejecuta procesos Python, Java, Go ni un servidor SQLite. Por ello, el primer núcleo se ejecuta íntegramente en el navegador:
 
@@ -51,4 +51,4 @@ El modo de cálculo no será obligatorio para dibujar, guardar o visualizar. As�
 
 ## Límites científicos actuales
 
-La 0.1.0 aplica reglas de valencia habituales y genera una geometría 3D didáctica a partir del esquema 2D. No realiza minimización de energía, estereoquímica, aromaticidad formal, orbitales ni dinámica molecular. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.
+La 0.1.1 aplica reglas de valencia habituales y genera una geometría 3D didáctica a partir del esquema 2D. No realiza minimización de energía, estereoquímica, aromaticidad formal, orbitales ni dinámica molecular. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.

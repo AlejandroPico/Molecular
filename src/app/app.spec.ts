@@ -12,7 +12,7 @@ describe('App', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain('Molecular');
-    expect(fixture.nativeElement.textContent).toContain('v0.1.0');
+    expect(fixture.nativeElement.textContent).toContain('v0.1.1');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {
