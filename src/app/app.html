@@ -1,0 +1,919 @@
+<div class="app-shell" [class.model-visible]="modelOpen()">
+  <header class="topbar">
+    <div class="brand-block">
+      <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="brand-copy">
+        <strong>Molecular</strong>
+        <span
+          >Estudio químico <b>v{{ version }}</b></span
+        >
+      </div>
+    </div>
+
+    <div class="molecule-title">
+      <input
+        type="text"
+        aria-label="Nombre de la molécula"
+        title="Editar nombre"
+        [value]="molecule().name"
+        (change)="renameMolecule($event)"
+      />
+      <span>Autoguardado local</span>
+    </div>
+
+    <div class="global-search">
+      <app-icon name="search" />
+      <input
+        type="search"
+        placeholder="Buscar una molécula de ejemplo…"
+        aria-label="Buscar moléculas"
+        [value]="searchQuery()"
+        (input)="searchQuery.set($any($event.target).value); searchOpen.set(true)"
+        (focus)="searchOpen.set(true)"
+      />
+      @if (searchOpen()) {
+        <div class="search-results">
+          <div class="results-label">Estructuras disponibles</div>
+          @for (preset of filteredPresets(); track preset.id) {
+            <button
+              type="button"
+              (pointerdown)="$event.preventDefault()"
+              (click)="loadPresetById(preset.id)"
+            >
+              <span class="result-symbol"><app-icon name="atom" /></span>
+              <span
+                ><strong>{{ preset.name }}</strong
+                ><small>{{ preset.category }} · {{ preset.description }}</small></span
+              >
+            </button>
+          } @empty {
+            <p>No hay coincidencias en el catálogo inicial.</p>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="history-actions" aria-label="Historial de edición">
+      <button
+        type="button"
+        [disabled]="!canUndo()"
+        title="Deshacer (Ctrl+Z)"
+        aria-label="Deshacer"
+        (click)="undo()"
+      >
+        <app-icon name="undo" />
+      </button>
+      <button
+        type="button"
+        [disabled]="!canRedo()"
+        title="Rehacer (Ctrl+Y)"
+        aria-label="Rehacer"
+        (click)="redo()"
+      >
+        <app-icon name="redo" />
+      </button>
+    </div>
+
+    <nav class="top-actions" aria-label="Herramientas globales">
+      <div class="zoom-control">
+        <button type="button" title="Alejar" aria-label="Alejar" (click)="changeZoom(-0.1)">
+          <app-icon name="zoom-out" />
+        </button>
+        <button class="zoom-value" type="button" title="Restablecer vista" (click)="resetView()">
+          {{ (zoom() * 100).toFixed(0) }}%
+        </button>
+        <button type="button" title="Acercar" aria-label="Acercar" (click)="changeZoom(0.1)">
+          <app-icon name="zoom-in" />
+        </button>
+      </div>
+      <button
+        type="button"
+        [class.active]="activePanel() === 'file'"
+        title="Archivo y biblioteca"
+        aria-label="Archivo y biblioteca"
+        (click)="togglePanel('file')"
+      >
+        <app-icon name="file" />
+      </button>
+      <button
+        type="button"
+        [class.active]="activePanel() === 'layers'"
+        title="Capas"
+        aria-label="Capas"
+        (click)="togglePanel('layers')"
+      >
+        <app-icon name="layers" />
+      </button>
+      <button
+        type="button"
+        [class.active]="activePanel() === 'encyclopedia'"
+        title="Enciclopedia química"
+        aria-label="Enciclopedia química"
+        (click)="togglePanel('encyclopedia')"
+      >
+        <app-icon name="book" />
+      </button>
+      <button
+        type="button"
+        [class.active]="activePanel() === 'theme'"
+        title="Tema visual"
+        aria-label="Tema visual"
+        (click)="togglePanel('theme')"
+      >
+        <app-icon name="palette" />
+      </button>
+      <button
+        type="button"
+        [class.active]="activePanel() === 'export'"
+        title="Exportar"
+        aria-label="Exportar"
+        (click)="togglePanel('export')"
+      >
+        <app-icon name="download" />
+      </button>
+      <button
+        class="model-button"
+        type="button"
+        [class.active]="modelOpen()"
+        title="Construir modelo 3D"
+        aria-label="Construir modelo 3D"
+        (click)="openModel()"
+      >
+        <app-icon name="view3d" /><span>3D</span>
+      </button>
+      <button
+        type="button"
+        [class.active]="activePanel() === 'about'"
+        title="Acerca de Molecular"
+        aria-label="Acerca de Molecular"
+        (click)="togglePanel('about')"
+      >
+        <app-icon name="info" />
+      </button>
+    </nav>
+  </header>
+
+  <main class="workspace" [class.with-model]="modelOpen()">
+    <section class="canvas-stage" (click)="searchOpen.set(false)">
+      <svg
+        #molecularCanvas
+        class="molecular-canvas"
+        [class.tool-pan]="activeTool() === 'pan'"
+        [class.tool-atom]="activeTool() === 'atom'"
+        [class.tool-bond]="activeTool() === 'bond'"
+        [class.tool-erase]="activeTool() === 'erase'"
+        viewBox="0 0 1400 800"
+        preserveAspectRatio="none"
+        role="application"
+        aria-label="Lienzo de edición molecular 2D"
+        (pointerdown)="onCanvasPointerDown($event)"
+        (pointermove)="onCanvasPointerMove($event)"
+        (pointerup)="onCanvasPointerUp($event)"
+        (pointercancel)="onCanvasPointerUp($event)"
+        (wheel)="onCanvasWheel($event)"
+        (contextmenu)="openContextMenu($event)"
+      >
+        <defs>
+          <pattern id="molecular-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="1.15" class="grid-dot" />
+          </pattern>
+          <filter id="atom-shadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="4" stdDeviation="4" flood-opacity="0.16" />
+          </filter>
+        </defs>
+        <rect class="canvas-background" width="1400" height="800" />
+        @if (layers.grid()) {
+          <rect class="canvas-grid" width="1400" height="800" fill="url(#molecular-grid)" />
+        }
+
+        <g [attr.transform]="transform()">
+          <g class="bond-layer">
+            @for (bond of molecule().bonds; track bond.id) {
+              <g class="bond-group" (pointerdown)="onBondPointerDown($event, bond)">
+                @for (line of bondLines(bond); track $index) {
+                  <line
+                    class="bond-line"
+                    [attr.x1]="line.x1"
+                    [attr.y1]="line.y1"
+                    [attr.x2]="line.x2"
+                    [attr.y2]="line.y2"
+                  />
+                  <line
+                    class="bond-hit"
+                    [attr.x1]="line.x1"
+                    [attr.y1]="line.y1"
+                    [attr.x2]="line.x2"
+                    [attr.y2]="line.y2"
+                  />
+                }
+                @if (layers.bondOrders()) {
+                  <text
+                    class="bond-order-label"
+                    [attr.x]="bondMidpoint(bond).x"
+                    [attr.y]="bondMidpoint(bond).y - 12"
+                  >
+                    {{ bond.order }}
+                  </text>
+                }
+              </g>
+            }
+          </g>
+
+          <g class="atom-layer">
+            @for (atom of molecule().atoms; track atom.id; let atomIndex = $index) {
+              <g
+                class="atom-node"
+                [class.selected]="isSelected(atom.id)"
+                [class.bond-origin]="bondStartId() === atom.id"
+                [class.invalid]="layers.valenceWarnings() && stats().invalidAtomIds.has(atom.id)"
+                [attr.transform]="'translate(' + atom.x + ' ' + atom.y + ')'"
+                (pointerdown)="onAtomPointerDown($event, atom)"
+                (contextmenu)="openContextMenu($event, atom)"
+              >
+                <circle class="selection-ring" [attr.r]="atomRadius(atom) + 8" />
+                <circle
+                  class="atom-sphere"
+                  [attr.r]="atomRadius(atom)"
+                  [attr.fill]="atomDefinition(atom.element).color"
+                  filter="url(#atom-shadow)"
+                />
+                @if (layers.atomLabels()) {
+                  <text
+                    class="atom-label"
+                    y="6"
+                    [attr.fill]="atomDefinition(atom.element).textColor"
+                  >
+                    {{ atom.element }}
+                  </text>
+                }
+                @if (atom.charge) {
+                  <text
+                    class="charge-label"
+                    [attr.x]="atomRadius(atom) - 2"
+                    [attr.y]="-atomRadius(atom) + 3"
+                  >
+                    {{ atomChargeLabel(atom) }}
+                  </text>
+                }
+                @if (layers.implicitHydrogens() && implicitHydrogenLabel(atom)) {
+                  <text class="implicit-hydrogen" [attr.x]="atomRadius(atom) + 8" y="5">
+                    {{ implicitHydrogenLabel(atom) }}
+                  </text>
+                }
+                @if (layers.atomIndexes()) {
+                  <text class="atom-index" [attr.y]="atomRadius(atom) + 20">
+                    {{ atomIndex + 1 }}
+                  </text>
+                }
+              </g>
+            }
+          </g>
+
+          @if (selectionRect(); as rect) {
+            <rect
+              class="selection-box"
+              [attr.x]="rect.x"
+              [attr.y]="rect.y"
+              [attr.width]="rect.width"
+              [attr.height]="rect.height"
+            />
+          }
+        </g>
+      </svg>
+
+      <aside class="tool-rail" aria-label="Herramientas de edición">
+        <button
+          type="button"
+          [class.active]="activeTool() === 'select'"
+          title="Seleccionar (V)"
+          aria-label="Seleccionar"
+          (click)="setTool('select')"
+        >
+          <app-icon name="box-select" /><kbd>V</kbd>
+        </button>
+        <button
+          type="button"
+          [class.active]="activeTool() === 'pan'"
+          title="Desplazar (H o espacio)"
+          aria-label="Desplazar lienzo"
+          (click)="setTool('pan')"
+        >
+          <app-icon name="hand" /><kbd>H</kbd>
+        </button>
+        <div class="rail-divider"></div>
+        <button
+          type="button"
+          [class.active]="activeTool() === 'atom'"
+          title="Añadir o cambiar átomo (A)"
+          aria-label="Herramienta de átomo"
+          (click)="setTool('atom')"
+        >
+          <span class="current-element">{{ activeElement() }}</span
+          ><kbd>A</kbd>
+        </button>
+        <button
+          type="button"
+          [class.active]="activeTool() === 'bond'"
+          title="Crear o editar enlace (B)"
+          aria-label="Herramienta de enlace"
+          (click)="setTool('bond')"
+        >
+          <app-icon name="bond" /><kbd>B</kbd>
+        </button>
+        <button
+          type="button"
+          [class.active]="activeTool() === 'erase'"
+          title="Borrar átomo o enlace (E)"
+          aria-label="Borrar"
+          (click)="setTool('erase')"
+        >
+          <app-icon name="eraser" /><kbd>E</kbd>
+        </button>
+        <div class="rail-divider"></div>
+        <button
+          type="button"
+          title="Vaciar lienzo"
+          aria-label="Vaciar lienzo"
+          (click)="clearMolecule()"
+        >
+          <app-icon name="trash" />
+        </button>
+      </aside>
+
+      <div class="element-dock">
+        <div class="dock-section element-section">
+          <span class="dock-label">Elemento</span>
+          @for (symbol of quickElements; track symbol) {
+            <button
+              type="button"
+              class="element-button"
+              [class.active]="activeElement() === symbol && activeTool() === 'atom'"
+              [style.--element-color]="atomDefinition(symbol).color"
+              [attr.title]="atomDefinition(symbol).name"
+              (click)="setElement(symbol)"
+            >
+              {{ symbol }}
+            </button>
+          }
+          <button
+            class="more-elements"
+            type="button"
+            title="Todos los elementos"
+            aria-label="Todos los elementos"
+            (click)="togglePanel('encyclopedia')"
+          >
+            <app-icon name="more" />
+          </button>
+        </div>
+        <div class="dock-divider"></div>
+        <div class="dock-section bond-section">
+          <span class="dock-label">Enlace</span>
+          <button
+            type="button"
+            [class.active]="bondOrder() === 1 && activeTool() === 'bond'"
+            title="Enlace simple (1)"
+            (click)="setBondOrder(1)"
+          >
+            <i></i>
+          </button>
+          <button
+            type="button"
+            [class.active]="bondOrder() === 2 && activeTool() === 'bond'"
+            title="Enlace doble (2)"
+            (click)="setBondOrder(2)"
+          >
+            <i></i><i></i>
+          </button>
+          <button
+            type="button"
+            [class.active]="bondOrder() === 3 && activeTool() === 'bond'"
+            title="Enlace triple (3)"
+            (click)="setBondOrder(3)"
+          >
+            <i></i><i></i><i></i>
+          </button>
+        </div>
+      </div>
+
+      @if (selectedAtoms().length) {
+        <aside class="selection-inspector">
+          <header>
+            <div>
+              <span>Selección</span
+              ><strong
+                >{{ selectedAtoms().length }}
+                {{ selectedAtoms().length === 1 ? 'átomo' : 'átomos' }}</strong
+              >
+            </div>
+            <button
+              type="button"
+              title="Deseleccionar"
+              aria-label="Deseleccionar"
+              (click)="clearSelection()"
+            >
+              <app-icon name="close" />
+            </button>
+          </header>
+          <div class="inspector-row">
+            <span>Elemento</span>
+            <div class="mini-elements">
+              @for (symbol of ['C', 'H', 'O', 'N', 'S', 'P']; track symbol) {
+                <button
+                  type="button"
+                  [class.active]="selectedElement() === symbol"
+                  (click)="applyElementToSelection($any(symbol))"
+                >
+                  {{ symbol }}
+                </button>
+              }
+            </div>
+          </div>
+          <div class="inspector-actions">
+            <button type="button" (click)="changeCharge(-1)">
+              <app-icon name="minus" /> Carga
+            </button>
+            <button type="button" (click)="changeCharge(1)"><app-icon name="plus" /> Carga</button>
+            <button class="primary" type="button" (click)="openSelectedInModel()">
+              <app-icon name="view3d" /> Ver selección
+            </button>
+          </div>
+        </aside>
+      }
+
+      @if (!molecule().atoms.length) {
+        <div class="empty-canvas">
+          <div class="empty-orbit"><app-icon name="atom" /></div>
+          <span class="eyebrow">Lienzo molecular</span>
+          <h1>Construye una estructura desde cero</h1>
+          <p>
+            Elige un elemento, colócalo en el lienzo y une los átomos. Molecular calculará la
+            fórmula, la masa y una primera geometría tridimensional.
+          </p>
+          <div>
+            <button class="primary-action" type="button" (click)="setElement('C')">
+              <app-icon name="plus" /> Añadir carbono
+            </button>
+            <button type="button" (click)="loadPresetById('ethanol')">Abrir ejemplo</button>
+          </div>
+        </div>
+      }
+
+      @if (contextMenu(); as menu) {
+        <div
+          class="context-menu"
+          [style.left.px]="menu.x"
+          [style.top.px]="menu.y"
+          (click)="$event.stopPropagation()"
+        >
+          <div class="context-title">
+            {{ selectedAtoms().length }}
+            {{ selectedAtoms().length === 1 ? 'elemento seleccionado' : 'elementos seleccionados' }}
+          </div>
+          <button type="button" (click)="openSelectedInModel()">
+            <app-icon name="view3d" /><span
+              ><strong>Construir en 3D</strong
+              ><small>Visualizar el fragmento seleccionado</small></span
+            >
+          </button>
+          <button type="button" (click)="duplicateSelection()">
+            <app-icon name="plus" /><span
+              ><strong>Duplicar</strong><small>Crear una copia desplazada</small></span
+            >
+          </button>
+          <button type="button" (click)="deleteSelection()">
+            <app-icon name="trash" /><span
+              ><strong>Eliminar</strong><small>Supr o Retroceso</small></span
+            >
+          </button>
+        </div>
+      }
+
+      @if (toast()) {
+        <div class="toast"><app-icon name="check" />{{ toast() }}</div>
+      }
+    </section>
+
+    @if (modelOpen()) {
+      <app-three-d-viewer [molecule]="modelMolecule()" (closeRequested)="closeModel()" />
+    }
+  </main>
+
+  <footer class="statusbar">
+    <div class="status-primary">
+      <span class="status-dot" [class.warning]="stats().warnings.length"></span>
+      <strong>{{ stats().warnings.length ? 'Revisar estructura' : 'Estructura coherente' }}</strong>
+      <span class="desktop-only">Motor local · sin conexión necesaria</span>
+    </div>
+    <div class="molecule-metrics">
+      <span
+        ><small>Fórmula estimada</small
+        ><strong class="formula">{{ formulaDisplay() }}</strong></span
+      >
+      <span
+        ><small>Masa molar</small
+        ><strong>{{ stats().molecularMass.toFixed(3) }} g/mol</strong></span
+      >
+      <span
+        ><small>Átomos</small
+        ><strong
+          >{{ stats().atomCount }} <em>({{ molecule().atoms.length }} explícitos)</em></strong
+        ></span
+      >
+      <span
+        ><small>Enlaces</small><strong>{{ stats().bondCount }}</strong></span
+      >
+    </div>
+    <div class="status-zoom">
+      <span>{{ (zoom() * 100).toFixed(0) }}%</span>
+      <span>{{
+        selectedAtoms().length ? selectedAtoms().length + ' seleccionados' : 'Sin selección'
+      }}</span>
+    </div>
+  </footer>
+
+  @if (activePanel(); as panel) {
+    <div class="panel-backdrop" (pointerdown)="closePanels()"></div>
+    <aside
+      class="floating-panel"
+      [class.wide]="panel === 'encyclopedia' || panel === 'about'"
+      (pointerdown)="$event.stopPropagation()"
+    >
+      @switch (panel) {
+        @case ('file') {
+          <header class="panel-header">
+            <div>
+              <span class="eyebrow">Documento</span>
+              <h2>Archivo y biblioteca</h2>
+            </div>
+            <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
+          </header>
+          <div class="panel-content">
+            <div class="action-grid">
+              <button type="button" (click)="newMolecule()">
+                <app-icon name="file" /><span
+                  ><strong>Nuevo</strong><small>Lienzo vacío</small></span
+                >
+              </button>
+              <button type="button" (click)="saveToLibrary()">
+                <app-icon name="save" /><span
+                  ><strong>Guardar</strong><small>En este dispositivo</small></span
+                >
+              </button>
+              <button type="button" (click)="triggerImport()">
+                <app-icon name="download" /><span
+                  ><strong>Importar</strong><small>Archivo .json</small></span
+                >
+              </button>
+              <button type="button" (click)="exportJson()">
+                <app-icon name="download" /><span
+                  ><strong>Documento</strong><small>.molecular.json</small></span
+                >
+              </button>
+            </div>
+            <section class="panel-section">
+              <div class="section-heading">
+                <h3>Moléculas iniciales</h3>
+                <span>{{ presets.length }}</span>
+              </div>
+              <div class="preset-list">
+                @for (preset of presets; track preset.id) {
+                  <button type="button" (click)="loadPresetById(preset.id)">
+                    <span class="preset-icon"><app-icon name="atom" /></span
+                    ><span
+                      ><strong>{{ preset.name }}</strong
+                      ><small>{{ preset.category }} · {{ preset.description }}</small></span
+                    ><app-icon name="chevron" />
+                  </button>
+                }
+              </div>
+            </section>
+            @if (savedDocuments().length) {
+              <section class="panel-section">
+                <div class="section-heading">
+                  <h3>Guardadas en este dispositivo</h3>
+                  <span>{{ savedDocuments().length }}</span>
+                </div>
+                <div class="saved-list">
+                  @for (stored of savedDocuments(); track stored.id) {
+                    <button type="button" (click)="loadSaved(stored)">
+                      <span
+                        ><strong>{{ stored.name }}</strong
+                        ><small
+                          >{{ stored.document.atoms.length }} átomos ·
+                          {{ stored.savedAt.slice(0, 10) }}</small
+                        ></span
+                      ><i
+                        role="button"
+                        tabindex="0"
+                        title="Eliminar de la biblioteca"
+                        (click)="deleteSaved($event, stored.id)"
+                        ><app-icon name="trash"
+                      /></i>
+                    </button>
+                  }
+                </div>
+              </section>
+            }
+          </div>
+        }
+        @case ('layers') {
+          <header class="panel-header">
+            <div>
+              <span class="eyebrow">Visualización</span>
+              <h2>Capas del lienzo</h2>
+            </div>
+            <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
+          </header>
+          <div class="panel-content layer-list">
+            <button
+              type="button"
+              role="switch"
+              [attr.aria-checked]="layers.grid()"
+              (click)="toggleLayer('grid')"
+            >
+              <span
+                ><app-icon name="grid" /><i
+                  ><strong>Retícula de puntos</strong
+                  ><small>Referencia espacial del lienzo</small></i
+                ></span
+              ><b [class.on]="layers.grid()"></b>
+            </button>
+            <button
+              type="button"
+              role="switch"
+              [attr.aria-checked]="layers.atomLabels()"
+              (click)="toggleLayer('atomLabels')"
+            >
+              <span
+                ><app-icon name="atom" /><i
+                  ><strong>Símbolos atómicos</strong><small>Etiquetas C, H, O, N…</small></i
+                ></span
+              ><b [class.on]="layers.atomLabels()"></b>
+            </button>
+            <button
+              type="button"
+              role="switch"
+              [attr.aria-checked]="layers.atomIndexes()"
+              (click)="toggleLayer('atomIndexes')"
+            >
+              <span
+                ><app-icon name="more" /><i
+                  ><strong>Índices de átomos</strong
+                  ><small>Numeración para identificación</small></i
+                ></span
+              ><b [class.on]="layers.atomIndexes()"></b>
+            </button>
+            <button
+              type="button"
+              role="switch"
+              [attr.aria-checked]="layers.bondOrders()"
+              (click)="toggleLayer('bondOrders')"
+            >
+              <span
+                ><app-icon name="bond" /><i
+                  ><strong>Orden de enlace</strong
+                  ><small>Valores 1, 2 y 3 junto al enlace</small></i
+                ></span
+              ><b [class.on]="layers.bondOrders()"></b>
+            </button>
+            <button
+              type="button"
+              role="switch"
+              [attr.aria-checked]="layers.implicitHydrogens()"
+              (click)="toggleLayer('implicitHydrogens')"
+            >
+              <span
+                ><span class="layer-h">H</span
+                ><i
+                  ><strong>Hidrógenos implícitos</strong
+                  ><small>Incluidos en fórmula, masa y 3D</small></i
+                ></span
+              ><b [class.on]="layers.implicitHydrogens()"></b>
+            </button>
+            <button
+              type="button"
+              role="switch"
+              [attr.aria-checked]="layers.valenceWarnings()"
+              (click)="toggleLayer('valenceWarnings')"
+            >
+              <span
+                ><app-icon name="warning" /><i
+                  ><strong>Avisos de valencia</strong><small>Señalar uniones no admitidas</small></i
+                ></span
+              ><b [class.on]="layers.valenceWarnings()"></b>
+            </button>
+            <div class="panel-note">
+              <app-icon name="info" />
+              <p>
+                Los hidrógenos implícitos se calculan usando la valencia habitual más baja
+                compatible con los enlaces dibujados.
+              </p>
+            </div>
+          </div>
+        }
+        @case ('encyclopedia') {
+          <header class="panel-header">
+            <div>
+              <span class="eyebrow">Consulta</span>
+              <h2>Enciclopedia química</h2>
+            </div>
+            <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
+          </header>
+          <div class="encyclopedia-search">
+            <app-icon name="search" /><input
+              type="search"
+              placeholder="Buscar elemento, símbolo o familia…"
+              [value]="encyclopediaQuery()"
+              (input)="encyclopediaQuery.set($any($event.target).value)"
+            />
+          </div>
+          <div class="panel-content encyclopedia-content">
+            <div class="chemistry-guide">
+              <div><app-icon name="bond" /></div>
+              <span
+                ><strong>Guía rápida de construcción</strong>
+                <p>
+                  La suma de los órdenes de enlace alrededor de un átomo no debe superar normalmente
+                  su valencia. Un enlace simple aporta 1, uno doble 2 y uno triple 3.
+                </p></span
+              >
+            </div>
+            <div class="element-cards">
+              @for (element of filteredElements(); track element.symbol) {
+                <button
+                  type="button"
+                  [style.--card-element]="element.color"
+                  (click)="setElement(element.symbol); closePanels()"
+                >
+                  <span class="atomic-number">{{ element.atomicNumber }}</span>
+                  <strong>{{ element.symbol }}</strong>
+                  <span class="element-name">{{ element.name }}</span>
+                  <small
+                    >{{ element.atomicMass.toFixed(3) }} u · Valencia
+                    {{ element.valences.join(', ') }}</small
+                  >
+                  <p>{{ element.description }}</p>
+                </button>
+              }
+            </div>
+          </div>
+        }
+        @case ('theme') {
+          <header class="panel-header">
+            <div>
+              <span class="eyebrow">Apariencia</span>
+              <h2>Tema visual</h2>
+            </div>
+            <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
+          </header>
+          <div class="panel-content theme-list">
+            <button
+              type="button"
+              [class.active]="themeMode() === 'auto'"
+              (click)="setTheme('auto')"
+            >
+              <span class="theme-preview auto"><i></i><i></i></span
+              ><span
+                ><strong>Automático</strong><small>Sigue la configuración del sistema</small></span
+              >
+              @if (themeMode() === 'auto') {
+                <app-icon name="check" />
+              }
+            </button>
+            <button
+              type="button"
+              [class.active]="themeMode() === 'light'"
+              (click)="setTheme('light')"
+            >
+              <span class="theme-preview light"><app-icon name="sun" /></span
+              ><span><strong>Claro</strong><small>Estudio luminoso y técnico</small></span>
+              @if (themeMode() === 'light') {
+                <app-icon name="check" />
+              }
+            </button>
+            <button
+              type="button"
+              [class.active]="themeMode() === 'dark'"
+              (click)="setTheme('dark')"
+            >
+              <span class="theme-preview dark"><app-icon name="moon" /></span
+              ><span><strong>Oscuro</strong><small>Contraste suave para poca luz</small></span>
+              @if (themeMode() === 'dark') {
+                <app-icon name="check" />
+              }
+            </button>
+          </div>
+        }
+        @case ('export') {
+          <header class="panel-header">
+            <div>
+              <span class="eyebrow">Salida</span>
+              <h2>Exportar estructura</h2>
+            </div>
+            <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
+          </header>
+          <div class="panel-content export-list">
+            <button type="button" (click)="exportSvg()">
+              <span class="file-type">SVG</span
+              ><span
+                ><strong>Gráfico vectorial</strong
+                ><small>Ideal para Atlas Editor, diagramas y ampliaciones sin pérdida</small></span
+              ><app-icon name="download" />
+            </button>
+            <button type="button" (click)="exportPng()">
+              <span class="file-type">PNG</span
+              ><span
+                ><strong>Imagen de alta resolución</strong
+                ><small>Fondo blanco y escala 2×</small></span
+              ><app-icon name="download" />
+            </button>
+            <button type="button" (click)="exportJson()">
+              <span class="file-type">JSON</span
+              ><span
+                ><strong>Documento molecular editable</strong
+                ><small>Conserva átomos, enlaces, posiciones y cargas</small></span
+              ><app-icon name="download" />
+            </button>
+            <button type="button" (click)="openModel()">
+              <span class="file-type">3D</span
+              ><span
+                ><strong>Captura tridimensional</strong
+                ><small>Abre el visor y usa su botón de exportación PNG</small></span
+              ><app-icon name="view3d" />
+            </button>
+          </div>
+        }
+        @case ('about') {
+          <header class="panel-header">
+            <div>
+              <span class="eyebrow">Proyecto</span>
+              <h2>Acerca de Molecular</h2>
+            </div>
+            <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
+          </header>
+          <div class="panel-content about-content">
+            <div class="about-hero">
+              <div class="about-logo"><app-icon name="atom" /></div>
+              <div>
+                <span>Molecular</span>
+                <h3>Del esquema químico al espacio tridimensional</h3>
+                <p>
+                  Editor y laboratorio visual para construir, estudiar y reutilizar estructuras
+                  químicas desde el navegador.
+                </p>
+              </div>
+            </div>
+            <div class="about-grid">
+              <section>
+                <span class="eyebrow">Versión actual</span><strong>{{ version }}</strong>
+                <p>
+                  Primera base funcional: edición 2D, validación elemental, modelo WebGL, guardado
+                  local y exportación.
+                </p>
+              </section>
+              <section>
+                <span class="eyebrow">Arquitectura</span><strong>Angular + Three.js</strong>
+                <p>
+                  Aplicación estática y privada por defecto. Los documentos permanecen en el
+                  dispositivo.
+                </p>
+              </section>
+            </div>
+            <section class="ecosystem">
+              <span class="eyebrow">Ecosistema científico</span>
+              <h3>Una escala interconectada</h3>
+              <p>
+                Molecular ocupa el nivel situado entre los elementos químicos y las representaciones
+                atómicas o subatómicas. En versiones posteriores podrá intercambiar estructuras con
+                Atlas Editor y otros proyectos científicos.
+              </p>
+              <div>
+                <span>Partículas</span><i></i><span>Átomos</span><i></i><strong>Moléculas</strong
+                ><i></i><span>Rutas y sistemas</span>
+              </div>
+            </section>
+            <div class="about-links">
+              <a href="https://github.com/AlejandroPico/Molecular" target="_blank" rel="noreferrer"
+                ><app-icon name="file" />Repositorio del proyecto</a
+              ><a href="https://alejandropico.github.io/Portfolio/" target="_blank" rel="noreferrer"
+                ><app-icon name="info" />Portfolio del autor</a
+              >
+            </div>
+            <p class="inspiration-note">
+              Inspirado conceptualmente en herramientas educativas como MolView, con interfaz,
+              arquitectura y motor propios.
+            </p>
+          </div>
+        }
+      }
+    </aside>
+  }
+
+  <input
+    #importInput
+    class="visually-hidden"
+    type="file"
+    accept=".json,.molecular.json,application/json"
+    (change)="importDocument($event)"
+  />
+</div>

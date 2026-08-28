@@ -1,0 +1,75 @@
+<section class="model-panel" aria-label="Visor molecular tridimensional">
+  <header class="model-header">
+    <div>
+      <span class="eyebrow">Visor molecular</span>
+      <h2>{{ molecule().name }}</h2>
+    </div>
+    <button
+      class="icon-button"
+      type="button"
+      aria-label="Cerrar visor 3D"
+      title="Cerrar visor 3D"
+      (click)="closeRequested.emit()"
+    >
+      <app-icon name="close" />
+    </button>
+  </header>
+
+  <div class="model-toolbar">
+    <label>
+      <span>Representación</span>
+      <select [value]="representation()" (change)="setRepresentation($any($event.target).value)">
+        <option value="ball-stick">Bolas y varillas</option>
+        <option value="spacefill">Espacio ocupado</option>
+        <option value="wireframe">Alambre</option>
+      </select>
+    </label>
+    <button
+      type="button"
+      class="tool-button"
+      [class.active]="showHydrogens()"
+      (click)="toggleHydrogens()"
+    >
+      <span class="hydrogen-mark">H</span>
+      Hidrógenos
+    </button>
+    <button
+      type="button"
+      class="icon-button"
+      title="Restablecer cámara"
+      aria-label="Restablecer cámara"
+      (click)="resetView()"
+    >
+      <app-icon name="view3d" />
+    </button>
+    <button
+      type="button"
+      class="icon-button"
+      title="Exportar imagen 3D"
+      aria-label="Exportar imagen 3D"
+      (click)="exportSnapshot()"
+    >
+      <app-icon name="download" />
+    </button>
+  </div>
+
+  <div class="viewport" #viewport>
+    @if (!molecule().atoms.length) {
+      <div class="empty-model">
+        <app-icon name="view3d" />
+        <strong>No hay una estructura que representar</strong>
+        <span>Añade átomos al lienzo 2D para construir el modelo.</span>
+      </div>
+    }
+    <div class="interaction-hint">
+      Arrastra para rotar · Rueda para acercar · Botón derecho para desplazar
+    </div>
+  </div>
+
+  <footer class="model-footer">
+    <span><i class="legend-sphere carbon"></i> Carbono</span>
+    <span><i class="legend-sphere oxygen"></i> Oxígeno</span>
+    <span><i class="legend-sphere nitrogen"></i> Nitrógeno</span>
+    <span><i class="legend-sphere hydrogen"></i> Hidrógeno</span>
+  </footer>
+</section>
