@@ -1,68 +1,66 @@
 # Molecular
 
-**Versión 0.1.1**
+**Versión 0.2.0**
 
-Molecular es un estudio químico visual para construir estructuras en dos dimensiones, comprobar sus propiedades básicas y explorarlas como modelos tridimensionales interactivos. El proyecto toma como referencia conceptual el flujo 2D → 3D popularizado por herramientas educativas como [MolView](https://molview.org/), pero utiliza una interfaz, una arquitectura y un motor propios.
+Molecular es un estudio químico visual de Alejandro Pico para construir estructuras en dos dimensiones, comprobar reglas básicas de enlace y explorarlas como modelos tridimensionales. Toma como referencia conceptual el flujo 2D → 3D de herramientas educativas como [MolView](https://molview.org/), con interfaz, arquitectura y motor propios.
 
 ## Aplicación publicada
 
 **GitHub Pages:** https://alejandropico.github.io/Molecular/
 
-El despliegue se actualiza automáticamente al publicar cambios en `main`.
+El despliegue se actualiza automáticamente con cada publicación en `main`.
 
-## Funciones de la versión 0.1.1
+## Novedades de la versión 0.2.0
 
-### Lienzo molecular 2D
+### Interfaz y lienzo
 
-- Creación y sustitución de átomos sobre un lienzo SVG.
-- Enlaces simples, dobles y triples.
-- Selección individual, selección múltiple rectangular y selección aditiva con `Mayús`.
-- Arrastre de átomos o fragmentos seleccionados.
-- Desplazamiento del lienzo y zoom entre 35 % y 320 %.
-- Duplicación, borrado, cambio de elemento y ajuste de carga.
-- Historial de hasta 80 operaciones con deshacer y rehacer.
+- Barra principal única, compacta y aislada en la esquina superior derecha.
+- Búsqueda como primer control, expandible hacia la izquierda.
+- Porcentaje de zoom como último control; la rueda o el gesto de pinza controlan la escala.
+- Zoom anclado al puntero: el punto señalado permanece bajo el ratón al acercar o alejar.
+- SVG proporcional mediante `preserveAspectRatio`; los átomos no se convierten en elipses al abrir el visor 3D.
+- Estado químico y métricas en un módulo flotante inferior, sin paleta horizontal.
+- `favicon.svg` disponible tanto en la raíz del repositorio como en los recursos públicos.
+- Identidad, descripción, autoría, versión y enlaces concentrados en «Acerca de».
 
-### Motor químico inicial
+### Herramientas químicas
 
-- Catálogo local de 19 elementos con número atómico, masa, radios, color y valencias habituales.
-- Fórmula molecular estimada mediante el orden de enlaces e hidrógenos implícitos.
-- Masa molar aproximada.
-- Conteo de átomos y enlaces explícitos e implícitos.
-- Avisos visuales cuando un átomo supera su valencia máxima configurada.
+- Paletas laterales desplegables desde la barra de herramientas.
+- Siete estilos de enlace: simple, doble, triple, cuña sólida, cuña discontinua, aromático visual e indeterminado.
+- Fragmentos listos para insertar: benceno, ciclopropano, ciclobutano, ciclopentano, ciclohexano, ciclooctano y cadena de seis carbonos.
+- Ajuste de carga formal desde la herramienta, el inspector de selección o el menú contextual.
+- Favoritos de elementos y acceso mediante puntos suspensivos a la tabla periódica completa.
+- Cambio de elemento desde el inspector y el menú contextual.
 
-### Visor 3D
+### Tabla periódica y validación
 
-- Renderizado WebGL mediante Three.js.
-- Rotación, desplazamiento y zoom orbital.
-- Representaciones de bolas y varillas, espacio ocupado y alambre.
-- Generación y ocultación de hidrógenos implícitos.
-- Exportación de la vista tridimensional en PNG.
+- Catálogo local de los 118 elementos con número atómico, nombre en español, masa, familia, color, periodo, posición y capacidades de enlace educativas.
+- Microtabla periódica completa y buscable por número, símbolo, nombre o familia.
+- Enciclopedia ampliada a los 118 elementos.
+- Validación previa: una unión, cambio de elemento o cambio de carga incompatible se rechaza antes de alterar el documento.
+- El orden de enlace consume capacidad: simple = 1, doble = 2 y triple = 3.
+- Cálculo de hidrógenos implícitos sensible a cargas comunes. Un carbono con carga formal ya no pierde todos sus hidrógenos automáticamente.
+- Importaciones antiguas siguen mostrando avisos si contienen una estructura fuera de los límites configurados.
 
-### Documentos y exportación
+### Edición, 3D y documentos
 
-- Autoguardado continuo en el navegador.
-- Biblioteca local de moléculas guardadas.
-- Formato editable `.molecular.json` para importar y exportar documentos.
-- Exportación de la estructura 2D en SVG y PNG de alta resolución.
-- Captura PNG del modelo tridimensional.
-
-### Interfaz
-
-- Menú superior estático con Archivo, Capas, Enciclopedia, Tema, Exportación, 3D y Acerca de.
-- Temas claro, oscuro y automático.
-- Capas para retícula, símbolos, índices, órdenes de enlace, hidrógenos y avisos.
-- Enciclopedia inicial de elementos.
-- Diseño adaptable a escritorio, tableta y móvil.
-- Moléculas de ejemplo: agua, metano, amoniaco, dióxido de carbono, etanol y benceno.
+- Selección individual, rectangular y aditiva con `Mayús`.
+- Arrastre, desplazamiento, duplicación, borrado y un historial de hasta 80 operaciones.
+- Visor Three.js con bolas y varillas, espacio ocupado y alambre.
+- Autoguardado y biblioteca privada en el navegador.
+- Importación y exportación `.molecular.json`.
+- Exportación 2D en SVG y PNG y captura 3D en PNG.
+- Ejemplos: agua, metano, amoniaco, dióxido de carbono, etanol y benceno.
 
 ## Uso rápido
 
-1. Selecciona un elemento en la barra inferior.
-2. Haz clic en el lienzo para añadir átomos.
-3. Elige un enlace simple, doble o triple y pulsa dos átomos para unirlos.
-4. Usa la herramienta de selección para mover o editar un fragmento.
-5. Pulsa **3D** para construir la representación tridimensional.
-6. Abre **Exportar** para obtener SVG, PNG o el documento editable.
+1. Sitúa el puntero sobre la herramienta de átomo y elige un favorito o abre la tabla periódica.
+2. Haz clic en el lienzo para colocar átomos.
+3. Sitúa el puntero sobre Enlace, elige un estilo y pulsa dos átomos.
+4. Usa Fragmentos para insertar un anillo o una cadena desde un punto del lienzo.
+5. Selecciona átomos para cambiar elemento o carga, duplicar, borrar o abrir el fragmento en 3D.
+6. Usa la rueda del ratón o la pinza táctil para ampliar exactamente donde estás señalando.
+7. Abre Exportar para obtener SVG, PNG o el documento editable.
 
 ### Atajos
 
@@ -81,23 +79,23 @@ El despliegue se actualiza automáticamente al publicar cambios en `main`.
 
 ## Tecnología
 
-- **Angular 22** y **TypeScript** para la aplicación.
+- **Angular 22** y **TypeScript** para aplicación, estado y motor educativo.
 - **SVG** como superficie de edición 2D y formato vectorial.
-- **Three.js** y **WebGL** para la visualización 3D.
+- **Three.js/WebGL** para la visualización 3D.
 - **localStorage** para autoguardado y biblioteca local.
 - **Vitest** para pruebas del motor y de la interfaz.
 - **GitHub Actions + GitHub Pages** para integración y despliegue continuos.
 
-## Por qué no hay un servidor Python en esta versión
+## Arquitectura sin servidor
 
-GitHub Pages no puede ejecutar Python ni un SQLite de servidor. La 0.1.1 funciona completamente en el navegador para que el editor, el guardado y el 3D sean inmediatos y no necesiten infraestructura.
+GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.2.0 funciona íntegramente en el navegador para mantener edición, validación, guardado y 3D inmediatos.
 
 La evolución prevista conserva dos vías:
 
-- SQLite compilado a WebAssembly y persistido con OPFS/IndexedDB para ampliar el catálogo manteniendo el alojamiento estático.
-- Un servicio opcional FastAPI con RDKit/Open Babel para optimización geométrica, SMILES, MOL/SDF, búsqueda estructural y cálculos avanzados.
+- SQLite compilado a WebAssembly y persistido con OPFS/IndexedDB para datos amplios manteniendo el alojamiento estático.
+- Servicio opcional FastAPI con RDKit u Open Babel para SMILES, MOL/SDF, búsqueda estructural, optimización geométrica y cálculos avanzados.
 
-La decisión completa está recogida en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+La decisión se detalla en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Desarrollo local
 
@@ -117,35 +115,40 @@ npm test -- --watch=false
 npm run build
 ```
 
-`npm run build` genera la versión preparada para GitHub Pages con base `/Molecular/`. Para una compilación estática con base local puede utilizarse `npm run build:local`.
+`npm run build` genera la versión para GitHub Pages con base `/Molecular/`. `npm run build:local` genera una compilación con base local.
 
 ## Estructura
 
 ```text
 Molecular/
-├── .github/workflows/          # despliegue de Pages
-├── docs/                       # decisiones técnicas
-├── public/                     # favicon, versión y recursos estáticos
-├── src/app/core/               # modelo y motor químico
-├── src/app/shared/             # componentes reutilizables
-├── src/app/three-d-viewer/     # motor y panel 3D
-├── src/app/app.*               # estudio molecular 2D e interfaz
+├── .github/workflows/             # despliegue de Pages
+├── docs/                          # decisiones técnicas
+├── favicon.svg                    # identidad disponible desde la raíz
+├── public/                        # favicon y metadatos públicos
+├── src/app/core/
+│   ├── periodic-table.data.ts     # catálogo de 118 elementos
+│   └── chemistry.models.ts        # documento, valencia, fórmulas y validación
+├── src/app/shared/                # iconografía SVG local
+├── src/app/three-d-viewer/        # motor y panel 3D
+├── src/app/app.*                  # editor 2D e interfaz
 ├── CHANGELOG.md
 └── README.md
 ```
 
 ## Alcance científico
 
-La validación de la 0.1.1 es educativa: usa valencias habituales y una geometría 3D aproximada derivada del dibujo. Todavía no calcula estereoquímica, resonancia, aromaticidad formal, cargas parciales, energía, espectros u orbitales. No sustituye herramientas de química computacional ni debe emplearse para validar resultados de investigación.
+La validación 0.2.0 es educativa. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Las cuñas representan intención estereoquímica en 2D, pero todavía no determinan configuración R/S ni geometría 3D rigurosa.
+
+Molecular no calcula resonancia, aromaticidad formal, cargas parciales, energía, espectros, orbitales ni dinámica molecular. No sustituye software de química computacional ni debe emplearse para validar resultados de investigación.
 
 ## Roadmap inmediato
 
 - Importación y exportación MOL, SDF y SMILES.
-- Plantillas de anillos, cadenas y grupos funcionales.
+- Grupos funcionales y edición avanzada de cadenas.
 - Búsqueda en PubChem y carga de conformadores reales.
-- Optimización geométrica y estereoquímica.
-- SQLite-WASM para un catálogo local ampliado.
-- Compatibilidad de intercambio con Atlas Editor.
+- Optimización geométrica, aromaticidad formal y estereoquímica.
+- SQLite-WASM para ampliar la base local.
+- Intercambio con Atlas Editor.
 - Rutas de reacción y, posteriormente, rutas metabólicas.
 
 ## Autor

@@ -1,5 +1,34 @@
 # Historial de versiones
 
+## 0.2.0 — 2026-08-29
+
+### Añadido
+
+- Catálogo y selector periódico completo de 118 elementos, con búsqueda, número atómico, nombre, masa, familia y capacidades educativas.
+- Flyouts laterales para átomos, siete estilos de enlace, cargas y fragmentos.
+- Enlaces de cuña sólida, cuña discontinua, aromático visual e indeterminado, además de simple, doble y triple.
+- Plantillas de benceno, ciclopropano, ciclobutano, ciclopentano, ciclohexano, ciclooctano y cadena de carbono.
+- Selección completa de elemento desde el inspector y desde el menú contextual.
+- Validación previa de enlace, sustitución de elemento y cambio de carga.
+- Zoom táctil mediante gesto de pinza.
+
+### Cambiado
+
+- La navegación pasa a ser una barra única y aislada en la esquina superior derecha, con búsqueda expandible a la izquierda y porcentaje de zoom como último control.
+- La paleta inferior desaparece; sus funciones se integran en la barra vertical.
+- «Acerca de» concentra identidad, versión, autoría, funciones y enlaces, y elimina el diagrama de ecosistema.
+- El estado químico se presenta como módulo flotante en lugar de una franja de borde completo.
+- Los hidrógenos implícitos tienen en cuenta cargas formales comunes.
+- El visor móvil 3D ocupa el área de trabajo completa mientras está abierto.
+
+### Corregido
+
+- El zoom mantiene fijo el punto situado bajo el cursor en lugar de tomar la esquina superior izquierda como origen.
+- El SVG conserva su relación de aspecto al redimensionarse o al abrir el visor 3D; los átomos permanecen circulares.
+- Añadir una carga al carbono ya no elimina indiscriminadamente todos los hidrógenos implícitos.
+- Las operaciones que exceden la capacidad de enlace ya no crean primero una estructura inválida: se rechazan con un mensaje explicativo.
+- Se añade `favicon.svg` literal en la raíz del repositorio.
+
 ## 0.1.1 — 2026-08-28
 
 ### Corregido

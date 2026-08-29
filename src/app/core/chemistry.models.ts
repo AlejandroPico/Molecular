@@ -1,23 +1,11 @@
-export type ElementSymbol =
-  | 'H'
-  | 'C'
-  | 'N'
-  | 'O'
-  | 'F'
-  | 'P'
-  | 'S'
-  | 'Cl'
-  | 'Br'
-  | 'I'
-  | 'B'
-  | 'Si'
-  | 'Na'
-  | 'Mg'
-  | 'K'
-  | 'Ca'
-  | 'Fe'
-  | 'Cu'
-  | 'Zn';
+import {
+  ELEMENTS as PERIODIC_ELEMENTS,
+  ELEMENT_BY_SYMBOL as PERIODIC_ELEMENT_BY_SYMBOL,
+  QUICK_ELEMENTS as PERIODIC_QUICK_ELEMENTS,
+  type ElementSymbol,
+} from './periodic-table.data';
+
+export type { ElementSymbol } from './periodic-table.data';
 
 export interface ElementDefinition {
   symbol: ElementSymbol;
@@ -30,8 +18,16 @@ export interface ElementDefinition {
   color: string;
   textColor: string;
   group: string;
+  category?: string;
+  period?: number;
+  groupNumber?: number | null;
+  tableColumn?: number;
+  tableRow?: number;
   description: string;
+  implicitHydrogens?: boolean;
 }
+
+export type BondKind = 'single' | 'double' | 'triple' | 'wedge' | 'hash' | 'aromatic' | 'any';
 
 export interface Atom {
   id: string;
@@ -46,6 +42,7 @@ export interface Bond {
   atomA: string;
   atomB: string;
   order: 1 | 2 | 3;
+  kind?: BondKind;
 }
 
 export interface MoleculeDocument {
@@ -68,258 +65,9 @@ export interface MoleculeStats {
   invalidAtomIds: Set<string>;
 }
 
-export const ELEMENTS: ReadonlyArray<ElementDefinition> = [
-  {
-    symbol: 'H',
-    name: 'Hidrógeno',
-    atomicNumber: 1,
-    atomicMass: 1.008,
-    valences: [1],
-    covalentRadius: 0.31,
-    vanDerWaalsRadius: 1.2,
-    color: '#f8fafc',
-    textColor: '#172033',
-    group: 'No metal',
-    description: 'El elemento más ligero. Forma habitualmente un enlace covalente.',
-  },
-  {
-    symbol: 'B',
-    name: 'Boro',
-    atomicNumber: 5,
-    atomicMass: 10.81,
-    valences: [3],
-    covalentRadius: 0.84,
-    vanDerWaalsRadius: 1.92,
-    color: '#f29b7f',
-    textColor: '#2a1711',
-    group: 'Metaloide',
-    description: 'Metaloide electrón-deficiente frecuente en boranos y boratos.',
-  },
-  {
-    symbol: 'C',
-    name: 'Carbono',
-    atomicNumber: 6,
-    atomicMass: 12.011,
-    valences: [4],
-    covalentRadius: 0.76,
-    vanDerWaalsRadius: 1.7,
-    color: '#384152',
-    textColor: '#ffffff',
-    group: 'No metal',
-    description: 'Base de la química orgánica. Puede formar enlaces simples, dobles y triples.',
-  },
-  {
-    symbol: 'N',
-    name: 'Nitrógeno',
-    atomicNumber: 7,
-    atomicMass: 14.007,
-    valences: [3, 5],
-    covalentRadius: 0.71,
-    vanDerWaalsRadius: 1.55,
-    color: '#3f6fe5',
-    textColor: '#ffffff',
-    group: 'No metal',
-    description: 'Presente en aminoácidos, bases nitrogenadas y numerosos grupos funcionales.',
-  },
-  {
-    symbol: 'O',
-    name: 'Oxígeno',
-    atomicNumber: 8,
-    atomicMass: 15.999,
-    valences: [2],
-    covalentRadius: 0.66,
-    vanDerWaalsRadius: 1.52,
-    color: '#e34d59',
-    textColor: '#ffffff',
-    group: 'No metal',
-    description: 'Elemento electronegativo que forma normalmente dos enlaces covalentes.',
-  },
-  {
-    symbol: 'F',
-    name: 'Flúor',
-    atomicNumber: 9,
-    atomicMass: 18.998,
-    valences: [1],
-    covalentRadius: 0.57,
-    vanDerWaalsRadius: 1.47,
-    color: '#59c98d',
-    textColor: '#10251b',
-    group: 'Halógeno',
-    description: 'El elemento más electronegativo; forma habitualmente un solo enlace.',
-  },
-  {
-    symbol: 'Na',
-    name: 'Sodio',
-    atomicNumber: 11,
-    atomicMass: 22.99,
-    valences: [1],
-    covalentRadius: 1.66,
-    vanDerWaalsRadius: 2.27,
-    color: '#9b72d9',
-    textColor: '#ffffff',
-    group: 'Metal alcalino',
-    description: 'Metal alcalino que suele participar en compuestos iónicos con carga +1.',
-  },
-  {
-    symbol: 'Mg',
-    name: 'Magnesio',
-    atomicNumber: 12,
-    atomicMass: 24.305,
-    valences: [2],
-    covalentRadius: 1.41,
-    vanDerWaalsRadius: 1.73,
-    color: '#83c66a',
-    textColor: '#12230e',
-    group: 'Alcalinotérreo',
-    description: 'Metal divalente esencial en sistemas biológicos, incluida la clorofila.',
-  },
-  {
-    symbol: 'Si',
-    name: 'Silicio',
-    atomicNumber: 14,
-    atomicMass: 28.085,
-    valences: [4],
-    covalentRadius: 1.11,
-    vanDerWaalsRadius: 2.1,
-    color: '#d49a6a',
-    textColor: '#2a1a0e',
-    group: 'Metaloide',
-    description: 'Forma redes tetraédricas y es central en silicatos y organosilicios.',
-  },
-  {
-    symbol: 'P',
-    name: 'Fósforo',
-    atomicNumber: 15,
-    atomicMass: 30.974,
-    valences: [3, 5],
-    covalentRadius: 1.07,
-    vanDerWaalsRadius: 1.8,
-    color: '#ee8b3a',
-    textColor: '#271509',
-    group: 'No metal',
-    description: 'Fundamental en ATP, ADN, ARN y grupos fosfato.',
-  },
-  {
-    symbol: 'S',
-    name: 'Azufre',
-    atomicNumber: 16,
-    atomicMass: 32.06,
-    valences: [2, 4, 6],
-    covalentRadius: 1.05,
-    vanDerWaalsRadius: 1.8,
-    color: '#e6c94b',
-    textColor: '#2a2509',
-    group: 'No metal',
-    description: 'Forma sulfuros, sulfatos y puentes disulfuro en proteínas.',
-  },
-  {
-    symbol: 'Cl',
-    name: 'Cloro',
-    atomicNumber: 17,
-    atomicMass: 35.45,
-    valences: [1],
-    covalentRadius: 1.02,
-    vanDerWaalsRadius: 1.75,
-    color: '#52bd65',
-    textColor: '#102313',
-    group: 'Halógeno',
-    description: 'Halógeno frecuente en sales y compuestos organoclorados.',
-  },
-  {
-    symbol: 'K',
-    name: 'Potasio',
-    atomicNumber: 19,
-    atomicMass: 39.098,
-    valences: [1],
-    covalentRadius: 2.03,
-    vanDerWaalsRadius: 2.75,
-    color: '#a667d8',
-    textColor: '#ffffff',
-    group: 'Metal alcalino',
-    description: 'Catión biológico esencial que suele presentar carga +1.',
-  },
-  {
-    symbol: 'Ca',
-    name: 'Calcio',
-    atomicNumber: 20,
-    atomicMass: 40.078,
-    valences: [2],
-    covalentRadius: 1.76,
-    vanDerWaalsRadius: 2.31,
-    color: '#74bd75',
-    textColor: '#102312',
-    group: 'Alcalinotérreo',
-    description: 'Metal divalente esencial en minerales y señalización celular.',
-  },
-  {
-    symbol: 'Fe',
-    name: 'Hierro',
-    atomicNumber: 26,
-    atomicMass: 55.845,
-    valences: [2, 3],
-    covalentRadius: 1.32,
-    vanDerWaalsRadius: 2.0,
-    color: '#c87c4e',
-    textColor: '#ffffff',
-    group: 'Metal de transición',
-    description: 'Metal de transición con estados de oxidación habituales +2 y +3.',
-  },
-  {
-    symbol: 'Cu',
-    name: 'Cobre',
-    atomicNumber: 29,
-    atomicMass: 63.546,
-    valences: [1, 2],
-    covalentRadius: 1.32,
-    vanDerWaalsRadius: 1.96,
-    color: '#c97848',
-    textColor: '#ffffff',
-    group: 'Metal de transición',
-    description: 'Metal conductor presente en complejos de coordinación y enzimas.',
-  },
-  {
-    symbol: 'Zn',
-    name: 'Zinc',
-    atomicNumber: 30,
-    atomicMass: 65.38,
-    valences: [2],
-    covalentRadius: 1.22,
-    vanDerWaalsRadius: 2.01,
-    color: '#8f9aab',
-    textColor: '#ffffff',
-    group: 'Metal de transición',
-    description: 'Metal divalente habitual en centros activos de proteínas.',
-  },
-  {
-    symbol: 'Br',
-    name: 'Bromo',
-    atomicNumber: 35,
-    atomicMass: 79.904,
-    valences: [1],
-    covalentRadius: 1.2,
-    vanDerWaalsRadius: 1.85,
-    color: '#a94c37',
-    textColor: '#ffffff',
-    group: 'Halógeno',
-    description: 'Halógeno pesado que forma normalmente un enlace covalente.',
-  },
-  {
-    symbol: 'I',
-    name: 'Yodo',
-    atomicNumber: 53,
-    atomicMass: 126.904,
-    valences: [1],
-    covalentRadius: 1.39,
-    vanDerWaalsRadius: 1.98,
-    color: '#7651a8',
-    textColor: '#ffffff',
-    group: 'Halógeno',
-    description: 'Halógeno pesado esencial en hormonas tiroideas.',
-  },
-];
-
-export const ELEMENT_BY_SYMBOL = new Map(ELEMENTS.map((element) => [element.symbol, element]));
-export const QUICK_ELEMENTS: ElementSymbol[] = ['C', 'H', 'O', 'N', 'S', 'P', 'F', 'Cl', 'Br', 'I'];
+export const ELEMENTS = PERIODIC_ELEMENTS;
+export const ELEMENT_BY_SYMBOL = PERIODIC_ELEMENT_BY_SYMBOL;
+export const QUICK_ELEMENTS = PERIODIC_QUICK_ELEMENTS;
 
 function uid(prefix: string): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -332,8 +80,23 @@ export function createAtom(element: ElementSymbol, x: number, y: number): Atom {
   return { id: uid('atom'), element, x, y, charge: 0 };
 }
 
-export function createBond(atomA: string, atomB: string, order: 1 | 2 | 3 = 1): Bond {
-  return { id: uid('bond'), atomA, atomB, order };
+export function bondKindOrder(kind: BondKind): 1 | 2 | 3 {
+  if (kind === 'double') return 2;
+  if (kind === 'triple') return 3;
+  return 1;
+}
+
+export function bondKindForOrder(order: 1 | 2 | 3): BondKind {
+  return order === 2 ? 'double' : order === 3 ? 'triple' : 'single';
+}
+
+export function createBond(
+  atomA: string,
+  atomB: string,
+  order: 1 | 2 | 3 = 1,
+  kind: BondKind = bondKindForOrder(order),
+): Bond {
+  return { id: uid('bond'), atomA, atomB, order, kind };
 }
 
 export function createDocument(name = 'Molécula sin título'): MoleculeDocument {
@@ -355,13 +118,104 @@ export function bondOrderForAtom(document: MoleculeDocument, atomId: string): nu
     .reduce((sum, bond) => sum + bond.order, 0);
 }
 
-export function implicitHydrogensForAtom(document: MoleculeDocument, atom: Atom): number {
-  if (atom.element === 'H' || atom.charge !== 0) return 0;
+const CHARGED_VALENCES: Partial<Record<ElementSymbol, Partial<Record<number, number[]>>>> = {
+  H: { [-1]: [0], [1]: [0] },
+  B: { [-1]: [4], [1]: [2] },
+  C: { [-1]: [3], [1]: [3] },
+  N: { [-1]: [2], [1]: [4] },
+  O: { [-1]: [1], [1]: [3] },
+  F: { [-1]: [0], [1]: [2] },
+  Si: { [-1]: [3], [1]: [3] },
+  P: { [-1]: [2, 4], [1]: [4] },
+  S: { [-1]: [1, 3, 5], [1]: [3, 5] },
+  Cl: { [-1]: [0], [1]: [2, 4, 6] },
+  Br: { [-1]: [0], [1]: [2, 4, 6] },
+  I: { [-1]: [0], [1]: [2, 4, 6] },
+};
+
+export interface ChemistryValidation {
+  valid: boolean;
+  message: string;
+}
+
+export function allowedValencesForAtom(atom: Atom): number[] {
   const definition = ELEMENT_BY_SYMBOL.get(atom.element);
-  if (!definition) return 0;
+  if (!definition) return [];
+  const charged = CHARGED_VALENCES[atom.element]?.[atom.charge];
+  return charged ? [...charged] : [...definition.valences];
+}
+
+export function maxValenceForAtom(atom: Atom): number {
+  return Math.max(0, ...allowedValencesForAtom(atom));
+}
+
+export function validateBondChange(
+  document: MoleculeDocument,
+  atomAId: string,
+  atomBId: string,
+  order: 1 | 2 | 3,
+): ChemistryValidation {
+  if (atomAId === atomBId)
+    return { valid: false, message: 'Un átomo no puede enlazarse consigo mismo.' };
+  const atoms = [atomAId, atomBId].map((id) => document.atoms.find((atom) => atom.id === id));
+  if (!atoms[0] || !atoms[1]) return { valid: false, message: 'No se encuentran ambos átomos.' };
+  const existing = document.bonds.find(
+    (bond) =>
+      (bond.atomA === atomAId && bond.atomB === atomBId) ||
+      (bond.atomA === atomBId && bond.atomB === atomAId),
+  );
+
+  for (const atom of atoms as Atom[]) {
+    const occupied = bondOrderForAtom(document, atom.id) - (existing?.order ?? 0) + order;
+    const maximum = maxValenceForAtom(atom);
+    if (occupied > maximum) {
+      const definition = ELEMENT_BY_SYMBOL.get(atom.element)!;
+      return {
+        valid: false,
+        message: `${definition.name} (${atom.element}) admite hasta ${maximum} unidades de enlace con su carga actual; la operación exigiría ${occupied}.`,
+      };
+    }
+  }
+  return { valid: true, message: '' };
+}
+
+export function validateElementChange(
+  document: MoleculeDocument,
+  atom: Atom,
+  element: ElementSymbol,
+): ChemistryValidation {
+  const candidate: Atom = { ...atom, element };
   const occupied = bondOrderForAtom(document, atom.id);
-  const target =
-    definition.valences.find((valence) => valence >= occupied) ?? definition.valences.at(-1) ?? 0;
+  const maximum = maxValenceForAtom(candidate);
+  if (occupied <= maximum) return { valid: true, message: '' };
+  const definition = ELEMENT_BY_SYMBOL.get(element)!;
+  return {
+    valid: false,
+    message: `No se puede convertir en ${definition.name}: tiene ${occupied} unidades de enlace y ${element} admite ${maximum}.`,
+  };
+}
+
+export function validateChargeChange(
+  document: MoleculeDocument,
+  atom: Atom,
+  charge: number,
+): ChemistryValidation {
+  const candidate: Atom = { ...atom, charge };
+  const occupied = bondOrderForAtom(document, atom.id);
+  const maximum = maxValenceForAtom(candidate);
+  if (occupied <= maximum) return { valid: true, message: '' };
+  return {
+    valid: false,
+    message: `${atom.element} con carga ${charge > 0 ? '+' : ''}${charge} admitiría ${maximum} unidades de enlace, pero ya utiliza ${occupied}.`,
+  };
+}
+
+export function implicitHydrogensForAtom(document: MoleculeDocument, atom: Atom): number {
+  if (atom.element === 'H') return 0;
+  const definition = ELEMENT_BY_SYMBOL.get(atom.element);
+  if (!definition?.implicitHydrogens) return 0;
+  const occupied = bondOrderForAtom(document, atom.id);
+  const target = allowedValencesForAtom(atom).find((valence) => valence >= occupied) ?? 0;
   return Math.max(0, target - occupied);
 }
 
@@ -375,9 +229,8 @@ export function calculateStats(document: MoleculeDocument): MoleculeStats {
   for (const atom of document.atoms) {
     elementCounts.set(atom.element, (elementCounts.get(atom.element) ?? 0) + 1);
     molecularMass += ELEMENT_BY_SYMBOL.get(atom.element)?.atomicMass ?? 0;
-    const definition = ELEMENT_BY_SYMBOL.get(atom.element);
     const usedValence = bondOrderForAtom(document, atom.id);
-    const maxValence = definition?.valences.at(-1) ?? 0;
+    const maxValence = maxValenceForAtom(atom);
     if (usedValence > maxValence) {
       invalidAtomIds.add(atom.id);
       warnings.push(

@@ -1,59 +1,44 @@
 <div class="app-shell" [class.model-visible]="modelOpen()">
-  <header class="topbar">
-    <div class="brand-block">
-      <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
-      <div class="brand-copy">
-        <strong>Molecular</strong>
-        <span
-          >Estudio químico <b>v{{ version }}</b></span
-        >
-      </div>
-    </div>
-
-    <div class="molecule-title">
-      <input
-        type="text"
-        aria-label="Nombre de la molécula"
-        title="Editar nombre"
-        [value]="molecule().name"
-        (change)="renameMolecule($event)"
-      />
-      <span>Autoguardado local</span>
-    </div>
-
-    <div class="global-search">
-      <app-icon name="search" />
-      <input
-        type="search"
-        placeholder="Buscar una molécula de ejemplo…"
-        aria-label="Buscar moléculas"
-        [value]="searchQuery()"
-        (input)="searchQuery.set($any($event.target).value); searchOpen.set(true)"
-        (focus)="searchOpen.set(true)"
-      />
+  <header class="topbar" aria-label="Navegación principal">
+    <div class="search-tool" [class.open]="searchOpen()">
       @if (searchOpen()) {
-        <div class="search-results">
-          <div class="results-label">Estructuras disponibles</div>
-          @for (preset of filteredPresets(); track preset.id) {
-            <button
-              type="button"
-              (pointerdown)="$event.preventDefault()"
-              (click)="loadPresetById(preset.id)"
-            >
-              <span class="result-symbol"><app-icon name="atom" /></span>
-              <span
-                ><strong>{{ preset.name }}</strong
-                ><small>{{ preset.category }} · {{ preset.description }}</small></span
-              >
-            </button>
-          } @empty {
-            <p>No hay coincidencias en el catálogo inicial.</p>
-          }
+        <div class="global-search">
+          <input
+            type="search"
+            placeholder="Buscar una molécula…"
+            aria-label="Buscar moléculas"
+            autofocus
+            [value]="searchQuery()"
+            (input)="searchQuery.set($any($event.target).value)"
+          />
+          <div class="search-results">
+            <div class="results-label">Estructuras disponibles</div>
+            @for (preset of filteredPresets(); track preset.id) {
+              <button type="button" (click)="loadPresetById(preset.id)">
+                <span class="result-symbol"><app-icon name="atom" /></span>
+                <span>
+                  <strong>{{ preset.name }}</strong>
+                  <small>{{ preset.category }} · {{ preset.description }}</small>
+                </span>
+              </button>
+            } @empty {
+              <p>No hay coincidencias en el catálogo inicial.</p>
+            }
+          </div>
         </div>
       }
+      <button
+        type="button"
+        [class.active]="searchOpen()"
+        title="Buscar moléculas"
+        aria-label="Buscar moléculas"
+        (click)="$event.stopPropagation(); toggleSearch()"
+      >
+        <app-icon name="search" />
+      </button>
     </div>
 
-    <div class="history-actions" aria-label="Historial de edición">
+    <nav class="top-actions" aria-label="Herramientas globales">
       <button
         type="button"
         [disabled]="!canUndo()"
@@ -72,20 +57,6 @@
       >
         <app-icon name="redo" />
       </button>
-    </div>
-
-    <nav class="top-actions" aria-label="Herramientas globales">
-      <div class="zoom-control">
-        <button type="button" title="Alejar" aria-label="Alejar" (click)="changeZoom(-0.1)">
-          <app-icon name="zoom-out" />
-        </button>
-        <button class="zoom-value" type="button" title="Restablecer vista" (click)="resetView()">
-          {{ (zoom() * 100).toFixed(0) }}%
-        </button>
-        <button type="button" title="Acercar" aria-label="Acercar" (click)="changeZoom(0.1)">
-          <app-icon name="zoom-in" />
-        </button>
-      </div>
       <button
         type="button"
         [class.active]="activePanel() === 'file'"
@@ -139,7 +110,7 @@
         aria-label="Construir modelo 3D"
         (click)="openModel()"
       >
-        <app-icon name="view3d" /><span>3D</span>
+        <app-icon name="view3d" />
       </button>
       <button
         type="button"
@@ -149,6 +120,15 @@
         (click)="togglePanel('about')"
       >
         <app-icon name="info" />
+      </button>
+      <button
+        class="zoom-value"
+        type="button"
+        title="Restablecer vista"
+        aria-label="Zoom; restablecer vista"
+        (click)="resetView()"
+      >
+        {{ (zoom() * 100).toFixed(0) }}%
       </button>
     </nav>
   </header>
@@ -161,9 +141,10 @@
         [class.tool-pan]="activeTool() === 'pan'"
         [class.tool-atom]="activeTool() === 'atom'"
         [class.tool-bond]="activeTool() === 'bond'"
+        [class.tool-fragment]="activeTool() === 'fragment'"
         [class.tool-erase]="activeTool() === 'erase'"
         viewBox="0 0 1400 800"
-        preserveAspectRatio="none"
+        preserveAspectRatio="xMidYMid meet"
         role="application"
         aria-label="Lienzo de edición molecular 2D"
         (pointerdown)="onCanvasPointerDown($event)"
@@ -190,20 +171,44 @@
           <g class="bond-layer">
             @for (bond of molecule().bonds; track bond.id) {
               <g class="bond-group" (pointerdown)="onBondPointerDown($event, bond)">
-                @for (line of bondLines(bond); track $index) {
-                  <line
-                    class="bond-line"
-                    [attr.x1]="line.x1"
-                    [attr.y1]="line.y1"
-                    [attr.x2]="line.x2"
-                    [attr.y2]="line.y2"
-                  />
+                @switch (bondVisualKind(bond)) {
+                  @case ('wedge') {
+                    <polygon class="bond-wedge" [attr.points]="wedgePoints(bond)" />
+                  }
+                  @case ('hash') {
+                    @for (line of hashedBondLines(bond); track $index) {
+                      <line
+                        class="bond-line"
+                        [attr.x1]="line.x1"
+                        [attr.y1]="line.y1"
+                        [attr.x2]="line.x2"
+                        [attr.y2]="line.y2"
+                      />
+                    }
+                  }
+                  @case ('any') {
+                    <path class="bond-line bond-any" [attr.d]="wavyBondPath(bond)" />
+                  }
+                  @default {
+                    @for (line of bondLines(bond); track $index) {
+                      <line
+                        class="bond-line"
+                        [class.bond-aromatic]="bondVisualKind(bond) === 'aromatic'"
+                        [attr.x1]="line.x1"
+                        [attr.y1]="line.y1"
+                        [attr.x2]="line.x2"
+                        [attr.y2]="line.y2"
+                      />
+                    }
+                  }
+                }
+                @if (bondLines(bond)[0]; as hit) {
                   <line
                     class="bond-hit"
-                    [attr.x1]="line.x1"
-                    [attr.y1]="line.y1"
-                    [attr.x2]="line.x2"
-                    [attr.y2]="line.y2"
+                    [attr.x1]="hit.x1"
+                    [attr.y1]="hit.y1"
+                    [attr.x2]="hit.x2"
+                    [attr.y2]="hit.y2"
                   />
                 }
                 @if (layers.bondOrders()) {
@@ -301,25 +306,172 @@
           <app-icon name="hand" /><kbd>H</kbd>
         </button>
         <div class="rail-divider"></div>
-        <button
-          type="button"
-          [class.active]="activeTool() === 'atom'"
-          title="Añadir o cambiar átomo (A)"
-          aria-label="Herramienta de átomo"
-          (click)="setTool('atom')"
-        >
-          <span class="current-element">{{ activeElement() }}</span
-          ><kbd>A</kbd>
-        </button>
-        <button
-          type="button"
-          [class.active]="activeTool() === 'bond'"
-          title="Crear o editar enlace (B)"
-          aria-label="Herramienta de enlace"
-          (click)="setTool('bond')"
-        >
-          <app-icon name="bond" /><kbd>B</kbd>
-        </button>
+        <div class="rail-tool-group">
+          <button
+            type="button"
+            [class.active]="activeTool() === 'atom'"
+            title="Añadir o cambiar átomo (A)"
+            aria-label="Herramienta de átomo"
+            (click)="setTool('atom')"
+          >
+            <span class="current-element">{{ activeElement() }}</span
+            ><kbd>A</kbd>
+          </button>
+          <div class="tool-flyout atom-flyout">
+            <span class="flyout-title">Átomos frecuentes</span>
+            <div class="flyout-elements">
+              @for (symbol of quickElements; track symbol) {
+                <button
+                  type="button"
+                  [class.active]="activeElement() === symbol"
+                  [style.--element-color]="atomDefinition(symbol).color"
+                  [attr.title]="atomDefinition(symbol).name"
+                  (click)="setElement(symbol)"
+                >
+                  {{ symbol }}
+                </button>
+              }
+              <button
+                class="flyout-more"
+                type="button"
+                title="Tabla periódica completa"
+                aria-label="Tabla periódica completa"
+                (click)="openPeriodicPicker($event)"
+              >
+                <app-icon name="more" />
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="rail-tool-group">
+          <button
+            type="button"
+            [class.active]="activeTool() === 'bond'"
+            title="Crear o editar enlace (B)"
+            aria-label="Herramienta de enlace"
+            (click)="setTool('bond')"
+          >
+            <app-icon name="bond" /><kbd>B</kbd>
+          </button>
+          <div class="tool-flyout bond-flyout">
+            <span class="flyout-title">Tipo de enlace</span>
+            <button
+              type="button"
+              [class.active]="bondKind() === 'single'"
+              (click)="setBondKind('single')"
+            >
+              <span class="bond-sample single"></span
+              ><span><strong>Simple</strong><small>Orden 1</small></span>
+            </button>
+            <button
+              type="button"
+              [class.active]="bondKind() === 'double'"
+              (click)="setBondKind('double')"
+            >
+              <span class="bond-sample double"></span
+              ><span><strong>Doble</strong><small>Orden 2</small></span>
+            </button>
+            <button
+              type="button"
+              [class.active]="bondKind() === 'triple'"
+              (click)="setBondKind('triple')"
+            >
+              <span class="bond-sample triple"></span
+              ><span><strong>Triple</strong><small>Orden 3</small></span>
+            </button>
+            <button
+              type="button"
+              [class.active]="bondKind() === 'wedge'"
+              (click)="setBondKind('wedge')"
+            >
+              <span class="bond-sample wedge"></span
+              ><span><strong>Cuña sólida</strong><small>Hacia el observador</small></span>
+            </button>
+            <button
+              type="button"
+              [class.active]="bondKind() === 'hash'"
+              (click)="setBondKind('hash')"
+            >
+              <span class="bond-sample hash"></span
+              ><span><strong>Cuña discontinua</strong><small>Detrás del plano</small></span>
+            </button>
+            <button
+              type="button"
+              [class.active]="bondKind() === 'aromatic'"
+              (click)="setBondKind('aromatic')"
+            >
+              <span class="bond-sample aromatic"></span
+              ><span><strong>Aromático</strong><small>Representación visual</small></span>
+            </button>
+            <button
+              type="button"
+              [class.active]="bondKind() === 'any'"
+              (click)="setBondKind('any')"
+            >
+              <span class="bond-sample any">∿</span
+              ><span><strong>Indeterminado</strong><small>Consulta o esquema</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="rail-tool-group">
+          <button
+            type="button"
+            [class.active]="activeTool() === 'fragment'"
+            title="Insertar fragmento"
+            aria-label="Insertar fragmento"
+            (click)="setTool('fragment')"
+          >
+            <app-icon name="sparkles" />
+          </button>
+          <div class="tool-flyout fragment-flyout">
+            <span class="flyout-title">Fragmentos</span>
+            @for (fragment of fragmentTemplates; track fragment.id) {
+              <button
+                type="button"
+                [class.active]="activeFragment() === fragment.id"
+                (click)="setFragment(fragment.id)"
+              >
+                <span class="fragment-glyph">{{
+                  fragment.sides === 3
+                    ? '△'
+                    : fragment.sides === 4
+                      ? '◇'
+                      : fragment.sides === 5
+                        ? '⬠'
+                        : fragment.sides === 6
+                          ? '⬡'
+                          : fragment.sides === 8
+                            ? '⯃'
+                            : '⌁'
+                }}</span>
+                <span
+                  ><strong>{{ fragment.label }}</strong
+                  ><small>{{
+                    fragment.chain ? '6 carbonos' : fragment.sides + ' miembros'
+                  }}</small></span
+                >
+              </button>
+            }
+          </div>
+        </div>
+        <div class="rail-tool-group">
+          <button type="button" title="Carga formal" aria-label="Cambiar carga formal">
+            <app-icon name="plus" />
+          </button>
+          <div class="tool-flyout charge-flyout">
+            <span class="flyout-title">Carga formal</span>
+            <button type="button" (click)="changeCharge(-1)">
+              <app-icon name="minus" /><span
+                ><strong>Reducir carga</strong><small>−1 en la selección</small></span
+              >
+            </button>
+            <button type="button" (click)="changeCharge(1)">
+              <app-icon name="plus" /><span
+                ><strong>Aumentar carga</strong><small>+1 en la selección</small></span
+              >
+            </button>
+          </div>
+        </div>
         <button
           type="button"
           [class.active]="activeTool() === 'erase'"
@@ -339,61 +491,6 @@
           <app-icon name="trash" />
         </button>
       </aside>
-
-      <div class="element-dock">
-        <div class="dock-section element-section">
-          <span class="dock-label">Elemento</span>
-          @for (symbol of quickElements; track symbol) {
-            <button
-              type="button"
-              class="element-button"
-              [class.active]="activeElement() === symbol && activeTool() === 'atom'"
-              [style.--element-color]="atomDefinition(symbol).color"
-              [attr.title]="atomDefinition(symbol).name"
-              (click)="setElement(symbol)"
-            >
-              {{ symbol }}
-            </button>
-          }
-          <button
-            class="more-elements"
-            type="button"
-            title="Todos los elementos"
-            aria-label="Todos los elementos"
-            (click)="togglePanel('encyclopedia')"
-          >
-            <app-icon name="more" />
-          </button>
-        </div>
-        <div class="dock-divider"></div>
-        <div class="dock-section bond-section">
-          <span class="dock-label">Enlace</span>
-          <button
-            type="button"
-            [class.active]="bondOrder() === 1 && activeTool() === 'bond'"
-            title="Enlace simple (1)"
-            (click)="setBondOrder(1)"
-          >
-            <i></i>
-          </button>
-          <button
-            type="button"
-            [class.active]="bondOrder() === 2 && activeTool() === 'bond'"
-            title="Enlace doble (2)"
-            (click)="setBondOrder(2)"
-          >
-            <i></i><i></i>
-          </button>
-          <button
-            type="button"
-            [class.active]="bondOrder() === 3 && activeTool() === 'bond'"
-            title="Enlace triple (3)"
-            (click)="setBondOrder(3)"
-          >
-            <i></i><i></i><i></i>
-          </button>
-        </div>
-      </div>
 
       @if (selectedAtoms().length) {
         <aside class="selection-inspector">
@@ -417,7 +514,7 @@
           <div class="inspector-row">
             <span>Elemento</span>
             <div class="mini-elements">
-              @for (symbol of ['C', 'H', 'O', 'N', 'S', 'P']; track symbol) {
+              @for (symbol of quickElements.slice(0, 6); track symbol) {
                 <button
                   type="button"
                   [class.active]="selectedElement() === symbol"
@@ -426,6 +523,14 @@
                   {{ symbol }}
                 </button>
               }
+              <button
+                type="button"
+                title="Tabla periódica completa"
+                aria-label="Tabla periódica completa"
+                (click)="openPeriodicPicker($event)"
+              >
+                <app-icon name="more" />
+              </button>
             </div>
           </div>
           <div class="inspector-actions">
@@ -468,6 +573,26 @@
           <div class="context-title">
             {{ selectedAtoms().length }}
             {{ selectedAtoms().length === 1 ? 'elemento seleccionado' : 'elementos seleccionados' }}
+          </div>
+          <div class="context-elements" aria-label="Cambiar elemento">
+            @for (symbol of quickElements.slice(0, 6); track symbol) {
+              <button
+                type="button"
+                [class.active]="selectedElement() === symbol"
+                [attr.title]="atomDefinition(symbol).name"
+                (click)="applyElementToSelection(symbol)"
+              >
+                {{ symbol }}
+              </button>
+            }
+            <button
+              type="button"
+              title="Tabla periódica completa"
+              aria-label="Tabla periódica completa"
+              (click)="openPeriodicPicker($event)"
+            >
+              <app-icon name="more" />
+            </button>
           </div>
           <button type="button" (click)="openSelectedInModel()">
             <app-icon name="view3d" /><span
@@ -523,12 +648,6 @@
         ><small>Enlaces</small><strong>{{ stats().bondCount }}</strong></span
       >
     </div>
-    <div class="status-zoom">
-      <span>{{ (zoom() * 100).toFixed(0) }}%</span>
-      <span>{{
-        selectedAtoms().length ? selectedAtoms().length + ' seleccionados' : 'Sin selección'
-      }}</span>
-    </div>
   </footer>
 
   @if (activePanel(); as panel) {
@@ -548,6 +667,11 @@
             <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
           </header>
           <div class="panel-content">
+            <label class="document-name">
+              <span>Nombre del documento</span>
+              <input type="text" [value]="molecule().name" (change)="renameMolecule($event)" />
+              <small>Autoguardado local activo</small>
+            </label>
             <div class="action-grid">
               <button type="button" (click)="newMolecule()">
                 <app-icon name="file" /><span
@@ -853,13 +977,13 @@
           </header>
           <div class="panel-content about-content">
             <div class="about-hero">
-              <div class="about-logo"><app-icon name="atom" /></div>
+              <div class="about-logo"><img src="favicon.svg" alt="" /></div>
               <div>
                 <span>Molecular</span>
                 <h3>Del esquema químico al espacio tridimensional</h3>
                 <p>
-                  Editor y laboratorio visual para construir, estudiar y reutilizar estructuras
-                  químicas desde el navegador.
+                  Editor químico abierto de Alejandro Pico para construir, estudiar, visualizar y
+                  reutilizar estructuras moleculares directamente desde el navegador.
                 </p>
               </div>
             </div>
@@ -867,8 +991,8 @@
               <section>
                 <span class="eyebrow">Versión actual</span><strong>{{ version }}</strong>
                 <p>
-                  Primera base funcional: edición 2D, validación elemental, modelo WebGL, guardado
-                  local y exportación.
+                  Tabla periódica completa, enlaces estereoquímicos, fragmentos, validación de
+                  capacidad, edición 2D, modelo WebGL, guardado local y exportación.
                 </p>
               </section>
               <section>
@@ -879,18 +1003,17 @@
                 </p>
               </section>
             </div>
-            <section class="ecosystem">
-              <span class="eyebrow">Ecosistema científico</span>
-              <h3>Una escala interconectada</h3>
+            <section class="about-purpose">
+              <span class="eyebrow">Qué ofrece</span>
               <p>
-                Molecular ocupa el nivel situado entre los elementos químicos y las representaciones
-                atómicas o subatómicas. En versiones posteriores podrá intercambiar estructuras con
-                Atlas Editor y otros proyectos científicos.
+                Un lienzo de trabajo para dibujar moléculas con átomos, cargas, siete estilos de
+                enlace y fragmentos cíclicos; comprobar límites básicos de valencia; abrir la
+                selección en 3D; y exportar el resultado como SVG, PNG o documento editable.
               </p>
-              <div>
-                <span>Partículas</span><i></i><span>Átomos</span><i></i><strong>Moléculas</strong
-                ><i></i><span>Rutas y sistemas</span>
-              </div>
+              <p>
+                La validación es educativa y explícita: evita estructuras obviamente imposibles,
+                pero no sustituye un cálculo de química cuántica ni un análisis profesional.
+              </p>
             </section>
             <div class="about-links">
               <a href="https://github.com/AlejandroPico/Molecular" target="_blank" rel="noreferrer"
@@ -907,6 +1030,80 @@
         }
       }
     </aside>
+  }
+
+  @if (periodicPickerOpen()) {
+    <div class="periodic-backdrop" (pointerdown)="closePeriodicPicker()">
+      <section
+        class="periodic-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="periodic-title"
+        (pointerdown)="$event.stopPropagation()"
+      >
+        <header>
+          <div>
+            <span class="eyebrow">118 elementos</span>
+            <h2 id="periodic-title">Seleccionar átomo</h2>
+            <p>
+              {{
+                selectedAtoms().length
+                  ? 'El elemento sustituirá la selección actual.'
+                  : 'El elemento quedará activo para dibujar.'
+              }}
+            </p>
+          </div>
+          <button
+            type="button"
+            title="Cerrar"
+            aria-label="Cerrar tabla periódica"
+            (click)="closePeriodicPicker()"
+          >
+            <app-icon name="close" />
+          </button>
+        </header>
+        <label class="periodic-search">
+          <app-icon name="search" />
+          <input
+            type="search"
+            placeholder="Número, nombre, símbolo o familia…"
+            [value]="periodicQuery()"
+            (input)="periodicQuery.set($any($event.target).value)"
+          />
+        </label>
+        <div class="periodic-scroll">
+          <div class="periodic-grid" [class.filtered]="periodicQuery()">
+            @if (!periodicQuery()) {
+              <div class="series-placeholder lanthanide-placeholder">
+                <span>57–71</span><small>Lantánidos</small>
+              </div>
+              <div class="series-placeholder actinide-placeholder">
+                <span>89–103</span><small>Actínidos</small>
+              </div>
+            }
+            @for (element of filteredPeriodicElements(); track element.symbol) {
+              <button
+                type="button"
+                class="periodic-cell"
+                [style.grid-column]="element.tableColumn"
+                [style.grid-row]="element.tableRow"
+                [style.--element-color]="element.color"
+                [attr.title]="element.name + ' · valencias ' + element.valences.join(', ')"
+                (click)="selectPeriodicElement(element.symbol)"
+              >
+                <span>{{ element.atomicNumber }}</span>
+                <strong>{{ element.symbol }}</strong>
+                <small>{{ element.name }}</small>
+              </button>
+            }
+          </div>
+        </div>
+        <footer>
+          <span>El número indica el número atómico.</span>
+          <span>La capacidad de enlace se valida al construir.</span>
+        </footer>
+      </section>
+    </div>
   }
 
   <input

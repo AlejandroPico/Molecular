@@ -11,8 +11,11 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     expect(fixture.componentInstance).toBeTruthy();
-    expect(fixture.nativeElement.textContent).toContain('Molecular');
-    expect(fixture.nativeElement.textContent).toContain('v0.1.1');
+    const aboutButton = fixture.nativeElement.querySelector('[aria-label="Acerca de Molecular"]');
+    aboutButton.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Acerca de Molecular');
+    expect(fixture.nativeElement.textContent).toContain('0.2.0');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {
@@ -24,5 +27,29 @@ describe('App', () => {
     expect(canvas).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain('C₂H₆O');
     expect(fixture.nativeElement.textContent).toContain('Estructura coherente');
+  });
+
+  it('keeps the molecular canvas proportional and exposes all 118 elements', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const canvas = fixture.nativeElement.querySelector('.molecular-canvas');
+    expect(canvas.getAttribute('preserveAspectRatio')).toBe('xMidYMid meet');
+
+    fixture.nativeElement.querySelector('[aria-label="Tabla periódica completa"]').click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.periodic-cell').length).toBe(118);
+  });
+
+  it('anchors wheel zoom at the pointer instead of the upper-left corner', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const canvas: SVGSVGElement = fixture.nativeElement.querySelector('.molecular-canvas');
+    const moleculeLayer = canvas.querySelector('g[transform]')!;
+    const before = moleculeLayer.getAttribute('transform');
+    canvas.dispatchEvent(new WheelEvent('wheel', { clientX: 420, clientY: 310, deltaY: -120 }));
+    fixture.detectChanges();
+    const after = moleculeLayer.getAttribute('transform');
+    expect(after).not.toBe(before);
+    expect(after).not.toContain('translate(0 0)');
   });
 });

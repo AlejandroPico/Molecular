@@ -10,12 +10,15 @@ import {
 import {
   Atom,
   Bond,
+  BondKind,
   ELEMENTS,
   ELEMENT_BY_SYMBOL,
   ElementSymbol,
   MOLECULE_PRESETS,
   MoleculeDocument,
   QUICK_ELEMENTS,
+  bondKindForOrder,
+  bondKindOrder,
   calculateStats,
   cloneDocument,
   createAtom,
@@ -23,11 +26,14 @@ import {
   createDocument,
   documentFromPreset,
   implicitHydrogensForAtom,
+  validateBondChange,
+  validateChargeChange,
+  validateElementChange,
 } from './core/chemistry.models';
 import { IconComponent } from './shared/icon.component';
 import { ThreeDViewerComponent } from './three-d-viewer/three-d-viewer.component';
 
-type EditorTool = 'select' | 'pan' | 'atom' | 'bond' | 'erase';
+type EditorTool = 'select' | 'pan' | 'atom' | 'bond' | 'fragment' | 'erase';
 type PanelName = 'file' | 'layers' | 'encyclopedia' | 'theme' | 'export' | 'about' | null;
 type ThemeMode = 'auto' | 'light' | 'dark';
 
@@ -72,6 +78,28 @@ interface BondLine {
   y2: number;
 }
 
+interface FragmentTemplate {
+  id:
+    | 'benzene'
+    | 'cyclopropane'
+    | 'cyclobutane'
+    | 'cyclopentane'
+    | 'cyclohexane'
+    | 'cyclooctane'
+    | 'carbon-chain';
+  label: string;
+  sides: number;
+  aromatic?: boolean;
+  chain?: boolean;
+}
+
+interface PinchState {
+  pointerIds: [number, number];
+  startDistance: number;
+  startZoom: number;
+  moleculeAnchor: CanvasPoint;
+}
+
 @Component({
   selector: 'app-root',
   imports: [IconComponent, ThreeDViewerComponent],
@@ -80,7 +108,7 @@ interface BondLine {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  protected readonly version = '0.1.1';
+  protected readonly version = '0.2.0';
   protected readonly elements = ELEMENTS;
   protected readonly quickElements = QUICK_ELEMENTS;
   protected readonly presets = MOLECULE_PRESETS;
@@ -92,6 +120,8 @@ export class App {
   protected readonly activeTool = signal<EditorTool>('select');
   protected readonly activeElement = signal<ElementSymbol>('C');
   protected readonly bondOrder = signal<1 | 2 | 3>(1);
+  protected readonly bondKind = signal<BondKind>('single');
+  protected readonly activeFragment = signal<FragmentTemplate['id']>('benzene');
   protected readonly bondStartId = signal<string | null>(null);
   protected readonly activePanel = signal<PanelName>(null);
   protected readonly modelOpen = signal(false);
@@ -102,11 +132,23 @@ export class App {
   protected readonly searchQuery = signal('');
   protected readonly searchOpen = signal(false);
   protected readonly encyclopediaQuery = signal('');
+  protected readonly periodicQuery = signal('');
+  protected readonly periodicPickerOpen = signal(false);
   protected readonly themeMode = signal<ThemeMode>(this.initialTheme());
   protected readonly toast = signal<string | null>(null);
   protected readonly savedDocuments = signal<StoredDocument[]>(this.loadStoredDocuments());
   protected readonly canUndo = signal(false);
   protected readonly canRedo = signal(false);
+
+  protected readonly fragmentTemplates: ReadonlyArray<FragmentTemplate> = [
+    { id: 'benzene', label: 'Benceno', sides: 6, aromatic: true },
+    { id: 'cyclopropane', label: 'Ciclopropano', sides: 3 },
+    { id: 'cyclobutane', label: 'Ciclobutano', sides: 4 },
+    { id: 'cyclopentane', label: 'Ciclopentano', sides: 5 },
+    { id: 'cyclohexane', label: 'Ciclohexano', sides: 6 },
+    { id: 'cyclooctane', label: 'Ciclooctano', sides: 8 },
+    { id: 'carbon-chain', label: 'Cadena de carbono', sides: 6, chain: true },
+  ];
 
   protected readonly layers = {
     grid: signal(true),
@@ -149,6 +191,15 @@ export class App {
       this.normalize(element.name + ' ' + element.symbol + ' ' + element.group).includes(query),
     );
   });
+  protected readonly filteredPeriodicElements = computed(() => {
+    const query = this.normalize(this.periodicQuery());
+    if (!query) return this.elements;
+    return this.elements.filter((element) =>
+      this.normalize(
+        `${element.atomicNumber} ${element.name} ${element.symbol} ${element.group}`,
+      ).includes(query),
+    );
+  });
   protected readonly modelMolecule = computed(() => {
     const source = this.molecule();
     const ids = this.modelAtomIds();
@@ -172,6 +223,8 @@ export class App {
   private undoStack: MoleculeDocument[] = [];
   private redoStack: MoleculeDocument[] = [];
   private pointerState: PointerState | null = null;
+  private readonly touchPointers = new Map<number, CanvasPoint>();
+  private pinchState: PinchState | null = null;
   private spacePressed = false;
   private toastTimer = 0;
 
@@ -185,20 +238,60 @@ export class App {
     this.contextMenu.set(null);
   }
 
-  protected setElement(symbol: ElementSymbol): void {
+  protected setElement(symbol: ElementSymbol): boolean {
+    if (this.selectedAtomIds().size && !this.applyElementToSelection(symbol)) return false;
     this.activeElement.set(symbol);
     this.activeTool.set('atom');
-    if (this.selectedAtomIds().size) this.applyElementToSelection(symbol);
+    return true;
   }
 
   protected setBondOrder(order: 1 | 2 | 3): void {
     this.bondOrder.set(order);
+    this.bondKind.set(bondKindForOrder(order));
     this.activeTool.set('bond');
+  }
+
+  protected setBondKind(kind: BondKind): void {
+    this.bondKind.set(kind);
+    this.bondOrder.set(bondKindOrder(kind));
+    this.activeTool.set('bond');
+    this.bondStartId.set(null);
+  }
+
+  protected setFragment(fragment: FragmentTemplate['id']): void {
+    this.activeFragment.set(fragment);
+    this.activeTool.set('fragment');
+    this.bondStartId.set(null);
+    this.notify(
+      'Haz clic en el lienzo para insertar ' + this.fragmentLabel(fragment).toLowerCase(),
+    );
+  }
+
+  protected openPeriodicPicker(event?: Event): void {
+    event?.stopPropagation();
+    this.periodicQuery.set('');
+    this.periodicPickerOpen.set(true);
+    this.activePanel.set(null);
+    this.contextMenu.set(null);
+  }
+
+  protected closePeriodicPicker(): void {
+    this.periodicPickerOpen.set(false);
+    this.periodicQuery.set('');
+  }
+
+  protected selectPeriodicElement(symbol: ElementSymbol): void {
+    if (this.setElement(symbol)) this.closePeriodicPicker();
   }
 
   protected togglePanel(panel: Exclude<PanelName, null>): void {
     this.activePanel.update((current) => (current === panel ? null : panel));
     this.contextMenu.set(null);
+  }
+
+  protected toggleSearch(): void {
+    this.searchOpen.update((value) => !value);
+    if (!this.searchOpen()) this.searchQuery.set('');
   }
 
   protected closePanels(): void {
@@ -403,7 +496,14 @@ export class App {
         });
       const bonds = document.bonds
         .filter((bond) => ids.has(bond.atomA) && ids.has(bond.atomB))
-        .map((bond) => createBond(idMap.get(bond.atomA)!, idMap.get(bond.atomB)!, bond.order));
+        .map((bond) =>
+          createBond(
+            idMap.get(bond.atomA)!,
+            idMap.get(bond.atomB)!,
+            bond.order,
+            bond.kind ?? bondKindForOrder(bond.order),
+          ),
+        );
       document.atoms.push(...copies);
       document.bonds.push(...bonds);
     });
@@ -412,24 +512,48 @@ export class App {
     this.notify('Fragmento duplicado');
   }
 
-  protected applyElementToSelection(symbol: ElementSymbol): void {
+  protected applyElementToSelection(symbol: ElementSymbol): boolean {
     const ids = this.selectedAtomIds();
-    if (!ids.size) return;
+    if (!ids.size) return false;
+    const invalid = this.molecule()
+      .atoms.filter((atom) => ids.has(atom.id))
+      .map((atom) => validateElementChange(this.molecule(), atom, symbol))
+      .find((result) => !result.valid);
+    if (invalid) {
+      this.notify(invalid.message);
+      return false;
+    }
     this.mutate((document) => {
       document.atoms.forEach((atom) => {
         if (ids.has(atom.id)) atom.element = symbol;
       });
     });
+    this.notify('Selección convertida en ' + this.atomDefinition(symbol).name);
+    return true;
   }
 
   protected changeCharge(delta: number): void {
     const ids = this.selectedAtomIds();
-    if (!ids.size) return;
+    if (!ids.size) {
+      this.notify('Selecciona al menos un átomo para cambiar su carga');
+      return;
+    }
+    const changes = this.molecule()
+      .atoms.filter((atom) => ids.has(atom.id))
+      .map((atom) => ({ atom, charge: Math.max(-4, Math.min(4, atom.charge + delta)) }));
+    const invalid = changes
+      .map(({ atom, charge }) => validateChargeChange(this.molecule(), atom, charge))
+      .find((result) => !result.valid);
+    if (invalid) {
+      this.notify(invalid.message);
+      return;
+    }
     this.mutate((document) => {
       document.atoms.forEach((atom) => {
         if (ids.has(atom.id)) atom.charge = Math.max(-4, Math.min(4, atom.charge + delta));
       });
     });
+    this.notify(delta > 0 ? 'Carga formal aumentada' : 'Carga formal reducida');
   }
 
   protected changeZoom(delta: number): void {
@@ -490,6 +614,62 @@ export class App {
     });
   }
 
+  protected bondVisualKind(bond: Bond): BondKind {
+    return bond.kind ?? bondKindForOrder(bond.order);
+  }
+
+  protected wedgePoints(bond: Bond): string {
+    const endpoints = this.bondEndpoints(bond);
+    if (!endpoints) return '';
+    const { a, b } = endpoints;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / length) * 10;
+    const ny = (dx / length) * 10;
+    return `${a.x},${a.y} ${b.x + nx},${b.y + ny} ${b.x - nx},${b.y - ny}`;
+  }
+
+  protected hashedBondLines(bond: Bond): BondLine[] {
+    const endpoints = this.bondEndpoints(bond);
+    if (!endpoints) return [];
+    const { a, b } = endpoints;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const nx = -dy / length;
+    const ny = dx / length;
+    return Array.from({ length: 7 }, (_, index) => {
+      const t = (index + 1) / 8;
+      const halfWidth = t * 10;
+      const x = a.x + dx * t;
+      const y = a.y + dy * t;
+      return {
+        x1: x - nx * halfWidth,
+        y1: y - ny * halfWidth,
+        x2: x + nx * halfWidth,
+        y2: y + ny * halfWidth,
+      };
+    });
+  }
+
+  protected wavyBondPath(bond: Bond): string {
+    const endpoints = this.bondEndpoints(bond);
+    if (!endpoints) return '';
+    const { a, b } = endpoints;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const nx = -dy / length;
+    const ny = dx / length;
+    const points = Array.from({ length: 13 }, (_, index) => {
+      const t = index / 12;
+      const wave = index === 0 || index === 12 ? 0 : index % 2 ? 4 : -4;
+      return `${a.x + dx * t + nx * wave},${a.y + dy * t + ny * wave}`;
+    });
+    return 'M ' + points.join(' L ');
+  }
+
   protected bondMidpoint(bond: Bond): CanvasPoint {
     const a = this.molecule().atoms.find((atom) => atom.id === bond.atomA);
     const b = this.molecule().atoms.find((atom) => atom.id === bond.atomB);
@@ -513,6 +693,7 @@ export class App {
 
   protected onCanvasPointerDown(event: PointerEvent): void {
     this.contextMenu.set(null);
+    if (this.registerTouchPointer(event)) return;
     const point = this.toMoleculePoint(event);
     if (event.button === 1 || this.activeTool() === 'pan' || this.spacePressed) {
       event.preventDefault();
@@ -531,6 +712,10 @@ export class App {
       this.notify('Selecciona dos átomos para crear el enlace');
       return;
     }
+    if (this.activeTool() === 'fragment') {
+      this.insertFragment(this.activeFragment(), point);
+      return;
+    }
     if (this.activeTool() === 'select') {
       this.beginPointer(event, 'select', point, event.shiftKey);
       this.selectionBox.set({
@@ -547,6 +732,7 @@ export class App {
   protected onAtomPointerDown(event: PointerEvent, atom: Atom): void {
     event.stopPropagation();
     this.contextMenu.set(null);
+    if (this.registerTouchPointer(event)) return;
     if (event.button !== 0) return;
     if (this.activeTool() === 'erase') {
       this.deleteAtom(atom.id);
@@ -554,10 +740,16 @@ export class App {
     }
     if (this.activeTool() === 'atom') {
       const symbol = this.activeElement();
-      if (atom.element !== symbol)
+      if (atom.element !== symbol) {
+        const validation = validateElementChange(this.molecule(), atom, symbol);
+        if (!validation.valid) {
+          this.notify(validation.message);
+          return;
+        }
         this.mutate((document) => {
           document.atoms.find((candidate) => candidate.id === atom.id)!.element = symbol;
         });
+      }
       return;
     }
     if (this.activeTool() === 'bond') {
@@ -578,6 +770,7 @@ export class App {
 
   protected onBondPointerDown(event: PointerEvent, bond: Bond): void {
     event.stopPropagation();
+    if (this.registerTouchPointer(event)) return;
     if (event.button !== 0) return;
     if (this.activeTool() === 'erase') {
       this.mutate((document) => {
@@ -587,8 +780,15 @@ export class App {
     }
     if (this.activeTool() === 'bond') {
       const order = this.bondOrder();
+      const validation = validateBondChange(this.molecule(), bond.atomA, bond.atomB, order);
+      if (!validation.valid) {
+        this.notify(validation.message);
+        return;
+      }
       this.mutate((document) => {
-        document.bonds.find((candidate) => candidate.id === bond.id)!.order = order;
+        const target = document.bonds.find((candidate) => candidate.id === bond.id)!;
+        target.order = order;
+        target.kind = this.bondKind();
       });
       return;
     }
@@ -596,6 +796,14 @@ export class App {
   }
 
   protected onCanvasPointerMove(event: PointerEvent): void {
+    if (event.pointerType === 'touch' && this.touchPointers.has(event.pointerId)) {
+      this.touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (this.pinchState) {
+        event.preventDefault();
+        this.updatePinch();
+        return;
+      }
+    }
     const state = this.pointerState;
     if (!state || state.pointerId !== event.pointerId) return;
     const point = this.toMoleculePoint(event);
@@ -603,10 +811,11 @@ export class App {
     const clientDy = event.clientY - state.startClient.y;
     state.moved ||= Math.hypot(clientDx, clientDy) > 2;
     if (state.mode === 'pan') {
-      const rect = this.canvasRef.nativeElement.getBoundingClientRect();
+      const startCanvas = this.toCanvasPoint(state.startClient.x, state.startClient.y);
+      const currentCanvas = this.toCanvasPoint(event.clientX, event.clientY);
       this.pan.set({
-        x: state.startPan.x + (clientDx * this.viewWidth) / rect.width,
-        y: state.startPan.y + (clientDy * this.viewHeight) / rect.height,
+        x: state.startPan.x + currentCanvas.x - startCanvas.x,
+        y: state.startPan.y + currentCanvas.y - startCanvas.y,
       });
       return;
     }
@@ -632,6 +841,20 @@ export class App {
   }
 
   protected onCanvasPointerUp(event: PointerEvent): void {
+    if (event.pointerType === 'touch' && this.touchPointers.has(event.pointerId)) {
+      this.touchPointers.delete(event.pointerId);
+      if (this.pinchState) {
+        this.pinchState = null;
+        this.pointerState = null;
+        this.selectionBox.set(null);
+        try {
+          this.canvasRef.nativeElement.releasePointerCapture(event.pointerId);
+        } catch {
+          /* already released */
+        }
+        return;
+      }
+    }
     const state = this.pointerState;
     if (!state || state.pointerId !== event.pointerId) return;
     if (state.mode === 'select') {
@@ -665,7 +888,15 @@ export class App {
 
   protected onCanvasWheel(event: WheelEvent): void {
     event.preventDefault();
-    this.changeZoom(event.deltaY > 0 ? -0.1 : 0.1);
+    const anchor = this.toCanvasPoint(event.clientX, event.clientY);
+    const moleculePoint = this.toMoleculePoint(event);
+    const factor = Math.exp(-event.deltaY * 0.0012);
+    const nextZoom = Math.max(0.35, Math.min(3.2, this.zoom() * factor));
+    this.zoom.set(Number(nextZoom.toFixed(3)));
+    this.pan.set({
+      x: anchor.x - moleculePoint.x * nextZoom,
+      y: anchor.y - moleculePoint.y * nextZoom,
+    });
   }
 
   protected openContextMenu(event: MouseEvent, atom?: Atom): void {
@@ -674,8 +905,8 @@ export class App {
     if (atom && !this.selectedAtomIds().has(atom.id)) this.selectedAtomIds.set(new Set([atom.id]));
     if (!this.selectedAtomIds().size) return;
     this.contextMenu.set({
-      x: Math.min(event.clientX, window.innerWidth - 210),
-      y: Math.min(event.clientY, window.innerHeight - 210),
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 274)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 438)),
     });
   }
 
@@ -872,12 +1103,82 @@ export class App {
   }
 
   private toMoleculePoint(event: PointerEvent | WheelEvent): CanvasPoint {
-    const rect = this.canvasRef.nativeElement.getBoundingClientRect();
-    const canvasX = ((event.clientX - rect.left) * this.viewWidth) / rect.width;
-    const canvasY = ((event.clientY - rect.top) * this.viewHeight) / rect.height;
+    const canvas = this.toCanvasPoint(event.clientX, event.clientY);
     const pan = this.pan();
     const zoom = this.zoom();
-    return { x: (canvasX - pan.x) / zoom, y: (canvasY - pan.y) / zoom };
+    return { x: (canvas.x - pan.x) / zoom, y: (canvas.y - pan.y) / zoom };
+  }
+
+  private toCanvasPoint(clientX: number, clientY: number): CanvasPoint {
+    const svg = this.canvasRef.nativeElement;
+    const matrix = svg.getScreenCTM?.();
+    if (matrix && typeof DOMPoint !== 'undefined') {
+      const point = new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
+      return { x: point.x, y: point.y };
+    }
+    const rect = svg.getBoundingClientRect();
+    const scale = Math.min(rect.width / this.viewWidth, rect.height / this.viewHeight) || 1;
+    const offsetX = (rect.width - this.viewWidth * scale) / 2;
+    const offsetY = (rect.height - this.viewHeight * scale) / 2;
+    return {
+      x: (clientX - rect.left - offsetX) / scale,
+      y: (clientY - rect.top - offsetY) / scale,
+    };
+  }
+
+  private beginPinch(): void {
+    const entries = [...this.touchPointers.entries()].slice(0, 2);
+    if (entries.length < 2) return;
+    const [first, second] = entries;
+    const midpoint = {
+      x: (first[1].x + second[1].x) / 2,
+      y: (first[1].y + second[1].y) / 2,
+    };
+    const anchor = this.toCanvasPoint(midpoint.x, midpoint.y);
+    const pan = this.pan();
+    const zoom = this.zoom();
+    this.pinchState = {
+      pointerIds: [first[0], second[0]],
+      startDistance: Math.max(1, Math.hypot(first[1].x - second[1].x, first[1].y - second[1].y)),
+      startZoom: zoom,
+      moleculeAnchor: { x: (anchor.x - pan.x) / zoom, y: (anchor.y - pan.y) / zoom },
+    };
+  }
+
+  private registerTouchPointer(event: PointerEvent): boolean {
+    if (event.pointerType !== 'touch') return false;
+    this.touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    try {
+      this.canvasRef.nativeElement.setPointerCapture(event.pointerId);
+    } catch {
+      /* capture is best effort on touch browsers */
+    }
+    if (this.touchPointers.size < 2) return false;
+    event.preventDefault();
+    this.pointerState = null;
+    this.selectionBox.set(null);
+    this.beginPinch();
+    return true;
+  }
+
+  private updatePinch(): void {
+    const state = this.pinchState;
+    if (!state) return;
+    const first = this.touchPointers.get(state.pointerIds[0]);
+    const second = this.touchPointers.get(state.pointerIds[1]);
+    if (!first || !second) return;
+    const distance = Math.hypot(first.x - second.x, first.y - second.y);
+    const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+    const anchor = this.toCanvasPoint(midpoint.x, midpoint.y);
+    const nextZoom = Math.max(
+      0.35,
+      Math.min(3.2, state.startZoom * (distance / state.startDistance)),
+    );
+    this.zoom.set(Number(nextZoom.toFixed(3)));
+    this.pan.set({
+      x: anchor.x - state.moleculeAnchor.x * nextZoom,
+      y: anchor.y - state.moleculeAnchor.y * nextZoom,
+    });
   }
 
   private handleBondTarget(atomId: string): void {
@@ -890,6 +1191,12 @@ export class App {
       this.bondStartId.set(null);
       return;
     }
+    const validation = validateBondChange(this.molecule(), startId, atomId, this.bondOrder());
+    if (!validation.valid) {
+      this.bondStartId.set(null);
+      this.notify(validation.message);
+      return;
+    }
     const existing = this.molecule().bonds.find(
       (bond) =>
         (bond.atomA === startId && bond.atomB === atomId) ||
@@ -897,11 +1204,62 @@ export class App {
     );
     if (existing)
       this.mutate((document) => {
-        document.bonds.find((bond) => bond.id === existing.id)!.order = this.bondOrder();
+        const target = document.bonds.find((bond) => bond.id === existing.id)!;
+        target.order = this.bondOrder();
+        target.kind = this.bondKind();
       });
     else
-      this.mutate((document) => document.bonds.push(createBond(startId, atomId, this.bondOrder())));
+      this.mutate((document) =>
+        document.bonds.push(createBond(startId, atomId, this.bondOrder(), this.bondKind())),
+      );
     this.bondStartId.set(null);
+  }
+
+  private bondEndpoints(bond: Bond): { a: Atom; b: Atom } | null {
+    const a = this.molecule().atoms.find((atom) => atom.id === bond.atomA);
+    const b = this.molecule().atoms.find((atom) => atom.id === bond.atomB);
+    return a && b ? { a, b } : null;
+  }
+
+  private fragmentLabel(id: FragmentTemplate['id']): string {
+    return this.fragmentTemplates.find((template) => template.id === id)?.label ?? 'fragmento';
+  }
+
+  private insertFragment(id: FragmentTemplate['id'], center: CanvasPoint): void {
+    const template = this.fragmentTemplates.find((candidate) => candidate.id === id);
+    if (!template) return;
+    const newIds = new Set<string>();
+    this.mutate((document) => {
+      const atoms = template.chain
+        ? Array.from({ length: template.sides }, (_, index) =>
+            createAtom(
+              'C',
+              center.x + (index - (template.sides - 1) / 2) * 92,
+              center.y + (index % 2 ? 36 : -36),
+            ),
+          )
+        : Array.from({ length: template.sides }, (_, index) => {
+            const angle = -Math.PI / 2 + (index * Math.PI * 2) / template.sides;
+            const radius = template.sides <= 4 ? 78 : template.sides >= 8 ? 118 : 98;
+            return createAtom(
+              'C',
+              center.x + Math.cos(angle) * radius,
+              center.y + Math.sin(angle) * radius,
+            );
+          });
+      atoms.forEach((atom) => newIds.add(atom.id));
+      document.atoms.push(...atoms);
+      const limit = template.chain ? atoms.length - 1 : atoms.length;
+      for (let index = 0; index < limit; index += 1) {
+        const nextIndex = (index + 1) % atoms.length;
+        const order: 1 | 2 = template.aromatic && index % 2 === 0 ? 2 : 1;
+        document.bonds.push(
+          createBond(atoms[index].id, atoms[nextIndex].id, order, bondKindForOrder(order)),
+        );
+      }
+    });
+    this.selectedAtomIds.set(newIds);
+    this.notify(this.fragmentLabel(id) + ' insertado');
   }
 
   private deleteAtom(id: string): void {
@@ -931,22 +1289,7 @@ export class App {
       : this.viewHeight;
     const width = Math.max(280, maxX - minX);
     const height = Math.max(220, maxY - minY);
-    const bondMarkup = molecule.bonds
-      .flatMap((bond) =>
-        this.bondLines(bond).map(
-          (line) =>
-            '<line x1="' +
-            line.x1 +
-            '" y1="' +
-            line.y1 +
-            '" x2="' +
-            line.x2 +
-            '" y2="' +
-            line.y2 +
-            '"/>',
-        ),
-      )
-      .join('');
+    const bondMarkup = molecule.bonds.map((bond) => this.createBondSvgMarkup(bond)).join('');
     const atomMarkup = molecule.atoms
       .map((atom) => {
         const definition = ELEMENT_BY_SYMBOL.get(atom.element)!;
@@ -1010,6 +1353,24 @@ export class App {
       atomMarkup +
       '</svg>'
     );
+  }
+
+  private createBondSvgMarkup(bond: Bond): string {
+    const kind = this.bondVisualKind(bond);
+    if (kind === 'wedge')
+      return `<polygon points="${this.wedgePoints(bond)}" fill="#263142" stroke="none"/>`;
+    if (kind === 'hash') {
+      return this.hashedBondLines(bond)
+        .map((line) => `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}"/>`)
+        .join('');
+    }
+    if (kind === 'any') return `<path d="${this.wavyBondPath(bond)}" fill="none"/>`;
+    const dash = kind === 'aromatic' ? ' stroke-dasharray="10 7"' : '';
+    return this.bondLines(bond)
+      .map(
+        (line) => `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}"${dash}/>`,
+      )
+      .join('');
   }
 
   private download(blob: Blob, fileName: string): void {
