@@ -71,13 +71,46 @@ select:disabled {
 }
 
 .model-toolbar {
-  min-height: 58px;
+  min-height: 54px;
   display: flex;
-  gap: 8px;
-  align-items: end;
+  gap: 6px;
+  align-items: center;
   padding: 9px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--surface-2);
+}
+
+.representation-picker {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.representation-picker button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  color: var(--muted-strong);
+  background: transparent;
+  cursor: pointer;
+}
+
+.representation-picker button:hover,
+.representation-picker button.active,
+.icon-button.active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+}
+
+.representation-picker app-icon {
+  width: 19px;
+  height: 19px;
 }
 
 label {
@@ -103,7 +136,7 @@ select {
 }
 
 .tool-button {
-  height: 30px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -264,5 +297,21 @@ select {
     z-index: 80;
     inset: var(--header-height) 0 var(--status-height) 0;
     border-left: 0;
+  }
+
+  .model-toolbar {
+    padding: 7px 9px;
+  }
+
+  .tool-button {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+
+  .representation-picker button {
+    width: 32px;
+    height: 32px;
   }
 }

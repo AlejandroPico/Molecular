@@ -1,6 +1,6 @@
 # Molecular
 
-**Versión 0.2.0**
+**Versión 0.3.0**
 
 Molecular es un estudio químico visual de Alejandro Pico para construir estructuras en dos dimensiones, comprobar reglas básicas de enlace y explorarlas como modelos tridimensionales. Toma como referencia conceptual el flujo 2D → 3D de herramientas educativas como [MolView](https://molview.org/), con interfaz, arquitectura y motor propios.
 
@@ -10,57 +10,44 @@ Molecular es un estudio químico visual de Alejandro Pico para construir estruct
 
 El despliegue se actualiza automáticamente con cada publicación en `main`.
 
-## Novedades de la versión 0.2.0
+## Novedades de la versión 0.3.0
 
-### Interfaz y lienzo
+### Lienzo e interacción
 
-- Barra principal única, compacta y aislada en la esquina superior derecha.
-- Búsqueda como primer control, expandible hacia la izquierda.
-- Porcentaje de zoom como último control; la rueda o el gesto de pinza controlan la escala.
-- Zoom anclado al puntero: el punto señalado permanece bajo el ratón al acercar o alejar.
-- SVG proporcional mediante `preserveAspectRatio`; los átomos no se convierten en elipses al abrir el visor 3D.
-- Estado químico y métricas en un módulo flotante inferior, sin paleta horizontal.
-- `favicon.svg` disponible tanto en la raíz del repositorio como en los recursos públicos.
-- Identidad, descripción, autoría, versión y enlaces concentrados en «Acerca de».
+- Fondo continuo de retícula triangular o de puntos que cubre toda el área útil y acompaña el zoom y el desplazamiento.
+- Selección directa, rectangular o por lazo, con selección aditiva mediante `Mayús`.
+- Deshacer, rehacer y limpieza geométrica se integran en la barra vertical de herramientas.
+- Modo esquelético con carbonos terminales implícitos y modo desarrollado para inspeccionar todos los nodos.
+- Visor 3D con cierre desde su cabecera, desde el control superior o mediante `Esc`, también en móvil.
 
-### Herramientas químicas
+### Dibujo químico ampliado
 
-- Paletas laterales desplegables desde la barra de herramientas.
-- Siete estilos de enlace: simple, doble, triple, cuña sólida, cuña discontinua, aromático visual e indeterminado.
-- Fragmentos listos para insertar: benceno, ciclopropano, ciclobutano, ciclopentano, ciclohexano, ciclooctano y cadena de seis carbonos.
-- Ajuste de carga formal desde la herramienta, el inspector de selección o el menú contextual.
-- Favoritos de elementos y acceso mediante puntos suspensivos a la tabla periódica completa.
-- Cambio de elemento desde el inspector y el menú contextual.
+- Los enlaces son entidades editables: pueden dibujarse sobre un espacio vacío y sus extremos nacen como carbonos sustituibles.
+- Diez familias visibles: simple, doble, triple, arriba, abajo, deslocalizado, puente de hidrógeno, dativo, aromático e indeterminado.
+- Menú contextual propio para cambiar el tipo de un enlace o eliminarlo.
+- Grupo R, carga formal positiva o negativa, pares solitarios y electrones radicalarios.
+- Flechas de reacción, resonancia y equilibrio, editables y exportables.
+- Tabla periódica completa de 118 elementos y fragmentos cíclicos o de cadena.
+- La validación previa bloquea enlaces, elementos o cargas que excedan las capacidades educativas configuradas.
 
-### Tabla periódica y validación
+### Generador y visualización 3D
 
-- Catálogo local de los 118 elementos con número atómico, nombre en español, masa, familia, color, periodo, posición y capacidades de enlace educativas.
-- Microtabla periódica completa y buscable por número, símbolo, nombre o familia.
-- Enciclopedia ampliada a los 118 elementos.
-- Validación previa: una unión, cambio de elemento o cambio de carga incompatible se rechaza antes de alterar el documento.
-- El orden de enlace consume capacidad: simple = 1, doble = 2 y triple = 3.
-- Cálculo de hidrógenos implícitos sensible a cargas comunes. Un carbono con carga formal ya no pierde todos sus hidrógenos automáticamente.
-- Importaciones antiguas siguen mostrando avisos si contienen una estructura fuera de los límites configurados.
-
-### Edición, 3D y documentos
-
-- Selección individual, rectangular y aditiva con `Mayús`.
-- Arrastre, desplazamiento, duplicación, borrado y un historial de hasta 80 operaciones.
-- Visor Three.js con bolas y varillas, espacio ocupado y alambre.
-- Autoguardado y biblioteca privada en el navegador.
-- Importación y exportación `.molecular.json`.
-- Exportación 2D en SVG y PNG y captura 3D en PNG.
-- Ejemplos: agua, metano, amoniaco, dióxido de carbono, etanol y benceno.
+- Generador local desde fórmula molecular o SMILES. Reconoce ramas, anillos, enlaces múltiples, aromaticidad y cargas SMILES básicas.
+- Una fórmula sin conectividad produce un borrador editable y advierte que distintos isómeros pueden compartirla.
+- Limpieza 2D local mediante relajación de enlaces y separación de nodos, sin enviar el documento a un servicio externo.
+- Geometría 3D topológica con direcciones tetraédricas, influencia de enlaces arriba/abajo y relajación espacial.
+- Cinco representaciones mediante iconos: bola y varilla, licorice, relleno espacial, varillas y alambre.
+- Exportación 2D en SVG o PNG, captura 3D en PNG y documento `.molecular.json` editable.
 
 ## Uso rápido
 
-1. Sitúa el puntero sobre la herramienta de átomo y elige un favorito o abre la tabla periódica.
-2. Haz clic en el lienzo para colocar átomos.
-3. Sitúa el puntero sobre Enlace, elige un estilo y pulsa dos átomos.
-4. Usa Fragmentos para insertar un anillo o una cadena desde un punto del lienzo.
-5. Selecciona átomos para cambiar elemento o carga, duplicar, borrar o abrir el fragmento en 3D.
-6. Usa la rueda del ratón o la pinza táctil para ampliar exactamente donde estás señalando.
-7. Abre Exportar para obtener SVG, PNG o el documento editable.
+1. Elige Átomo o Enlace en la barra lateral. Un enlace puede unir átomos existentes o dibujarse directamente sobre el vacío.
+2. Usa los puntos suspensivos de Átomo para abrir la tabla periódica completa y sustituir cualquier extremo.
+3. Añade carga, pares solitarios, radicales, grupos R, fragmentos o flechas desde sus paletas laterales.
+4. Cambia entre selección directa, rectangular y por lazo; usa Limpiar para ordenar el esquema localmente.
+5. Abre Fórmula en la barra superior y pega una fórmula molecular o SMILES para crear un borrador editable.
+6. Usa la rueda o la pinza táctil para ampliar bajo el puntero y abre el visor 3D para elegir una representación.
+7. Abre Exportar para obtener SVG, PNG, captura 3D o documento editable.
 
 ### Atajos
 
@@ -70,6 +57,7 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 | Desplazar                     | `H` o mantener `Espacio` |
 | Añadir átomo                  | `A`                      |
 | Crear enlace                  | `B`                      |
+| Crear flecha                  | `F`                      |
 | Borrar                        | `E`                      |
 | Enlace simple, doble o triple | `1`, `2`, `3`            |
 | Seleccionar todo              | `Ctrl + A`               |
@@ -88,7 +76,7 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 
 ## Arquitectura sin servidor
 
-GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.2.0 funciona íntegramente en el navegador para mantener edición, validación, guardado y 3D inmediatos.
+GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.3.0 funciona íntegramente en el navegador para mantener edición, validación, generación, guardado y 3D inmediatos.
 
 La evolución prevista conserva dos vías:
 
@@ -127,7 +115,8 @@ Molecular/
 ├── public/                        # favicon y metadatos públicos
 ├── src/app/core/
 │   ├── periodic-table.data.ts     # catálogo de 118 elementos
-│   └── chemistry.models.ts        # documento, valencia, fórmulas y validación
+│   ├── chemistry.models.ts        # documento, valencia, fórmulas y validación
+│   └── formula-generator.ts       # fórmula molecular y subconjunto SMILES
 ├── src/app/shared/                # iconografía SVG local
 ├── src/app/three-d-viewer/        # motor y panel 3D
 ├── src/app/app.*                  # editor 2D e interfaz
@@ -137,19 +126,15 @@ Molecular/
 
 ## Alcance científico
 
-La validación 0.2.0 es educativa. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Las cuñas representan intención estereoquímica en 2D, pero todavía no determinan configuración R/S ni geometría 3D rigurosa.
+La validación 0.3.0 es educativa. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Las marcas arriba/abajo influyen en la profundidad, pero no determinan todavía configuración R/S ni conformación rigurosa.
 
-Molecular no calcula resonancia, aromaticidad formal, cargas parciales, energía, espectros, orbitales ni dinámica molecular. No sustituye software de química computacional ni debe emplearse para validar resultados de investigación.
+Una fórmula molecular no contiene conectividad suficiente para identificar un isómero. El generador produce en ese caso un punto de partida editable; SMILES es la entrada apropiada cuando la conectividad debe ser inequívoca. La colocación 3D es una incrustación topológica relajada, no una optimización energética.
 
-## Roadmap inmediato
+Molecular no calcula resonancia electrónica, aromaticidad formal, cargas parciales, energía, espectros, orbitales ni dinámica molecular. No sustituye software de química computacional ni debe emplearse para validar resultados de investigación.
 
-- Importación y exportación MOL, SDF y SMILES.
-- Grupos funcionales y edición avanzada de cadenas.
-- Búsqueda en PubChem y carga de conformadores reales.
-- Optimización geométrica, aromaticidad formal y estereoquímica.
-- SQLite-WASM para ampliar la base local.
-- Intercambio con Atlas Editor.
-- Rutas de reacción y, posteriormente, rutas metabólicas.
+## Roadmap
+
+El plan versionado se mantiene en [ROADMAP.md](ROADMAP.md). Los siguientes hitos se centran en flechas curvas de mecanismo, importación y exportación química estándar, conformadores reales, optimización geométrica y compatibilidad con Atlas Editor.
 
 ## Autor
 

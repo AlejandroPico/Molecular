@@ -15,7 +15,7 @@ describe('App', () => {
     aboutButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Acerca de Molecular');
-    expect(fixture.nativeElement.textContent).toContain('0.2.0');
+    expect(fixture.nativeElement.textContent).toContain('0.3.0');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {
@@ -51,5 +51,30 @@ describe('App', () => {
     const after = moleculeLayer.getAttribute('transform');
     expect(after).not.toBe(before);
     expect(after).not.toContain('translate(0 0)');
+  });
+
+  it('uses a continuous zoom-aware grid behind the whole SVG stage', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const grid = fixture.nativeElement.querySelector('.canvas-grid-surface');
+    const canvas = fixture.nativeElement.querySelector('.molecular-canvas');
+    expect(grid).toBeTruthy();
+    expect(grid.classList.contains('triangular')).toBe(true);
+    expect(grid.parentElement).toBe(canvas.parentElement);
+    expect(canvas.querySelector('pattern')).toBeNull();
+  });
+
+  it('opens and closes the 3D viewer from controls outside the viewer', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[aria-label="Construir modelo 3D"]').click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.model-close-safety')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[aria-label="Cerrar modelo 3D"]')).toBeTruthy();
+
+    fixture.nativeElement.querySelector('.model-close-safety').click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.model-close-safety')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[aria-label="Construir modelo 3D"]')).toBeTruthy();
   });
 });

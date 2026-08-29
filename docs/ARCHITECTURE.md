@@ -1,6 +1,6 @@
 # Arquitectura de Molecular
 
-## Decisión de la versión 0.2.0
+## Decisión de la versión 0.3.0
 
 Molecular se publica en GitHub Pages. Ese alojamiento sirve archivos estáticos y no ejecuta procesos Python, Java, Go ni un servidor SQLite. Por ello, el primer núcleo se ejecuta íntegramente en el navegador:
 
@@ -18,7 +18,8 @@ Esta solución mantiene la aplicación rápida, desplegable en Pages y usable si
 src/app/
 ├── core/
 │   ├── periodic-table.data.ts    # 118 elementos, posiciones y capacidades
-│   └── chemistry.models.ts       # documentos, enlaces, valencias y fórmulas
+│   ├── chemistry.models.ts       # documentos, enlaces, valencias y fórmulas
+│   └── formula-generator.ts      # fórmula molecular y subconjunto SMILES
 ├── shared/
 │   └── icon.component.ts         # iconografía SVG local
 ├── three-d-viewer/
@@ -35,23 +36,32 @@ src/app/
 El formato `.molecular.json` es deliberadamente sencillo y versionable. Conserva:
 
 - identificador y nombre del documento;
-- átomos con elemento, posición 2D y carga;
-- enlaces con sus extremos, orden y estilo visual;
+- átomos con elemento, posición 2D, carga y anotaciones de Lewis;
+- enlaces con sus extremos, orden y clase química o visual;
+- flechas con tipo, origen y destino;
 - fechas de creación y modificación.
 
 Es la primera frontera de interoperabilidad con Atlas Editor. Los conversores a MOL/SDF/SMILES se añadirán sobre este modelo sin acoplarlos a la interfaz.
 
 ## Motor educativo de capacidad
 
-Cada enlace tiene un orden entero de 1, 2 o 3. La validación suma ese orden alrededor de cada átomo y compara el resultado con las capacidades configuradas para el elemento y su carga formal. Una modificación incompatible se rechaza antes de mutar el documento.
+Los enlaces covalentes tienen orden 1, 2 o 3; aromáticos y deslocalizados contribuyen 1,5 en el modelo educativo, mientras que los puentes de hidrógeno y el enlace indeterminado se tratan como anotaciones sin consumo covalente. La validación suma esta contribución alrededor de cada átomo y la compara con las capacidades configuradas para el elemento y su carga formal. Una modificación incompatible se rechaza antes de mutar el documento.
 
 Los elementos representativos emplean valencias covalentes habituales. Los metales de transición, lantánidos y actínidos utilizan límites de coordinación simplificados: sirven para impedir estructuras arbitrarias, pero no modelan estados de oxidación, ligandos, geometrías de coordinación ni electrones de forma rigurosa.
 
-Los estilos de cuña, cuña discontinua, aromático e indeterminado se conservan en el documento y en la salida SVG. En 0.2.0, Three.js usa su orden entero para la representación y todavía no deriva estereoquímica formal de esas marcas.
+Los estilos arriba, abajo, deslocalizado, puente de hidrógeno, dativo, aromático e indeterminado se conservan en el documento y en la salida SVG. La visualización 3D utiliza arriba/abajo como indicio de profundidad, pero todavía no deriva estereoquímica formal de esas marcas.
 
 ## Interacción geométrica
 
 El lienzo utiliza un `viewBox` fijo de 1400 × 800 con `preserveAspectRatio="xMidYMid meet"`. Las coordenadas del puntero se convierten mediante la matriz real del SVG; de este modo abrir un panel no deforma círculos ni distancias. El zoom recalcula la traslación para conservar bajo el cursor o el centro de la pinza el mismo punto molecular.
+
+La retícula es una capa HTML independiente y absoluta que ocupa el escenario completo. Sus variables CSS de escala y origen se actualizan con la cámara 2D; puede dibujarse como malla triangular o como puntos sin introducir márgenes por la relación de aspecto del SVG.
+
+## Generación y geometría
+
+El generador distingue una fórmula molecular de una cadena SMILES. Para fórmulas conocidas puede usar una plantilla; en los demás casos distribuye la composición en un borrador que conserva el recuento pedido y deja clara la ambigüedad de isómeros. El analizador SMILES local cubre átomos, ramas, anillos, componentes, cargas y enlaces simples, dobles, triples, aromáticos y direccionales básicos.
+
+El visor 3D recorre el grafo molecular, asigna direcciones espaciales semejantes a una distribución tetraédrica y aplica iteraciones de resorte y repulsión. El resultado mejora la legibilidad y aporta profundidad, pero no es un conformador físico ni una minimización de energía.
 
 ## Evolución de datos y Python
 
@@ -64,4 +74,4 @@ El modo de cálculo no será obligatorio para dibujar, guardar o visualizar. As�
 
 ## Límites científicos actuales
 
-La 0.2.0 aplica reglas de valencia y coordinación simplificadas y genera una geometría 3D didáctica a partir del esquema 2D. No realiza minimización de energía, configuración R/S, aromaticidad formal, orbitales ni dinámica molecular. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.
+La 0.3.0 aplica reglas de valencia y coordinación simplificadas y genera una geometría 3D didáctica a partir de la topología. No realiza minimización de energía, configuración R/S, aromaticidad formal, orbitales ni dinámica molecular. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.

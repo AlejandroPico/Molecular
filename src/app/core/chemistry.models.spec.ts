@@ -1,5 +1,7 @@
 import {
   calculateStats,
+  cloneDocument,
+  ELEMENT_BY_SYMBOL,
   ELEMENTS,
   createAtom,
   createBond,
@@ -79,5 +81,32 @@ describe('chemistry model', () => {
     molecule.atoms = [carbon, ...hydrogens];
     molecule.bonds = hydrogens.map((hydrogen) => createBond(carbon.id, hydrogen.id));
     expect(validateChargeChange(molecule, carbon, 1).valid).toBe(false);
+  });
+
+  it('treats a hydrogen bond as an annotation rather than covalent valence', () => {
+    const molecule = createDocument('Puente de hidrógeno');
+    const oxygenA = createAtom('O', 0, 0);
+    const oxygenB = createAtom('O', 100, 0);
+    molecule.atoms = [oxygenA, oxygenB];
+    molecule.bonds = [createBond(oxygenA.id, oxygenB.id, 1, 'hydrogen')];
+    expect(implicitHydrogensForAtom(molecule, oxygenA)).toBe(2);
+    expect(calculateStats(molecule).warnings).toEqual([]);
+  });
+
+  it('supports the R pseudoatom without altering the 118-element catalogue', () => {
+    expect(ELEMENT_BY_SYMBOL.get('R')?.name).toBe('Grupo R');
+    expect(ELEMENTS.length).toBe(118);
+  });
+
+  it('migrates documents saved before arrows and Lewis annotations existed', () => {
+    const legacy = createDocument('Documento anterior') as any;
+    legacy.arrows = undefined;
+    legacy.atoms = [
+      { ...createAtom('N', 0, 0), lonePairs: undefined, radicalElectrons: undefined },
+    ];
+    const migrated = cloneDocument(legacy);
+    expect(migrated.arrows).toEqual([]);
+    expect(migrated.atoms[0].lonePairs).toBe(0);
+    expect(migrated.atoms[0].radicalElectrons).toBe(0);
   });
 });

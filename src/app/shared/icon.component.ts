@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 export type IconName =
   | 'atom'
+  | 'arrow'
+  | 'ball-stick'
   | 'bond'
   | 'box-select'
   | 'check'
@@ -10,19 +12,27 @@ export type IconName =
   | 'download'
   | 'eraser'
   | 'file'
+  | 'formula'
   | 'grid'
   | 'hand'
   | 'info'
+  | 'lasso'
   | 'layers'
+  | 'licorice'
+  | 'lone-pair'
   | 'minus'
   | 'moon'
   | 'more'
   | 'palette'
   | 'plus'
+  | 'radical'
   | 'redo'
   | 'save'
   | 'search'
+  | 'skeletal'
+  | 'spacefill'
   | 'sparkles'
+  | 'stick'
   | 'sun'
   | 'trash'
   | 'undo'
@@ -52,6 +62,14 @@ export type IconName =
           <ellipse cx="12" cy="12" rx="9" ry="3.8" transform="rotate(60 12 12)" />
           <ellipse cx="12" cy="12" rx="9" ry="3.8" transform="rotate(120 12 12)" />
         }
+        @case ('arrow') {
+          <path d="M3 12h17M15 6l6 6-6 6" />
+        }
+        @case ('ball-stick') {
+          <circle cx="6" cy="16" r="3" />
+          <circle cx="18" cy="8" r="4" />
+          <path d="m8.5 14.3 6-4" />
+        }
         @case ('bond') {
           <circle cx="5" cy="17" r="2.5" />
           <circle cx="19" cy="7" r="2.5" />
@@ -61,6 +79,9 @@ export type IconName =
         @case ('box-select') {
           <path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" />
           <rect x="8" y="8" width="8" height="8" rx="1" />
+        }
+        @case ('formula') {
+          <path d="M4 6h6M7 3v6M14 5h6M14 10h6M4 16h6M14 15h6M17 12v6" />
         }
         @case ('check') {
           <path d="m5 12 4 4L19 6" />
@@ -91,6 +112,20 @@ export type IconName =
           <path
             d="M7.5 12V7.5a1.5 1.5 0 0 1 3 0V11m0-4.5a1.5 1.5 0 0 1 3 0V11m0-3.5a1.5 1.5 0 0 1 3 0V12m0-2.5a1.5 1.5 0 0 1 3 0v5c0 4-2.5 6.5-6 6.5h-1c-2.3 0-3.4-1.1-4.8-2.8L4.8 15a1.5 1.5 0 0 1 2.2-2l2 1.5"
           />
+        }
+        @case ('lasso') {
+          <path d="M19 9c0 3.3-3.8 6-8.5 6S2 12.3 2 9s3.8-6 8.5-6S19 5.7 19 9Z" />
+          <path d="M10.5 15c0 3 1.5 5 4.5 5 2.2 0 4-1.3 4-3 0-1.4-1.1-2.5-2.5-2.5S14 15.6 14 17" />
+        }
+        @case ('licorice') {
+          <path d="M5 17 19 7" stroke-width="4.5" />
+          <circle cx="5" cy="17" r="2.3" fill="currentColor" />
+          <circle cx="19" cy="7" r="2.3" fill="currentColor" />
+        }
+        @case ('lone-pair') {
+          <circle cx="8" cy="12" r="2" fill="currentColor" stroke="none" />
+          <circle cx="16" cy="12" r="2" fill="currentColor" stroke="none" />
+          <path d="M4 5h16M4 19h16" opacity=".45" />
         }
         @case ('info') {
           <circle cx="12" cy="12" r="9" />
@@ -127,9 +162,25 @@ export type IconName =
           <path d="m15 6 4 4-4 4" />
           <path d="M19 10h-8a6 6 0 0 0-6 6v2" />
         }
+        @case ('radical') {
+          <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
+          <circle cx="12" cy="12" r="8" stroke-dasharray="2.5 3" />
+        }
         @case ('save') {
           <path d="M5 3h12l2 2v16H5z" />
           <path d="M8 3v6h8V3M8 21v-7h8v7" />
+        }
+        @case ('skeletal') {
+          <path d="m3 15 5-8 8 1 5 8-6 5-7-2z" />
+          <path d="m8 7 4 6 4-5M12 13l3 8" />
+        }
+        @case ('spacefill') {
+          <circle cx="9" cy="10" r="6" />
+          <circle cx="16" cy="14" r="6" fill="currentColor" fill-opacity=".22" />
+        }
+        @case ('stick') {
+          <path d="M5 18 19 6" stroke-width="3.5" />
+          <path d="m7 20 14-12" opacity=".4" />
         }
         @case ('search') {
           <circle cx="11" cy="11" r="7" />

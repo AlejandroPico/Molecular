@@ -1,5 +1,31 @@
 # Historial de versiones
 
+## 0.3.0 — 2026-08-29
+
+### Añadido
+
+- Enlaces autónomos sobre el lienzo vacío y menú contextual para cambiar su clase o eliminarlos.
+- Enlaces arriba, abajo, deslocalizado, de hidrógeno y dativo junto a los tipos ya disponibles.
+- Flechas de reacción, resonancia y equilibrio; grupos R; pares solitarios y electrones radicalarios.
+- Selección por lazo, modo esquelético/desarrollado y limpieza local de la disposición 2D.
+- Generador de borradores desde fórmula molecular o SMILES, con ramas, anillos, enlaces múltiples, aromaticidad y cargas básicas.
+- Retícula triangular como opción junto al fondo de puntos.
+- Representaciones 3D mediante iconos: bola y varilla, licorice, relleno espacial, varillas y alambre.
+
+### Cambiado
+
+- La retícula se desacopla del `viewBox`, cubre todo el escenario y responde al zoom y al desplazamiento.
+- Deshacer y rehacer pasan de la barra superior a la barra vertical de herramientas.
+- La reconstrucción 3D parte de la topología y distribuye los vecinos en profundidad antes de relajar la geometría.
+- El formato Molecular conserva flechas y anotaciones electrónicas, migrando documentos anteriores al cargarlos.
+- «Acerca de», la arquitectura y el alcance científico describen explícitamente los límites del generador y de la geometría 3D.
+
+### Corregido
+
+- El visor 3D puede cerrarse desde su cabecera, el control superior, un botón exterior de seguridad o `Esc`.
+- El fondo deja de mostrar márgenes laterales sin retícula al cambiar la proporción disponible.
+- Los puentes de hidrógeno dejan de consumir valencia covalente.
+
 ## 0.2.0 — 2026-08-29
 
 ### Añadido

@@ -1862,6 +1862,391 @@ select:focus-visible {
   background: var(--surface-2);
 }
 
+/* Editor químico 0.3: retícula continua, notación y objetos de reacción. */
+.canvas-grid-surface {
+  --grid-triangle-x: 64px;
+  --grid-triangle-y: 37px;
+  --grid-dot-size: 32px;
+  --grid-x: 0px;
+  --grid-y: 0px;
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  transform: translateZ(0);
+}
+
+.canvas-grid-surface.triangular {
+  background-image:
+    linear-gradient(
+      30deg,
+      transparent 49.35%,
+      var(--grid-dot) 49.7%,
+      var(--grid-dot) 50.3%,
+      transparent 50.65%
+    ),
+    linear-gradient(
+      -30deg,
+      transparent 49.35%,
+      var(--grid-dot) 49.7%,
+      var(--grid-dot) 50.3%,
+      transparent 50.65%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 49.35%,
+      var(--grid-dot) 49.7%,
+      var(--grid-dot) 50.3%,
+      transparent 50.65%
+    );
+  background-position: var(--grid-x) var(--grid-y);
+  background-size:
+    var(--grid-triangle-x) var(--grid-triangle-y),
+    var(--grid-triangle-x) var(--grid-triangle-y),
+    var(--grid-triangle-x) var(--grid-triangle-y);
+  opacity: 0.34;
+}
+
+.canvas-grid-surface.dots {
+  background-image: radial-gradient(circle, var(--grid-dot) 1.3px, transparent 1.5px);
+  background-position: var(--grid-x) var(--grid-y);
+  background-size: var(--grid-dot-size) var(--grid-dot-size);
+}
+
+.molecular-canvas {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+.canvas-background {
+  fill: transparent;
+}
+
+.molecular-canvas.tool-arrow {
+  cursor: crosshair;
+}
+
+.arrow-head-shape {
+  fill: var(--bond);
+  stroke: none;
+}
+
+.reaction-arrow-line {
+  stroke: var(--bond);
+  stroke-width: 3;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.arrow-hit {
+  stroke: transparent;
+  stroke-width: 20;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+
+.reaction-arrow:hover .reaction-arrow-line {
+  stroke: var(--accent);
+}
+
+.draft-line {
+  opacity: 0.62;
+  stroke: var(--accent);
+  stroke-dasharray: 7 5;
+}
+
+.bond-delocalized {
+  stroke-dasharray: 13 5 2 5;
+}
+
+.bond-hydrogen {
+  stroke-width: 2.6;
+  stroke-dasharray: 2 8;
+}
+
+.bond-dative {
+  stroke-width: 3;
+}
+
+.atom-node.skeletal-carbon .atom-sphere,
+.atom-node.skeletal-carbon .atom-label {
+  opacity: 0;
+}
+
+.atom-node.skeletal-carbon:hover .atom-sphere,
+.atom-node.skeletal-carbon.selected .atom-sphere,
+.atom-node.skeletal-carbon.bond-origin .atom-sphere {
+  opacity: 0.12;
+}
+
+.lone-pair,
+.radical-electron {
+  fill: var(--text);
+  pointer-events: none;
+}
+
+.selection-lasso {
+  fill: color-mix(in srgb, var(--accent) 8%, transparent);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.tool-rail > button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.selection-flyout,
+.arrow-flyout {
+  width: 260px;
+}
+
+.selection-flyout app-icon,
+.arrow-flyout app-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.arrow-sample,
+.context-glyph {
+  width: 42px;
+  flex: 0 0 42px;
+  color: var(--accent);
+  font-size: 1.42rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.lewis-flyout {
+  width: 286px;
+}
+
+.bond-sample.delocalized::before {
+  background: repeating-linear-gradient(
+    90deg,
+    currentColor 0 11px,
+    transparent 11px 15px,
+    currentColor 15px 17px,
+    transparent 17px 22px
+  );
+}
+
+.bond-sample.delocalized::after,
+.bond-sample.hydrogen::after,
+.bond-sample.dative::before,
+.bond-sample.dative::after {
+  display: none;
+}
+
+.bond-sample.hydrogen::before {
+  height: 3px;
+  background: repeating-linear-gradient(90deg, currentColor 0 2px, transparent 2px 8px);
+}
+
+.bond-sample.dative {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  font-size: 1.35rem;
+}
+
+.context-bond-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 7px;
+  border-bottom: 1px solid var(--border);
+}
+
+.context-menu .context-bond-grid > button {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.context-bond-grid > button > span {
+  color: var(--accent);
+  font-size: 1rem;
+  text-align: center;
+}
+
+.context-bond-grid small {
+  color: var(--muted);
+  font-size: 0.56rem;
+}
+
+.model-close-safety {
+  position: fixed;
+  z-index: 132;
+  top: 64px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+}
+
+.model-close-safety:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.formula-generator {
+  display: grid;
+  gap: 12px;
+}
+
+.formula-intro {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.formula-intro app-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--accent);
+}
+
+.formula-intro strong,
+.formula-generator label > span {
+  color: var(--text);
+  font-size: 0.69rem;
+}
+
+.formula-intro p,
+.formula-notice {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.61rem;
+  line-height: 1.55;
+}
+
+.formula-generator label {
+  display: grid;
+  gap: 6px;
+}
+
+.formula-generator textarea {
+  min-height: 92px;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
+  color: var(--text);
+  background: var(--surface);
+  font:
+    650 0.77rem/1.5 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+}
+
+.formula-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.formula-examples button {
+  min-height: 29px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  color: var(--muted-strong);
+  background: var(--surface-2);
+  font-size: 0.6rem;
+  cursor: pointer;
+}
+
+.formula-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 9px;
+  border-left: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.formula-notice app-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.formula-submit {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--accent);
+  color: var(--accent-contrast);
+  background: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.grid-style-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.grid-style-choice > button {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: var(--surface-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.grid-style-choice > button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.grid-preview {
+  width: 34px;
+  height: 28px;
+  flex: 0 0 34px;
+  border: 1px solid var(--border);
+}
+
+.grid-preview.triangular {
+  background:
+    linear-gradient(30deg, transparent 47%, var(--grid-dot) 49%, transparent 52%),
+    linear-gradient(-30deg, transparent 47%, var(--grid-dot) 49%, transparent 52%);
+  background-size: 16px 10px;
+}
+
+.grid-preview.dots {
+  background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1.2px);
+  background-size: 8px 8px;
+}
+
 .periodic-search app-icon {
   width: 17px;
   height: 17px;
@@ -2021,6 +2406,11 @@ select:focus-visible {
     left: 8px;
   }
 
+  .model-close-safety {
+    top: 58px;
+    right: 8px;
+  }
+
   .workspace.with-model {
     grid-template-columns: 1fr;
   }
@@ -2076,6 +2466,29 @@ select:focus-visible {
   .periodic-dialog {
     width: 100%;
     max-height: calc(100vh - 16px);
+  }
+}
+
+@media (max-height: 760px) {
+  .tool-rail {
+    gap: 1px;
+    padding: 3px;
+  }
+
+  .tool-rail > button,
+  .rail-tool-group,
+  .rail-tool-group > button {
+    height: 34px;
+  }
+
+  .tool-rail > button,
+  .rail-tool-group > button {
+    width: 42px;
+  }
+
+  .tool-rail app-icon {
+    width: 17px;
+    height: 17px;
   }
 }
 

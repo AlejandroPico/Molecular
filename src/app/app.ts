@@ -9,14 +9,16 @@ import {
 } from '@angular/core';
 import {
   Atom,
+  AtomSymbol,
+  ArrowKind,
   Bond,
   BondKind,
   ELEMENTS,
   ELEMENT_BY_SYMBOL,
-  ElementSymbol,
   MOLECULE_PRESETS,
   MoleculeDocument,
   QUICK_ELEMENTS,
+  ReactionArrow,
   bondKindForOrder,
   bondKindOrder,
   calculateStats,
@@ -24,18 +26,23 @@ import {
   createAtom,
   createBond,
   createDocument,
+  createReactionArrow,
   documentFromPreset,
   implicitHydrogensForAtom,
   validateBondChange,
   validateChargeChange,
   validateElementChange,
 } from './core/chemistry.models';
+import { generateStructure } from './core/formula-generator';
 import { IconComponent } from './shared/icon.component';
 import { ThreeDViewerComponent } from './three-d-viewer/three-d-viewer.component';
 
-type EditorTool = 'select' | 'pan' | 'atom' | 'bond' | 'fragment' | 'erase';
-type PanelName = 'file' | 'layers' | 'encyclopedia' | 'theme' | 'export' | 'about' | null;
+type EditorTool = 'select' | 'pan' | 'atom' | 'bond' | 'fragment' | 'arrow' | 'erase';
+type PanelName =
+  'file' | 'formula' | 'layers' | 'encyclopedia' | 'theme' | 'export' | 'about' | null;
 type ThemeMode = 'auto' | 'light' | 'dark';
+type SelectionMode = 'direct' | 'rectangle' | 'lasso';
+type GridStyle = 'triangular' | 'dots';
 
 interface CanvasPoint {
   x: number;
@@ -51,6 +58,8 @@ interface SelectionBox {
 interface ContextMenuState {
   x: number;
   y: number;
+  target: 'atoms' | 'bond' | 'arrow';
+  id?: string;
 }
 interface StoredDocument {
   id: string;
@@ -60,7 +69,7 @@ interface StoredDocument {
 }
 
 interface PointerState {
-  mode: 'drag' | 'pan' | 'select';
+  mode: 'drag' | 'pan' | 'select' | 'lasso' | 'bond' | 'arrow';
   pointerId: number;
   startClient: CanvasPoint;
   startPoint: CanvasPoint;
@@ -100,6 +109,11 @@ interface PinchState {
   moleculeAnchor: CanvasPoint;
 }
 
+interface LineDraft {
+  start: CanvasPoint;
+  end: CanvasPoint;
+}
+
 @Component({
   selector: 'app-root',
   imports: [IconComponent, ThreeDViewerComponent],
@@ -108,7 +122,7 @@ interface PinchState {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  protected readonly version = '0.2.0';
+  protected readonly version = '0.3.0';
   protected readonly elements = ELEMENTS;
   protected readonly quickElements = QUICK_ELEMENTS;
   protected readonly presets = MOLECULE_PRESETS;
@@ -118,11 +132,16 @@ export class App {
   protected readonly selectedAtomIds = signal<Set<string>>(new Set());
   protected readonly modelAtomIds = signal<Set<string>>(new Set());
   protected readonly activeTool = signal<EditorTool>('select');
-  protected readonly activeElement = signal<ElementSymbol>('C');
+  protected readonly selectionMode = signal<SelectionMode>('direct');
+  protected readonly activeElement = signal<AtomSymbol>('C');
   protected readonly bondOrder = signal<1 | 2 | 3>(1);
   protected readonly bondKind = signal<BondKind>('single');
+  protected readonly activeArrowKind = signal<ArrowKind>('forward');
   protected readonly activeFragment = signal<FragmentTemplate['id']>('benzene');
   protected readonly bondStartId = signal<string | null>(null);
+  protected readonly bondDraft = signal<LineDraft | null>(null);
+  protected readonly arrowDraft = signal<LineDraft | null>(null);
+  protected readonly lassoPoints = signal<CanvasPoint[]>([]);
   protected readonly activePanel = signal<PanelName>(null);
   protected readonly modelOpen = signal(false);
   protected readonly zoom = signal(1);
@@ -134,11 +153,14 @@ export class App {
   protected readonly encyclopediaQuery = signal('');
   protected readonly periodicQuery = signal('');
   protected readonly periodicPickerOpen = signal(false);
+  protected readonly formulaInput = signal('');
+  protected readonly formulaNotice = signal('');
   protected readonly themeMode = signal<ThemeMode>(this.initialTheme());
   protected readonly toast = signal<string | null>(null);
   protected readonly savedDocuments = signal<StoredDocument[]>(this.loadStoredDocuments());
   protected readonly canUndo = signal(false);
   protected readonly canRedo = signal(false);
+  protected readonly gridStyle = signal<GridStyle>('triangular');
 
   protected readonly fragmentTemplates: ReadonlyArray<FragmentTemplate> = [
     { id: 'benzene', label: 'Benceno', sides: 6, aromatic: true },
@@ -150,6 +172,20 @@ export class App {
     { id: 'carbon-chain', label: 'Cadena de carbono', sides: 6, chain: true },
   ];
 
+  protected readonly bondOptions: ReadonlyArray<{ kind: BondKind; label: string; glyph: string }> =
+    [
+      { kind: 'single', label: 'Simple', glyph: '—' },
+      { kind: 'double', label: 'Doble', glyph: '=' },
+      { kind: 'triple', label: 'Triple', glyph: '≡' },
+      { kind: 'up', label: 'Arriba', glyph: '▲' },
+      { kind: 'down', label: 'Abajo', glyph: '▱' },
+      { kind: 'delocalized', label: 'Deslocalizado', glyph: '┄' },
+      { kind: 'hydrogen', label: 'Hidrógeno', glyph: '···' },
+      { kind: 'aromatic', label: 'Aromático', glyph: '⌁' },
+      { kind: 'dative', label: 'Dativo', glyph: '→' },
+      { kind: 'any', label: 'Indeterminado', glyph: '∿' },
+    ];
+
   protected readonly layers = {
     grid: signal(true),
     atomLabels: signal(true),
@@ -157,6 +193,7 @@ export class App {
     bondOrders: signal(false),
     implicitHydrogens: signal(true),
     valenceWarnings: signal(true),
+    skeletal: signal(false),
   };
 
   protected readonly stats = computed(() => calculateStats(this.molecule()));
@@ -235,10 +272,20 @@ export class App {
   protected setTool(tool: EditorTool): void {
     this.activeTool.set(tool);
     if (tool !== 'bond') this.bondStartId.set(null);
+    if (tool !== 'bond') this.bondDraft.set(null);
+    if (tool !== 'arrow') this.arrowDraft.set(null);
+    if (tool !== 'select') this.lassoPoints.set([]);
     this.contextMenu.set(null);
   }
 
-  protected setElement(symbol: ElementSymbol): boolean {
+  protected setSelectionMode(mode: SelectionMode): void {
+    this.selectionMode.set(mode);
+    this.activeTool.set('select');
+    this.selectionBox.set(null);
+    this.lassoPoints.set([]);
+  }
+
+  protected setElement(symbol: AtomSymbol): boolean {
     if (this.selectedAtomIds().size && !this.applyElementToSelection(symbol)) return false;
     this.activeElement.set(symbol);
     this.activeTool.set('atom');
@@ -252,10 +299,24 @@ export class App {
   }
 
   protected setBondKind(kind: BondKind): void {
+    if (kind === 'wedge') kind = 'up';
+    if (kind === 'hash') kind = 'down';
     this.bondKind.set(kind);
     this.bondOrder.set(bondKindOrder(kind));
     this.activeTool.set('bond');
     this.bondStartId.set(null);
+  }
+
+  protected setArrowKind(kind: ArrowKind): void {
+    this.activeArrowKind.set(kind);
+    this.activeTool.set('arrow');
+    this.arrowDraft.set(null);
+    this.contextMenu.set(null);
+  }
+
+  protected setGridStyle(style: GridStyle): void {
+    this.gridStyle.set(style);
+    if (!this.layers.grid()) this.layers.grid.set(true);
   }
 
   protected setFragment(fragment: FragmentTemplate['id']): void {
@@ -280,7 +341,7 @@ export class App {
     this.periodicQuery.set('');
   }
 
-  protected selectPeriodicElement(symbol: ElementSymbol): void {
+  protected selectPeriodicElement(symbol: AtomSymbol): void {
     if (this.setElement(symbol)) this.closePeriodicPicker();
   }
 
@@ -335,6 +396,7 @@ export class App {
     this.mutate((document) => {
       document.atoms = [];
       document.bonds = [];
+      document.arrows = [];
     });
     this.selectedAtomIds.set(new Set());
     this.notify('Lienzo vaciado');
@@ -438,6 +500,25 @@ export class App {
     this.notify('Preparando imagen PNG');
   }
 
+  protected generateFromFormula(): void {
+    try {
+      const result = generateStructure(this.formulaInput());
+      this.loadDocument(result.document);
+      this.formulaNotice.set(result.notice);
+      this.activePanel.set(null);
+      this.notify(
+        result.inputKind === 'smiles'
+          ? 'Estructura SMILES generada'
+          : 'Borrador molecular generado',
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'No se ha podido interpretar la entrada.';
+      this.formulaNotice.set(message);
+      this.notify(message);
+    }
+  }
+
   protected openModel(ids?: Set<string>): void {
     if (!this.molecule().atoms.length) {
       this.notify('Añade al menos un átomo antes de construir el modelo 3D');
@@ -449,11 +530,17 @@ export class App {
     this.contextMenu.set(null);
   }
 
+  protected toggleModel(): void {
+    if (this.modelOpen()) this.closeModel();
+    else this.openModel();
+  }
+
   protected openSelectedInModel(): void {
     this.openModel(new Set(this.selectedAtomIds()));
   }
   protected closeModel(): void {
     this.modelOpen.set(false);
+    this.modelAtomIds.set(new Set());
   }
 
   protected selectAll(): void {
@@ -469,6 +556,10 @@ export class App {
     const ids = this.selectedAtomIds();
     if (!ids.size) return;
     this.mutate((document) => {
+      const affected = document.bonds
+        .filter((bond) => ids.has(bond.atomA) || ids.has(bond.atomB))
+        .flatMap((bond) => [bond.atomA, bond.atomB]);
+      this.clearHydrogenOverrides(document, affected);
       document.atoms = document.atoms.filter((atom) => !ids.has(atom.id));
       document.bonds = document.bonds.filter(
         (bond) => !ids.has(bond.atomA) && !ids.has(bond.atomB),
@@ -490,6 +581,9 @@ export class App {
         .map((atom) => {
           const copy = createAtom(atom.element, atom.x + 54, atom.y + 54);
           copy.charge = atom.charge;
+          copy.lonePairs = atom.lonePairs;
+          copy.radicalElectrons = atom.radicalElectrons;
+          copy.implicitHydrogenOverride = atom.implicitHydrogenOverride;
           idMap.set(atom.id, copy.id);
           newIds.add(copy.id);
           return copy;
@@ -512,7 +606,7 @@ export class App {
     this.notify('Fragmento duplicado');
   }
 
-  protected applyElementToSelection(symbol: ElementSymbol): boolean {
+  protected applyElementToSelection(symbol: AtomSymbol): boolean {
     const ids = this.selectedAtomIds();
     if (!ids.size) return false;
     const invalid = this.molecule()
@@ -525,7 +619,10 @@ export class App {
     }
     this.mutate((document) => {
       document.atoms.forEach((atom) => {
-        if (ids.has(atom.id)) atom.element = symbol;
+        if (ids.has(atom.id)) {
+          atom.element = symbol;
+          atom.implicitHydrogenOverride = undefined;
+        }
       });
     });
     this.notify('Selección convertida en ' + this.atomDefinition(symbol).name);
@@ -550,10 +647,42 @@ export class App {
     }
     this.mutate((document) => {
       document.atoms.forEach((atom) => {
-        if (ids.has(atom.id)) atom.charge = Math.max(-4, Math.min(4, atom.charge + delta));
+        if (ids.has(atom.id)) {
+          atom.charge = Math.max(-4, Math.min(4, atom.charge + delta));
+          atom.implicitHydrogenOverride = undefined;
+        }
       });
     });
     this.notify(delta > 0 ? 'Carga formal aumentada' : 'Carga formal reducida');
+  }
+
+  protected changeLonePairs(delta: number): void {
+    const ids = this.selectedAtomIds();
+    if (!ids.size) {
+      this.notify('Selecciona al menos un átomo para editar sus pares solitarios');
+      return;
+    }
+    this.mutate((document) => {
+      document.atoms.forEach((atom) => {
+        if (ids.has(atom.id)) atom.lonePairs = Math.max(0, Math.min(4, atom.lonePairs + delta));
+      });
+    });
+    this.notify(delta > 0 ? 'Par solitario añadido' : 'Par solitario retirado');
+  }
+
+  protected changeRadicals(delta: number): void {
+    const ids = this.selectedAtomIds();
+    if (!ids.size) {
+      this.notify('Selecciona al menos un átomo para editar electrones desapareados');
+      return;
+    }
+    this.mutate((document) => {
+      document.atoms.forEach((atom) => {
+        if (ids.has(atom.id))
+          atom.radicalElectrons = Math.max(0, Math.min(2, atom.radicalElectrons + delta));
+      });
+    });
+    this.notify(delta > 0 ? 'Electrón desapareado añadido' : 'Electrón desapareado retirado');
   }
 
   protected changeZoom(delta: number): void {
@@ -565,6 +694,50 @@ export class App {
     this.pan.set({ x: 0, y: 0 });
   }
 
+  protected cleanLayout(): void {
+    if (this.molecule().atoms.length < 2) return;
+    this.mutate((document) => {
+      const positions = new Map(document.atoms.map((atom) => [atom.id, { x: atom.x, y: atom.y }]));
+      const targetLength = 112;
+      for (let iteration = 0; iteration < 90; iteration += 1) {
+        for (const bond of document.bonds) {
+          const a = positions.get(bond.atomA);
+          const b = positions.get(bond.atomB);
+          if (!a || !b) continue;
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const distance = Math.max(1, Math.hypot(dx, dy));
+          const correction = ((distance - targetLength) / distance) * 0.13;
+          a.x += dx * correction * 0.5;
+          a.y += dy * correction * 0.5;
+          b.x -= dx * correction * 0.5;
+          b.y -= dy * correction * 0.5;
+        }
+        for (let first = 0; first < document.atoms.length; first += 1) {
+          for (let second = first + 1; second < document.atoms.length; second += 1) {
+            const a = positions.get(document.atoms[first].id)!;
+            const b = positions.get(document.atoms[second].id)!;
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const distance = Math.max(1, Math.hypot(dx, dy));
+            if (distance > 86) continue;
+            const force = ((86 - distance) / distance) * 0.06;
+            a.x -= dx * force;
+            a.y -= dy * force;
+            b.x += dx * force;
+            b.y += dy * force;
+          }
+        }
+      }
+      document.atoms.forEach((atom) => {
+        const position = positions.get(atom.id)!;
+        atom.x = position.x;
+        atom.y = position.y;
+      });
+    });
+    this.notify('Estructura ordenada localmente');
+  }
+
   protected setTheme(mode: ThemeMode): void {
     this.themeMode.set(mode);
     localStorage.setItem(this.themeKey, mode);
@@ -574,7 +747,7 @@ export class App {
   protected toggleLayer(layer: keyof typeof this.layers): void {
     this.layers[layer].update((value) => !value);
   }
-  protected atomDefinition(symbol: ElementSymbol) {
+  protected atomDefinition(symbol: AtomSymbol) {
     return ELEMENT_BY_SYMBOL.get(symbol)!;
   }
   protected atomRadius(atom: Atom): number {
@@ -615,7 +788,58 @@ export class App {
   }
 
   protected bondVisualKind(bond: Bond): BondKind {
+    if (bond.kind === 'wedge') return 'up';
+    if (bond.kind === 'hash') return 'down';
     return bond.kind ?? bondKindForOrder(bond.order);
+  }
+
+  protected bondKindLabel(kind: BondKind): string {
+    const labels: Record<BondKind, string> = {
+      single: 'Enlace simple',
+      double: 'Enlace doble',
+      triple: 'Enlace triple',
+      up: 'Enlace arriba',
+      down: 'Enlace abajo',
+      delocalized: 'Enlace deslocalizado',
+      hydrogen: 'Puente de hidrógeno',
+      aromatic: 'Enlace aromático',
+      dative: 'Enlace dativo',
+      any: 'Enlace indeterminado',
+      wedge: 'Enlace arriba',
+      hash: 'Enlace abajo',
+    };
+    return labels[kind];
+  }
+
+  protected arrowLines(arrow: ReactionArrow): BondLine[] {
+    const dx = arrow.x2 - arrow.x1;
+    const dy = arrow.y2 - arrow.y1;
+    const length = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / length) * 5;
+    const ny = (dx / length) * 5;
+    if (arrow.kind !== 'equilibrium')
+      return [{ x1: arrow.x1, y1: arrow.y1, x2: arrow.x2, y2: arrow.y2 }];
+    return [
+      { x1: arrow.x1 + nx, y1: arrow.y1 + ny, x2: arrow.x2 + nx, y2: arrow.y2 + ny },
+      { x1: arrow.x2 - nx, y1: arrow.y2 - ny, x2: arrow.x1 - nx, y2: arrow.y1 - ny },
+    ];
+  }
+
+  protected lonePairOffsets(atom: Atom): CanvasPoint[] {
+    return Array.from({ length: atom.lonePairs ?? 0 }, (_, index) => {
+      const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(1, atom.lonePairs);
+      return {
+        x: Math.cos(angle) * (this.atomRadius(atom) + 11),
+        y: Math.sin(angle) * (this.atomRadius(atom) + 11),
+      };
+    });
+  }
+
+  protected radicalOffsets(atom: Atom): CanvasPoint[] {
+    return Array.from({ length: atom.radicalElectrons ?? 0 }, (_, index) => ({
+      x: this.atomRadius(atom) + 10 + index * 7,
+      y: -this.atomRadius(atom) - 3,
+    }));
   }
 
   protected wedgePoints(bond: Bond): string {
@@ -691,6 +915,12 @@ export class App {
     };
   }
 
+  protected lassoPath(): string {
+    return this.lassoPoints()
+      .map((point) => `${point.x},${point.y}`)
+      .join(' ');
+  }
+
   protected onCanvasPointerDown(event: PointerEvent): void {
     this.contextMenu.set(null);
     if (this.registerTouchPointer(event)) return;
@@ -708,8 +938,37 @@ export class App {
       return;
     }
     if (this.activeTool() === 'bond') {
-      this.bondStartId.set(null);
-      this.notify('Selecciona dos átomos para crear el enlace');
+      const startId = this.bondStartId();
+      if (startId) {
+        const endpoint = createAtom('C', point.x, point.y);
+        const validation = validateBondChange(
+          { ...this.molecule(), atoms: [...this.molecule().atoms, endpoint] },
+          startId,
+          endpoint.id,
+          this.bondOrder(),
+          this.bondKind(),
+        );
+        if (!validation.valid) {
+          this.notify(validation.message);
+          this.bondStartId.set(null);
+          return;
+        }
+        this.mutate((document) => {
+          this.clearHydrogenOverrides(document, [startId]);
+          document.atoms.push(endpoint);
+          document.bonds.push(createBond(startId, endpoint.id, this.bondOrder(), this.bondKind()));
+        });
+        this.selectedAtomIds.set(new Set([startId, endpoint.id]));
+        this.bondStartId.set(null);
+        return;
+      }
+      this.beginPointer(event, 'bond', point);
+      this.bondDraft.set({ start: point, end: point });
+      return;
+    }
+    if (this.activeTool() === 'arrow') {
+      this.beginPointer(event, 'arrow', point);
+      this.arrowDraft.set({ start: point, end: point });
       return;
     }
     if (this.activeTool() === 'fragment') {
@@ -717,6 +976,16 @@ export class App {
       return;
     }
     if (this.activeTool() === 'select') {
+      if (this.selectionMode() === 'direct') {
+        if (!event.shiftKey) this.selectedAtomIds.set(new Set());
+        return;
+      }
+      if (this.selectionMode() === 'lasso') {
+        this.beginPointer(event, 'lasso', point, event.shiftKey);
+        this.lassoPoints.set([point]);
+        if (!event.shiftKey) this.selectedAtomIds.set(new Set());
+        return;
+      }
       this.beginPointer(event, 'select', point, event.shiftKey);
       this.selectionBox.set({
         startX: point.x,
@@ -747,7 +1016,9 @@ export class App {
           return;
         }
         this.mutate((document) => {
-          document.atoms.find((candidate) => candidate.id === atom.id)!.element = symbol;
+          const target = document.atoms.find((candidate) => candidate.id === atom.id)!;
+          target.element = symbol;
+          target.implicitHydrogenOverride = undefined;
         });
       }
       return;
@@ -780,12 +1051,19 @@ export class App {
     }
     if (this.activeTool() === 'bond') {
       const order = this.bondOrder();
-      const validation = validateBondChange(this.molecule(), bond.atomA, bond.atomB, order);
+      const validation = validateBondChange(
+        this.molecule(),
+        bond.atomA,
+        bond.atomB,
+        order,
+        this.bondKind(),
+      );
       if (!validation.valid) {
         this.notify(validation.message);
         return;
       }
       this.mutate((document) => {
+        this.clearHydrogenOverrides(document, [bond.atomA, bond.atomB]);
         const target = document.bonds.find((candidate) => candidate.id === bond.id)!;
         target.order = order;
         target.kind = this.bondKind();
@@ -793,6 +1071,16 @@ export class App {
       return;
     }
     if (this.activeTool() === 'select') this.selectedAtomIds.set(new Set([bond.atomA, bond.atomB]));
+  }
+
+  protected onArrowPointerDown(event: PointerEvent, arrow: ReactionArrow): void {
+    event.stopPropagation();
+    if (event.button !== 0) return;
+    if (this.activeTool() === 'erase') {
+      this.deleteArrow(arrow.id);
+      return;
+    }
+    if (this.activeTool() === 'arrow') this.applyArrowKind(arrow.id, this.activeArrowKind());
   }
 
   protected onCanvasPointerMove(event: PointerEvent): void {
@@ -822,6 +1110,23 @@ export class App {
     if (state.mode === 'select') {
       const box = this.selectionBox();
       if (box) this.selectionBox.set({ ...box, x: point.x, y: point.y });
+      return;
+    }
+    if (state.mode === 'lasso') {
+      const points = this.lassoPoints();
+      const previous = points[points.length - 1];
+      if (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) > 5)
+        this.lassoPoints.set([...points, point]);
+      return;
+    }
+    if (state.mode === 'bond') {
+      const draft = this.bondDraft();
+      if (draft) this.bondDraft.set({ ...draft, end: this.snapLineEnd(draft.start, point) });
+      return;
+    }
+    if (state.mode === 'arrow') {
+      const draft = this.arrowDraft();
+      if (draft) this.arrowDraft.set({ ...draft, end: this.snapLineEnd(draft.start, point) });
       return;
     }
     if (state.mode === 'drag') {
@@ -874,6 +1179,49 @@ export class App {
       }
       this.selectionBox.set(null);
     }
+    if (state.mode === 'lasso') {
+      const polygon = this.lassoPoints();
+      if (polygon.length > 2) {
+        const selected = state.additive ? new Set(this.selectedAtomIds()) : new Set<string>();
+        this.molecule().atoms.forEach((atom) => {
+          if (this.pointInPolygon({ x: atom.x, y: atom.y }, polygon)) selected.add(atom.id);
+        });
+        this.selectedAtomIds.set(selected);
+      }
+      this.lassoPoints.set([]);
+    }
+    if (state.mode === 'bond') {
+      const draft = this.bondDraft();
+      if (draft && Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y) >= 28) {
+        const first = createAtom('C', draft.start.x, draft.start.y);
+        const second = createAtom('C', draft.end.x, draft.end.y);
+        this.mutate((document) => {
+          document.atoms.push(first, second);
+          document.bonds.push(createBond(first.id, second.id, this.bondOrder(), this.bondKind()));
+        });
+        this.selectedAtomIds.set(new Set([first.id, second.id]));
+        this.notify(`${this.bondKindLabel(this.bondKind())} creado con extremos editables`);
+      }
+      this.bondDraft.set(null);
+    }
+    if (state.mode === 'arrow') {
+      const draft = this.arrowDraft();
+      if (draft && Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y) >= 38) {
+        this.mutate((document) =>
+          document.arrows.push(
+            createReactionArrow(
+              this.activeArrowKind(),
+              draft.start.x,
+              draft.start.y,
+              draft.end.x,
+              draft.end.y,
+            ),
+          ),
+        );
+        this.notify('Flecha química insertada');
+      }
+      this.arrowDraft.set(null);
+    }
     if (state.mode === 'drag' && state.moved) {
       this.recordHistory(state.original);
       this.persistAutosave();
@@ -907,7 +1255,81 @@ export class App {
     this.contextMenu.set({
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - 274)),
       y: Math.max(8, Math.min(event.clientY, window.innerHeight - 438)),
+      target: 'atoms',
     });
+  }
+
+  protected openBondContextMenu(event: MouseEvent, bond: Bond): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.selectedAtomIds.set(new Set());
+    this.contextMenu.set({
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 306)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 472)),
+      target: 'bond',
+      id: bond.id,
+    });
+  }
+
+  protected openArrowContextMenu(event: MouseEvent, arrow: ReactionArrow): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.selectedAtomIds.set(new Set());
+    this.contextMenu.set({
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 286)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 320)),
+      target: 'arrow',
+      id: arrow.id,
+    });
+  }
+
+  protected applyBondKind(bondId: string | undefined, kind: BondKind): void {
+    if (!bondId) return;
+    const bond = this.molecule().bonds.find((candidate) => candidate.id === bondId);
+    if (!bond) return;
+    const order = bondKindOrder(kind);
+    const validation = validateBondChange(this.molecule(), bond.atomA, bond.atomB, order, kind);
+    if (!validation.valid) {
+      this.notify(validation.message);
+      return;
+    }
+    this.mutate((document) => {
+      this.clearHydrogenOverrides(document, [bond.atomA, bond.atomB]);
+      const target = document.bonds.find((candidate) => candidate.id === bondId)!;
+      target.kind = kind;
+      target.order = order;
+    });
+    this.contextMenu.set(null);
+    this.notify(`${this.bondKindLabel(kind)} aplicado`);
+  }
+
+  protected deleteBond(bondId: string | undefined): void {
+    if (!bondId) return;
+    this.mutate((document) => {
+      const bond = document.bonds.find((candidate) => candidate.id === bondId);
+      if (bond) this.clearHydrogenOverrides(document, [bond.atomA, bond.atomB]);
+      document.bonds = document.bonds.filter((candidate) => candidate.id !== bondId);
+    });
+    this.contextMenu.set(null);
+    this.notify('Enlace eliminado');
+  }
+
+  protected applyArrowKind(arrowId: string | undefined, kind: ArrowKind): void {
+    if (!arrowId) return;
+    this.mutate((document) => {
+      const arrow = document.arrows.find((candidate) => candidate.id === arrowId);
+      if (arrow) arrow.kind = kind;
+    });
+    this.contextMenu.set(null);
+  }
+
+  protected deleteArrow(arrowId: string | undefined): void {
+    if (!arrowId) return;
+    this.mutate((document) => {
+      document.arrows = document.arrows.filter((candidate) => candidate.id !== arrowId);
+    });
+    this.contextMenu.set(null);
+    this.notify('Flecha eliminada');
   }
 
   protected undo(): void {
@@ -966,7 +1388,11 @@ export class App {
     }
     if (event.key === 'Escape') {
       this.bondStartId.set(null);
+      this.bondDraft.set(null);
+      this.arrowDraft.set(null);
+      this.lassoPoints.set([]);
       this.selectedAtomIds.set(new Set());
+      if (this.modelOpen()) this.closeModel();
       this.closePanels();
       return;
     }
@@ -975,6 +1401,7 @@ export class App {
       h: 'pan',
       a: 'atom',
       b: 'bond',
+      f: 'arrow',
       e: 'erase',
     };
     const tool = shortcuts[event.key.toLowerCase()];
@@ -998,7 +1425,8 @@ export class App {
       const saved = localStorage.getItem('molecular.autosave.v1');
       if (saved) {
         const parsed = JSON.parse(saved) as MoleculeDocument;
-        if (Array.isArray(parsed.atoms) && Array.isArray(parsed.bonds)) return parsed;
+        if (Array.isArray(parsed.atoms) && Array.isArray(parsed.bonds))
+          return cloneDocument(parsed);
       }
     } catch {
       /* use starter molecule */
@@ -1049,6 +1477,9 @@ export class App {
     this.selectedAtomIds.set(new Set());
     this.modelAtomIds.set(new Set());
     this.bondStartId.set(null);
+    this.bondDraft.set(null);
+    this.arrowDraft.set(null);
+    this.lassoPoints.set([]);
     this.modelOpen.set(false);
     this.undoStack = [];
     this.redoStack = [];
@@ -1157,6 +1588,9 @@ export class App {
     event.preventDefault();
     this.pointerState = null;
     this.selectionBox.set(null);
+    this.lassoPoints.set([]);
+    this.bondDraft.set(null);
+    this.arrowDraft.set(null);
     this.beginPinch();
     return true;
   }
@@ -1181,6 +1615,39 @@ export class App {
     });
   }
 
+  private snapLineEnd(start: CanvasPoint, end: CanvasPoint): CanvasPoint {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const distance = Math.hypot(dx, dy);
+    if (!distance) return end;
+    const step = Math.PI / 12;
+    const angle = Math.round(Math.atan2(dy, dx) / step) * step;
+    return { x: start.x + Math.cos(angle) * distance, y: start.y + Math.sin(angle) * distance };
+  }
+
+  private pointInPolygon(point: CanvasPoint, polygon: CanvasPoint[]): boolean {
+    let inside = false;
+    for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+      const currentPoint = polygon[index];
+      const previousPoint = polygon[previous];
+      const intersects =
+        currentPoint.y > point.y !== previousPoint.y > point.y &&
+        point.x <
+          ((previousPoint.x - currentPoint.x) * (point.y - currentPoint.y)) /
+            (previousPoint.y - currentPoint.y || 1) +
+            currentPoint.x;
+      if (intersects) inside = !inside;
+    }
+    return inside;
+  }
+
+  private clearHydrogenOverrides(document: MoleculeDocument, atomIds: string[]): void {
+    const ids = new Set(atomIds);
+    document.atoms.forEach((atom) => {
+      if (ids.has(atom.id)) atom.implicitHydrogenOverride = undefined;
+    });
+  }
+
   private handleBondTarget(atomId: string): void {
     const startId = this.bondStartId();
     if (!startId) {
@@ -1191,7 +1658,13 @@ export class App {
       this.bondStartId.set(null);
       return;
     }
-    const validation = validateBondChange(this.molecule(), startId, atomId, this.bondOrder());
+    const validation = validateBondChange(
+      this.molecule(),
+      startId,
+      atomId,
+      this.bondOrder(),
+      this.bondKind(),
+    );
     if (!validation.valid) {
       this.bondStartId.set(null);
       this.notify(validation.message);
@@ -1204,14 +1677,16 @@ export class App {
     );
     if (existing)
       this.mutate((document) => {
+        this.clearHydrogenOverrides(document, [startId, atomId]);
         const target = document.bonds.find((bond) => bond.id === existing.id)!;
         target.order = this.bondOrder();
         target.kind = this.bondKind();
       });
     else
-      this.mutate((document) =>
-        document.bonds.push(createBond(startId, atomId, this.bondOrder(), this.bondKind())),
-      );
+      this.mutate((document) => {
+        this.clearHydrogenOverrides(document, [startId, atomId]);
+        document.bonds.push(createBond(startId, atomId, this.bondOrder(), this.bondKind()));
+      });
     this.bondStartId.set(null);
   }
 
@@ -1264,6 +1739,10 @@ export class App {
 
   private deleteAtom(id: string): void {
     this.mutate((document) => {
+      const affected = document.bonds
+        .filter((bond) => bond.atomA === id || bond.atomB === id)
+        .flatMap((bond) => [bond.atomA, bond.atomB]);
+      this.clearHydrogenOverrides(document, affected);
       document.atoms = document.atoms.filter((atom) => atom.id !== id);
       document.bonds = document.bonds.filter((bond) => bond.atomA !== id && bond.atomB !== id);
     });
@@ -1275,26 +1754,38 @@ export class App {
   private createSvgMarkup(): string {
     const molecule = this.molecule();
     const margin = 90;
-    const minX = molecule.atoms.length
-      ? Math.min(...molecule.atoms.map((atom) => atom.x)) - margin
-      : 0;
-    const minY = molecule.atoms.length
-      ? Math.min(...molecule.atoms.map((atom) => atom.y)) - margin
-      : 0;
-    const maxX = molecule.atoms.length
-      ? Math.max(...molecule.atoms.map((atom) => atom.x)) + margin
-      : this.viewWidth;
-    const maxY = molecule.atoms.length
-      ? Math.max(...molecule.atoms.map((atom) => atom.y)) + margin
-      : this.viewHeight;
+    const allX = [
+      ...molecule.atoms.map((atom) => atom.x),
+      ...molecule.arrows.flatMap((arrow) => [arrow.x1, arrow.x2]),
+    ];
+    const allY = [
+      ...molecule.atoms.map((atom) => atom.y),
+      ...molecule.arrows.flatMap((arrow) => [arrow.y1, arrow.y2]),
+    ];
+    const minX = allX.length ? Math.min(...allX) - margin : 0;
+    const minY = allY.length ? Math.min(...allY) - margin : 0;
+    const maxX = allX.length ? Math.max(...allX) + margin : this.viewWidth;
+    const maxY = allY.length ? Math.max(...allY) + margin : this.viewHeight;
     const width = Math.max(280, maxX - minX);
     const height = Math.max(220, maxY - minY);
     const bondMarkup = molecule.bonds.map((bond) => this.createBondSvgMarkup(bond)).join('');
+    const arrowMarkup = molecule.arrows.map((arrow) => this.createArrowSvgMarkup(arrow)).join('');
     const atomMarkup = molecule.atoms
       .map((atom) => {
         const definition = ELEMENT_BY_SYMBOL.get(atom.element)!;
         const radius = this.atomRadius(atom);
         const charge = this.atomChargeLabel(atom);
+        const lonePairs = this.lonePairOffsets(atom)
+          .map(
+            (pair) =>
+              `<circle cx="${atom.x + pair.x - 2.5}" cy="${atom.y + pair.y}" r="1.7"/><circle cx="${atom.x + pair.x + 2.5}" cy="${atom.y + pair.y}" r="1.7"/>`,
+          )
+          .join('');
+        const radicals = this.radicalOffsets(atom)
+          .map(
+            (radical) => `<circle cx="${atom.x + radical.x}" cy="${atom.y + radical.y}" r="2.1"/>`,
+          )
+          .join('');
         return (
           '<g><circle cx="' +
           atom.x +
@@ -1322,6 +1813,8 @@ export class App {
               charge +
               '</text>'
             : '') +
+          lonePairs +
+          radicals +
           '</g>'
         );
       })
@@ -1339,7 +1832,7 @@ export class App {
       width +
       ' ' +
       height +
-      '"><rect x="' +
+      '"><defs><marker id="export-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#263142"/></marker><marker id="export-arrow-start" markerWidth="9" markerHeight="9" refX="1" refY="4.5" orient="auto-start-reverse"><path d="M9,0 L0,4.5 L9,9 Z" fill="#263142"/></marker></defs><rect x="' +
       minX +
       '" y="' +
       minY +
@@ -1350,6 +1843,9 @@ export class App {
       '" fill="#ffffff"/><g stroke="#263142" stroke-width="4" stroke-linecap="round">' +
       bondMarkup +
       '</g>' +
+      '<g fill="none" stroke="#263142" stroke-width="3" stroke-linecap="round">' +
+      arrowMarkup +
+      '</g>' +
       atomMarkup +
       '</svg>'
     );
@@ -1357,19 +1853,41 @@ export class App {
 
   private createBondSvgMarkup(bond: Bond): string {
     const kind = this.bondVisualKind(bond);
-    if (kind === 'wedge')
+    if (kind === 'up')
       return `<polygon points="${this.wedgePoints(bond)}" fill="#263142" stroke="none"/>`;
-    if (kind === 'hash') {
+    if (kind === 'down') {
       return this.hashedBondLines(bond)
         .map((line) => `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}"/>`)
         .join('');
     }
     if (kind === 'any') return `<path d="${this.wavyBondPath(bond)}" fill="none"/>`;
-    const dash = kind === 'aromatic' ? ' stroke-dasharray="10 7"' : '';
+    if (kind === 'dative') {
+      const line = this.bondLines(bond)[0];
+      return line
+        ? `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" marker-end="url(#export-arrow)"/>`
+        : '';
+    }
+    const dash =
+      kind === 'aromatic'
+        ? ' stroke-dasharray="10 7"'
+        : kind === 'delocalized'
+          ? ' stroke-dasharray="13 5 2 5"'
+          : kind === 'hydrogen'
+            ? ' stroke-dasharray="2 8" stroke-width="2.5"'
+            : '';
     return this.bondLines(bond)
       .map(
         (line) => `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}"${dash}/>`,
       )
+      .join('');
+  }
+
+  private createArrowSvgMarkup(arrow: ReactionArrow): string {
+    return this.arrowLines(arrow)
+      .map((line) => {
+        const start = arrow.kind === 'resonance' ? ' marker-start="url(#export-arrow-start)"' : '';
+        return `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" marker-end="url(#export-arrow)"${start}/>`;
+      })
       .join('');
   }
 

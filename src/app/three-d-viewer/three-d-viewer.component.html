@@ -16,18 +16,20 @@
   </header>
 
   <div class="model-toolbar">
-    <label>
-      <span>Representación</span>
-      <select
-        [value]="representation()"
-        [disabled]="!!webglError()"
-        (change)="setRepresentation($any($event.target).value)"
-      >
-        <option value="ball-stick">Bolas y varillas</option>
-        <option value="spacefill">Espacio ocupado</option>
-        <option value="wireframe">Alambre</option>
-      </select>
-    </label>
+    <div class="representation-picker" role="group" aria-label="Representación molecular">
+      @for (option of representationOptions; track option.id) {
+        <button
+          type="button"
+          [class.active]="representation() === option.id"
+          [disabled]="!!webglError()"
+          [attr.title]="option.label"
+          [attr.aria-label]="option.label"
+          (click)="setRepresentation(option.id)"
+        >
+          <app-icon [name]="option.icon" />
+        </button>
+      }
+    </div>
     <button
       type="button"
       class="tool-button"
@@ -37,6 +39,17 @@
     >
       <span class="hydrogen-mark">H</span>
       Hidrógenos
+    </button>
+    <button
+      type="button"
+      class="icon-button"
+      [class.active]="spin()"
+      title="Giro automático"
+      aria-label="Giro automático"
+      [disabled]="!!webglError()"
+      (click)="toggleSpin()"
+    >
+      <app-icon name="arrow" />
     </button>
     <button
       type="button"

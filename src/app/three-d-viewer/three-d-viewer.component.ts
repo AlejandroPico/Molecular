@@ -14,13 +14,14 @@ import {
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import {
+  BondKind,
   MoleculeDocument,
   ELEMENT_BY_SYMBOL,
   implicitHydrogensForAtom,
 } from '../core/chemistry.models';
 import { IconComponent } from '../shared/icon.component';
 
-type Representation = 'ball-stick' | 'spacefill' | 'wireframe';
+type Representation = 'ball-stick' | 'licorice' | 'spacefill' | 'sticks' | 'wireframe';
 
 interface RenderAtom {
   id: string;
@@ -33,6 +34,7 @@ interface RenderBond {
   a: string;
   b: string;
   order: 1 | 2 | 3;
+  kind: BondKind;
 }
 
 @Component({
@@ -47,8 +49,20 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
   readonly closeRequested = output<void>();
   readonly representation = signal<Representation>('ball-stick');
   readonly showHydrogens = signal(true);
+  readonly spin = signal(false);
   readonly isReady = signal(false);
   readonly webglError = signal<string | null>(null);
+  readonly representationOptions: ReadonlyArray<{
+    id: Representation;
+    label: string;
+    icon: 'ball-stick' | 'licorice' | 'spacefill' | 'stick' | 'grid';
+  }> = [
+    { id: 'ball-stick', label: 'Bolas y varillas', icon: 'ball-stick' },
+    { id: 'licorice', label: 'Licorice', icon: 'licorice' },
+    { id: 'spacefill', label: 'Relleno espacial', icon: 'spacefill' },
+    { id: 'sticks', label: 'Varillas', icon: 'stick' },
+    { id: 'wireframe', label: 'Alambre', icon: 'grid' },
+  ];
 
   @ViewChild('viewport', { static: true }) private viewportRef!: ElementRef<HTMLDivElement>;
 
@@ -88,6 +102,10 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleHydrogens(): void {
     this.showHydrogens.update((visible) => !visible);
+  }
+
+  toggleSpin(): void {
+    this.spin.update((active) => !active);
   }
 
   resetView(): void {
@@ -171,6 +189,7 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
 
   private animate = (): void => {
     this.animationFrame = requestAnimationFrame(this.animate);
+    if (this.spin() && this.moleculeGroup) this.moleculeGroup.rotation.y += 0.0045;
     this.controls?.update();
     if (this.renderer && this.scene && this.camera) this.renderer.render(this.scene, this.camera);
   };
@@ -199,7 +218,7 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
         const start = positions.get(bond.a);
         const end = positions.get(bond.b);
         if (!start || !end) continue;
-        this.addBond(start, end, bond.order, representation);
+        this.addBond(start, end, bond.order, representation, bond.kind);
       }
     }
 
@@ -209,22 +228,18 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
 
   private expandMolecule(molecule: MoleculeDocument): { atoms: RenderAtom[]; bonds: RenderBond[] } {
     if (!molecule.atoms.length) return { atoms: [], bonds: [] };
-    const centerX = molecule.atoms.reduce((sum, atom) => sum + atom.x, 0) / molecule.atoms.length;
-    const centerY = molecule.atoms.reduce((sum, atom) => sum + atom.y, 0) / molecule.atoms.length;
-    const atoms: RenderAtom[] = molecule.atoms.map((atom, index) => ({
+    const geometry = this.layoutExplicitAtoms(molecule);
+    const atoms: RenderAtom[] = molecule.atoms.map((atom) => ({
       id: atom.id,
       element: atom.element,
-      position: new THREE.Vector3(
-        (atom.x - centerX) * 0.016,
-        -(atom.y - centerY) * 0.016,
-        Math.sin(index * 1.9) * 0.16,
-      ),
+      position: geometry.get(atom.id)?.clone() ?? new THREE.Vector3(),
       implicit: false,
     }));
     const bonds: RenderBond[] = molecule.bonds.map((bond) => ({
       a: bond.atomA,
       b: bond.atomB,
       order: bond.order,
+      kind: bond.kind ?? (bond.order === 2 ? 'double' : bond.order === 3 ? 'triple' : 'single'),
     }));
 
     if (!this.showHydrogens()) return { atoms, bonds };
@@ -242,10 +257,119 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
           position: origin.clone().add(direction.multiplyScalar(1.18)),
           implicit: true,
         });
-        bonds.push({ a: source.id, b: id, order: 1 });
+        bonds.push({ a: source.id, b: id, order: 1, kind: 'single' });
       });
     }
     return { atoms, bonds };
+  }
+
+  private layoutExplicitAtoms(molecule: MoleculeDocument): Map<string, THREE.Vector3> {
+    const positions = new Map<string, THREE.Vector3>();
+    const neighbours = new Map<string, string[]>();
+    molecule.atoms.forEach((atom) => neighbours.set(atom.id, []));
+    molecule.bonds.forEach((bond) => {
+      neighbours.get(bond.atomA)?.push(bond.atomB);
+      neighbours.get(bond.atomB)?.push(bond.atomA);
+    });
+
+    const directions = [
+      new THREE.Vector3(1, 1, 1),
+      new THREE.Vector3(-1, -1, 1),
+      new THREE.Vector3(-1, 1, -1),
+      new THREE.Vector3(1, -1, -1),
+      new THREE.Vector3(1, 0.1, -0.72),
+      new THREE.Vector3(-0.6, 0.82, 0.45),
+    ].map((direction) => direction.normalize());
+    const visited = new Set<string>();
+    let componentIndex = 0;
+
+    for (const root of molecule.atoms) {
+      if (visited.has(root.id)) continue;
+      positions.set(root.id, new THREE.Vector3(componentIndex * 4.2, 0, 0));
+      visited.add(root.id);
+      const queue: Array<{ id: string; parent: string | null }> = [{ id: root.id, parent: null }];
+      while (queue.length) {
+        const current = queue.shift()!;
+        const origin = positions.get(current.id)!;
+        const candidates = neighbours.get(current.id) ?? [];
+        const backDirection = current.parent
+          ? positions.get(current.parent)!.clone().sub(origin).normalize()
+          : null;
+        let childIndex = 0;
+        for (const neighbourId of candidates) {
+          if (visited.has(neighbourId)) continue;
+          const available = directions
+            .map((direction, index) => ({ direction, index }))
+            .filter(({ direction }) => !backDirection || direction.dot(backDirection) < 0.35)
+            .sort((a, b) => {
+              const aScore = Math.abs(Math.sin((childIndex + a.index + componentIndex) * 1.73));
+              const bScore = Math.abs(Math.sin((childIndex + b.index + componentIndex) * 1.73));
+              return bScore - aScore;
+            });
+          const direction = (
+            available[childIndex % Math.max(1, available.length)]?.direction ??
+            directions[childIndex % directions.length]
+          ).clone();
+          const connectingBond = molecule.bonds.find(
+            (bond) =>
+              (bond.atomA === current.id && bond.atomB === neighbourId) ||
+              (bond.atomB === current.id && bond.atomA === neighbourId),
+          );
+          if (connectingBond?.kind === 'up') direction.z = Math.abs(direction.z || 0.55);
+          if (connectingBond?.kind === 'down') direction.z = -Math.abs(direction.z || 0.55);
+          direction.normalize();
+          const source = molecule.atoms.find((atom) => atom.id === current.id)!;
+          const target = molecule.atoms.find((atom) => atom.id === neighbourId)!;
+          const distance = this.targetBondLength(source.element, target.element);
+          positions.set(neighbourId, origin.clone().add(direction.multiplyScalar(distance)));
+          visited.add(neighbourId);
+          queue.push({ id: neighbourId, parent: current.id });
+          childIndex += 1;
+        }
+      }
+      componentIndex += 1;
+    }
+
+    const atoms = molecule.atoms;
+    for (let iteration = 0; iteration < 100; iteration += 1) {
+      for (const bond of molecule.bonds) {
+        const a = positions.get(bond.atomA);
+        const b = positions.get(bond.atomB);
+        if (!a || !b) continue;
+        const atomA = atoms.find((atom) => atom.id === bond.atomA)!;
+        const atomB = atoms.find((atom) => atom.id === bond.atomB)!;
+        const target = this.targetBondLength(atomA.element, atomB.element);
+        const delta = b.clone().sub(a);
+        const length = Math.max(0.001, delta.length());
+        const correction = delta.multiplyScalar(((length - target) / length) * 0.18);
+        a.add(correction.clone().multiplyScalar(0.5));
+        b.sub(correction.clone().multiplyScalar(0.5));
+      }
+      for (let first = 0; first < atoms.length; first += 1) {
+        for (let second = first + 1; second < atoms.length; second += 1) {
+          const a = positions.get(atoms[first].id)!;
+          const b = positions.get(atoms[second].id)!;
+          const delta = b.clone().sub(a);
+          const distance = Math.max(0.001, delta.length());
+          if (distance >= 0.92) continue;
+          const push = delta.multiplyScalar(((0.92 - distance) / distance) * 0.035);
+          a.sub(push);
+          b.add(push);
+        }
+      }
+    }
+
+    const center = new THREE.Vector3();
+    positions.forEach((position) => center.add(position));
+    center.multiplyScalar(1 / Math.max(1, positions.size));
+    positions.forEach((position) => position.sub(center));
+    return positions;
+  }
+
+  private targetBondLength(elementA: string, elementB: string): number {
+    const radiusA = ELEMENT_BY_SYMBOL.get(elementA as never)?.covalentRadius ?? 0.75;
+    const radiusB = ELEMENT_BY_SYMBOL.get(elementB as never)?.covalentRadius ?? 0.75;
+    return Math.max(0.9, Math.min(1.65, (radiusA + radiusB) * 0.92));
   }
 
   private hydrogenDirections(count: number, seed: number): THREE.Vector3[] {
@@ -283,7 +407,11 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
         ? (definition?.vanDerWaalsRadius ?? 1.5) * 0.46
         : representation === 'wireframe'
           ? 0.15
-          : Math.max(0.26, (definition?.covalentRadius ?? 0.7) * 0.48);
+          : representation === 'licorice'
+            ? 0.16
+            : representation === 'sticks'
+              ? 0.09
+              : Math.max(0.26, (definition?.covalentRadius ?? 0.7) * 0.48);
     const geometry = new THREE.SphereGeometry(
       radius,
       representation === 'wireframe' ? 16 : 32,
@@ -309,24 +437,45 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
     end: THREE.Vector3,
     order: 1 | 2 | 3,
     representation: Representation,
+    kind: BondKind,
   ): void {
     if (!this.moleculeGroup) return;
+    if (kind === 'hydrogen') {
+      const geometry = new THREE.SphereGeometry(0.045, 10, 8);
+      const material = new THREE.MeshStandardMaterial({
+        color: '#7aa7c7',
+        roughness: 0.45,
+        metalness: 0.02,
+      });
+      for (let index = 1; index < 8; index += 1) {
+        const dot = new THREE.Mesh(geometry.clone(), material.clone());
+        dot.position.copy(start).lerp(end, index / 8);
+        this.moleculeGroup.add(dot);
+      }
+      geometry.dispose();
+      material.dispose();
+      return;
+    }
     const direction = end.clone().sub(start);
     const perpendicular = new THREE.Vector3(-direction.y, direction.x, 0).normalize();
     if (!Number.isFinite(perpendicular.x)) perpendicular.set(1, 0, 0);
-    const spacing = representation === 'wireframe' ? 0.055 : 0.095;
+    const spacing =
+      representation === 'wireframe' ? 0.055 : representation === 'licorice' ? 0.12 : 0.095;
+    const bondRadius =
+      representation === 'wireframe'
+        ? 0.025
+        : representation === 'licorice'
+          ? 0.16
+          : representation === 'sticks'
+            ? 0.095
+            : 0.065;
     for (let index = 0; index < order; index++) {
       const offsetIndex = index - (order - 1) / 2;
       const offset = perpendicular.clone().multiplyScalar(offsetIndex * spacing * 2);
       const a = start.clone().add(offset);
       const b = end.clone().add(offset);
       const length = a.distanceTo(b);
-      const geometry = new THREE.CylinderGeometry(
-        representation === 'wireframe' ? 0.025 : 0.065,
-        representation === 'wireframe' ? 0.025 : 0.065,
-        length,
-        14,
-      );
+      const geometry = new THREE.CylinderGeometry(bondRadius, bondRadius, length, 14);
       const material = new THREE.MeshStandardMaterial({
         color: '#a9b5c5',
         roughness: 0.38,

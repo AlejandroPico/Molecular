@@ -41,30 +41,21 @@
     <nav class="top-actions" aria-label="Herramientas globales">
       <button
         type="button"
-        [disabled]="!canUndo()"
-        title="Deshacer (Ctrl+Z)"
-        aria-label="Deshacer"
-        (click)="undo()"
-      >
-        <app-icon name="undo" />
-      </button>
-      <button
-        type="button"
-        [disabled]="!canRedo()"
-        title="Rehacer (Ctrl+Y)"
-        aria-label="Rehacer"
-        (click)="redo()"
-      >
-        <app-icon name="redo" />
-      </button>
-      <button
-        type="button"
         [class.active]="activePanel() === 'file'"
         title="Archivo y biblioteca"
         aria-label="Archivo y biblioteca"
         (click)="togglePanel('file')"
       >
         <app-icon name="file" />
+      </button>
+      <button
+        type="button"
+        [class.active]="activePanel() === 'formula'"
+        title="Generador de fórmulas y SMILES"
+        aria-label="Generador de fórmulas"
+        (click)="togglePanel('formula')"
+      >
+        <app-icon name="formula" />
       </button>
       <button
         type="button"
@@ -106,9 +97,9 @@
         class="model-button"
         type="button"
         [class.active]="modelOpen()"
-        title="Construir modelo 3D"
-        aria-label="Construir modelo 3D"
-        (click)="openModel()"
+        [attr.title]="modelOpen() ? 'Cerrar modelo 3D' : 'Construir modelo 3D'"
+        [attr.aria-label]="modelOpen() ? 'Cerrar modelo 3D' : 'Construir modelo 3D'"
+        (click)="toggleModel()"
       >
         <app-icon name="view3d" />
       </button>
@@ -135,6 +126,19 @@
 
   <main class="workspace" [class.with-model]="modelOpen()">
     <section class="canvas-stage" (click)="searchOpen.set(false)">
+      @if (layers.grid()) {
+        <div
+          class="canvas-grid-surface"
+          [class.dots]="gridStyle() === 'dots'"
+          [class.triangular]="gridStyle() === 'triangular'"
+          [style.--grid-triangle-x]="64 * zoom() + 'px'"
+          [style.--grid-triangle-y]="37 * zoom() + 'px'"
+          [style.--grid-dot-size]="32 * zoom() + 'px'"
+          [style.--grid-x]="pan().x + 'px'"
+          [style.--grid-y]="pan().y + 'px'"
+          aria-hidden="true"
+        ></div>
+      }
       <svg
         #molecularCanvas
         class="molecular-canvas"
@@ -142,6 +146,7 @@
         [class.tool-atom]="activeTool() === 'atom'"
         [class.tool-bond]="activeTool() === 'bond'"
         [class.tool-fragment]="activeTool() === 'fragment'"
+        [class.tool-arrow]="activeTool() === 'arrow'"
         [class.tool-erase]="activeTool() === 'erase'"
         viewBox="0 0 1400 800"
         preserveAspectRatio="xMidYMid meet"
@@ -155,27 +160,91 @@
         (contextmenu)="openContextMenu($event)"
       >
         <defs>
-          <pattern id="molecular-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-            <circle cx="1" cy="1" r="1.15" class="grid-dot" />
-          </pattern>
           <filter id="atom-shadow" x="-50%" y="-50%" width="200%" height="200%">
             <feDropShadow dx="0" dy="4" stdDeviation="4" flood-opacity="0.16" />
           </filter>
+          <marker
+            id="arrow-head"
+            markerWidth="9"
+            markerHeight="9"
+            refX="8"
+            refY="4.5"
+            orient="auto"
+          >
+            <path d="M0,0 L9,4.5 L0,9 Z" class="arrow-head-shape" />
+          </marker>
+          <marker
+            id="arrow-head-start"
+            markerWidth="9"
+            markerHeight="9"
+            refX="1"
+            refY="4.5"
+            orient="auto-start-reverse"
+          >
+            <path d="M9,0 L0,4.5 L9,9 Z" class="arrow-head-shape" />
+          </marker>
         </defs>
         <rect class="canvas-background" width="1400" height="800" />
-        @if (layers.grid()) {
-          <rect class="canvas-grid" width="1400" height="800" fill="url(#molecular-grid)" />
-        }
 
         <g [attr.transform]="transform()">
+          <g class="arrow-layer">
+            @for (arrow of molecule().arrows; track arrow.id) {
+              <g
+                class="reaction-arrow"
+                (pointerdown)="onArrowPointerDown($event, arrow)"
+                (contextmenu)="openArrowContextMenu($event, arrow)"
+              >
+                @for (line of arrowLines(arrow); track $index) {
+                  <line
+                    class="reaction-arrow-line"
+                    [attr.x1]="line.x1"
+                    [attr.y1]="line.y1"
+                    [attr.x2]="line.x2"
+                    [attr.y2]="line.y2"
+                    [attr.marker-end]="
+                      arrow.kind === 'equilibrium' || arrow.kind === 'forward'
+                        ? 'url(#arrow-head)'
+                        : 'url(#arrow-head)'
+                    "
+                    [attr.marker-start]="
+                      arrow.kind === 'resonance' ? 'url(#arrow-head-start)' : null
+                    "
+                  />
+                }
+                @if (arrowLines(arrow)[0]; as hit) {
+                  <line
+                    class="arrow-hit"
+                    [attr.x1]="hit.x1"
+                    [attr.y1]="hit.y1"
+                    [attr.x2]="hit.x2"
+                    [attr.y2]="hit.y2"
+                  />
+                }
+              </g>
+            }
+            @if (arrowDraft(); as draft) {
+              <line
+                class="reaction-arrow-line draft-line"
+                [attr.x1]="draft.start.x"
+                [attr.y1]="draft.start.y"
+                [attr.x2]="draft.end.x"
+                [attr.y2]="draft.end.y"
+                marker-end="url(#arrow-head)"
+              />
+            }
+          </g>
           <g class="bond-layer">
             @for (bond of molecule().bonds; track bond.id) {
-              <g class="bond-group" (pointerdown)="onBondPointerDown($event, bond)">
+              <g
+                class="bond-group"
+                (pointerdown)="onBondPointerDown($event, bond)"
+                (contextmenu)="openBondContextMenu($event, bond)"
+              >
                 @switch (bondVisualKind(bond)) {
-                  @case ('wedge') {
+                  @case ('up') {
                     <polygon class="bond-wedge" [attr.points]="wedgePoints(bond)" />
                   }
-                  @case ('hash') {
+                  @case ('down') {
                     @for (line of hashedBondLines(bond); track $index) {
                       <line
                         class="bond-line"
@@ -189,11 +258,25 @@
                   @case ('any') {
                     <path class="bond-line bond-any" [attr.d]="wavyBondPath(bond)" />
                   }
+                  @case ('dative') {
+                    @if (bondLines(bond)[0]; as line) {
+                      <line
+                        class="bond-line bond-dative"
+                        [attr.x1]="line.x1"
+                        [attr.y1]="line.y1"
+                        [attr.x2]="line.x2"
+                        [attr.y2]="line.y2"
+                        marker-end="url(#arrow-head)"
+                      />
+                    }
+                  }
                   @default {
                     @for (line of bondLines(bond); track $index) {
                       <line
                         class="bond-line"
                         [class.bond-aromatic]="bondVisualKind(bond) === 'aromatic'"
+                        [class.bond-delocalized]="bondVisualKind(bond) === 'delocalized'"
+                        [class.bond-hydrogen]="bondVisualKind(bond) === 'hydrogen'"
                         [attr.x1]="line.x1"
                         [attr.y1]="line.y1"
                         [attr.x2]="line.x2"
@@ -222,6 +305,15 @@
                 }
               </g>
             }
+            @if (bondDraft(); as draft) {
+              <line
+                class="bond-line draft-line"
+                [attr.x1]="draft.start.x"
+                [attr.y1]="draft.start.y"
+                [attr.x2]="draft.end.x"
+                [attr.y2]="draft.end.y"
+              />
+            }
           </g>
 
           <g class="atom-layer">
@@ -230,6 +322,7 @@
                 class="atom-node"
                 [class.selected]="isSelected(atom.id)"
                 [class.bond-origin]="bondStartId() === atom.id"
+                [class.skeletal-carbon]="layers.skeletal() && atom.element === 'C'"
                 [class.invalid]="layers.valenceWarnings() && stats().invalidAtomIds.has(atom.id)"
                 [attr.transform]="'translate(' + atom.x + ' ' + atom.y + ')'"
                 (pointerdown)="onAtomPointerDown($event, atom)"
@@ -260,7 +353,26 @@
                     {{ atomChargeLabel(atom) }}
                   </text>
                 }
-                @if (layers.implicitHydrogens() && implicitHydrogenLabel(atom)) {
+                @for (pair of lonePairOffsets(atom); track $index) {
+                  <g
+                    class="lone-pair"
+                    [attr.transform]="'translate(' + pair.x + ' ' + pair.y + ')'"
+                  >
+                    <circle cx="-2.5" r="1.7" />
+                    <circle cx="2.5" r="1.7" />
+                  </g>
+                }
+                @for (radical of radicalOffsets(atom); track $index) {
+                  <circle
+                    class="radical-electron"
+                    [attr.cx]="radical.x"
+                    [attr.cy]="radical.y"
+                    r="2.1"
+                  />
+                }
+                @if (
+                  !layers.skeletal() && layers.implicitHydrogens() && implicitHydrogenLabel(atom)
+                ) {
                   <text class="implicit-hydrogen" [attr.x]="atomRadius(atom) + 8" y="5">
                     {{ implicitHydrogenLabel(atom) }}
                   </text>
@@ -283,19 +395,54 @@
               [attr.height]="rect.height"
             />
           }
+          @if (lassoPoints().length > 1) {
+            <polyline class="selection-lasso" [attr.points]="lassoPath()" />
+          }
         </g>
       </svg>
 
       <aside class="tool-rail" aria-label="Herramientas de edición">
-        <button
-          type="button"
-          [class.active]="activeTool() === 'select'"
-          title="Seleccionar (V)"
-          aria-label="Seleccionar"
-          (click)="setTool('select')"
-        >
-          <app-icon name="box-select" /><kbd>V</kbd>
-        </button>
+        <div class="rail-tool-group">
+          <button
+            type="button"
+            [class.active]="activeTool() === 'select'"
+            title="Herramientas de selección (V)"
+            aria-label="Seleccionar"
+            (click)="setTool('select')"
+          >
+            <app-icon [name]="selectionMode() === 'lasso' ? 'lasso' : 'box-select'" /><kbd>V</kbd>
+          </button>
+          <div class="tool-flyout selection-flyout">
+            <span class="flyout-title">Selección</span>
+            <button
+              type="button"
+              [class.active]="selectionMode() === 'direct'"
+              (click)="setSelectionMode('direct')"
+            >
+              <app-icon name="hand" /><span
+                ><strong>Directa</strong><small>Átomos y enlaces</small></span
+              >
+            </button>
+            <button
+              type="button"
+              [class.active]="selectionMode() === 'rectangle'"
+              (click)="setSelectionMode('rectangle')"
+            >
+              <app-icon name="box-select" /><span
+                ><strong>Rectangular</strong><small>Arrastra una caja</small></span
+              >
+            </button>
+            <button
+              type="button"
+              [class.active]="selectionMode() === 'lasso'"
+              (click)="setSelectionMode('lasso')"
+            >
+              <app-icon name="lasso" /><span
+                ><strong>Lazo</strong><small>Contorno libre</small></span
+              >
+            </button>
+          </div>
+        </div>
         <button
           type="button"
           [class.active]="activeTool() === 'pan'"
@@ -304,6 +451,41 @@
           (click)="setTool('pan')"
         >
           <app-icon name="hand" /><kbd>H</kbd>
+        </button>
+        <button
+          type="button"
+          [class.active]="layers.skeletal()"
+          title="Alternar representación esquelética / completa"
+          aria-label="Representación esquelética"
+          (click)="toggleLayer('skeletal')"
+        >
+          <app-icon name="skeletal" />
+        </button>
+        <button
+          type="button"
+          [disabled]="!canUndo()"
+          title="Deshacer (Ctrl+Z)"
+          aria-label="Deshacer"
+          (click)="undo()"
+        >
+          <app-icon name="undo" />
+        </button>
+        <button
+          type="button"
+          [disabled]="!canRedo()"
+          title="Rehacer (Ctrl+Y)"
+          aria-label="Rehacer"
+          (click)="redo()"
+        >
+          <app-icon name="redo" />
+        </button>
+        <button
+          type="button"
+          title="Ordenar estructura"
+          aria-label="Ordenar estructura"
+          (click)="cleanLayout()"
+        >
+          <app-icon name="sparkles" />
         </button>
         <div class="rail-divider"></div>
         <div class="rail-tool-group">
@@ -331,6 +513,15 @@
                   {{ symbol }}
                 </button>
               }
+              <button
+                type="button"
+                [class.active]="activeElement() === 'R'"
+                [style.--element-color]="atomDefinition('R').color"
+                title="Grupo R"
+                (click)="setElement('R')"
+              >
+                R
+              </button>
               <button
                 class="flyout-more"
                 type="button"
@@ -379,21 +570,43 @@
               <span class="bond-sample triple"></span
               ><span><strong>Triple</strong><small>Orden 3</small></span>
             </button>
-            <button
-              type="button"
-              [class.active]="bondKind() === 'wedge'"
-              (click)="setBondKind('wedge')"
-            >
+            <button type="button" [class.active]="bondKind() === 'up'" (click)="setBondKind('up')">
               <span class="bond-sample wedge"></span
-              ><span><strong>Cuña sólida</strong><small>Hacia el observador</small></span>
+              ><span><strong>Arriba</strong><small>Cuña hacia el observador</small></span>
             </button>
             <button
               type="button"
-              [class.active]="bondKind() === 'hash'"
-              (click)="setBondKind('hash')"
+              [class.active]="bondKind() === 'down'"
+              (click)="setBondKind('down')"
             >
               <span class="bond-sample hash"></span
-              ><span><strong>Cuña discontinua</strong><small>Detrás del plano</small></span>
+              ><span><strong>Abajo</strong><small>Cuña detrás del plano</small></span>
+            </button>
+            <button
+              type="button"
+              [class.active]="bondKind() === 'delocalized'"
+              (click)="setBondKind('delocalized')"
+            >
+              <span class="bond-sample delocalized"></span
+              ><span><strong>Deslocalizado</strong><small>Electrones compartidos</small></span>
+            </button>
+            <button
+              type="button"
+              [class.active]="bondKind() === 'hydrogen'"
+              (click)="setBondKind('hydrogen')"
+            >
+              <span class="bond-sample hydrogen"></span
+              ><span
+                ><strong>Puente de hidrógeno</strong><small>Interacción no covalente</small></span
+              >
+            </button>
+            <button
+              type="button"
+              [class.active]="bondKind() === 'dative'"
+              (click)="setBondKind('dative')"
+            >
+              <span class="bond-sample dative">→</span
+              ><span><strong>Dativo</strong><small>Donante hacia aceptor</small></span>
             </button>
             <button
               type="button"
@@ -455,11 +668,49 @@
           </div>
         </div>
         <div class="rail-tool-group">
-          <button type="button" title="Carga formal" aria-label="Cambiar carga formal">
-            <app-icon name="plus" />
+          <button
+            type="button"
+            [class.active]="activeTool() === 'arrow'"
+            title="Flechas químicas (F)"
+            aria-label="Flechas químicas"
+            (click)="setTool('arrow')"
+          >
+            <app-icon name="arrow" /><kbd>F</kbd>
           </button>
-          <div class="tool-flyout charge-flyout">
-            <span class="flyout-title">Carga formal</span>
+          <div class="tool-flyout arrow-flyout">
+            <span class="flyout-title">Flechas químicas</span>
+            <button
+              type="button"
+              [class.active]="activeArrowKind() === 'forward'"
+              (click)="setArrowKind('forward')"
+            >
+              <span class="arrow-sample">→</span
+              ><span><strong>Reacción</strong><small>Reactivos a productos</small></span>
+            </button>
+            <button
+              type="button"
+              [class.active]="activeArrowKind() === 'resonance'"
+              (click)="setArrowKind('resonance')"
+            >
+              <span class="arrow-sample">↔</span
+              ><span><strong>Resonancia</strong><small>Formas contribuyentes</small></span>
+            </button>
+            <button
+              type="button"
+              [class.active]="activeArrowKind() === 'equilibrium'"
+              (click)="setArrowKind('equilibrium')"
+            >
+              <span class="arrow-sample">⇌</span
+              ><span><strong>Equilibrio</strong><small>Proceso reversible</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="rail-tool-group">
+          <button type="button" title="Cargas y electrones" aria-label="Cargas y electrones">
+            <app-icon name="lone-pair" />
+          </button>
+          <div class="tool-flyout charge-flyout lewis-flyout">
+            <span class="flyout-title">Cargas y estructura de Lewis</span>
             <button type="button" (click)="changeCharge(-1)">
               <app-icon name="minus" /><span
                 ><strong>Reducir carga</strong><small>−1 en la selección</small></span
@@ -468,6 +719,27 @@
             <button type="button" (click)="changeCharge(1)">
               <app-icon name="plus" /><span
                 ><strong>Aumentar carga</strong><small>+1 en la selección</small></span
+              >
+            </button>
+            <button type="button" (click)="changeLonePairs(1)">
+              <app-icon name="lone-pair" /><span
+                ><strong>Añadir par solitario</strong
+                ><small>Dos electrones no enlazantes</small></span
+              >
+            </button>
+            <button type="button" (click)="changeLonePairs(-1)">
+              <app-icon name="minus" /><span
+                ><strong>Retirar par solitario</strong><small>De la selección</small></span
+              >
+            </button>
+            <button type="button" (click)="changeRadicals(1)">
+              <app-icon name="radical" /><span
+                ><strong>Añadir electrón libre</strong><small>Centro radicalario</small></span
+              >
+            </button>
+            <button type="button" (click)="changeRadicals(-1)">
+              <app-icon name="minus" /><span
+                ><strong>Retirar electrón libre</strong><small>De la selección</small></span
               >
             </button>
           </div>
@@ -525,6 +797,13 @@
               }
               <button
                 type="button"
+                [class.active]="selectedElement() === 'R'"
+                (click)="applyElementToSelection('R')"
+              >
+                R
+              </button>
+              <button
+                type="button"
                 title="Tabla periódica completa"
                 aria-label="Tabla periódica completa"
                 (click)="openPeriodicPicker($event)"
@@ -538,6 +817,12 @@
               <app-icon name="minus" /> Carga
             </button>
             <button type="button" (click)="changeCharge(1)"><app-icon name="plus" /> Carga</button>
+            <button type="button" (click)="changeLonePairs(1)">
+              <app-icon name="lone-pair" /> Par libre
+            </button>
+            <button type="button" (click)="changeRadicals(1)">
+              <app-icon name="radical" /> Radical
+            </button>
             <button class="primary" type="button" (click)="openSelectedInModel()">
               <app-icon name="view3d" /> Ver selección
             </button>
@@ -570,46 +855,104 @@
           [style.top.px]="menu.y"
           (click)="$event.stopPropagation()"
         >
-          <div class="context-title">
-            {{ selectedAtoms().length }}
-            {{ selectedAtoms().length === 1 ? 'elemento seleccionado' : 'elementos seleccionados' }}
-          </div>
-          <div class="context-elements" aria-label="Cambiar elemento">
-            @for (symbol of quickElements.slice(0, 6); track symbol) {
-              <button
-                type="button"
-                [class.active]="selectedElement() === symbol"
-                [attr.title]="atomDefinition(symbol).name"
-                (click)="applyElementToSelection(symbol)"
-              >
-                {{ symbol }}
+          @switch (menu.target) {
+            @case ('atoms') {
+              <div class="context-title">
+                {{ selectedAtoms().length }}
+                {{ selectedAtoms().length === 1 ? 'átomo seleccionado' : 'átomos seleccionados' }}
+              </div>
+              <div class="context-elements" aria-label="Cambiar elemento">
+                @for (symbol of quickElements.slice(0, 6); track symbol) {
+                  <button
+                    type="button"
+                    [class.active]="selectedElement() === symbol"
+                    [attr.title]="atomDefinition(symbol).name"
+                    (click)="applyElementToSelection(symbol)"
+                  >
+                    {{ symbol }}
+                  </button>
+                }
+                <button
+                  type="button"
+                  [class.active]="selectedElement() === 'R'"
+                  title="Grupo R"
+                  (click)="applyElementToSelection('R')"
+                >
+                  R
+                </button>
+                <button
+                  type="button"
+                  title="Tabla periódica completa"
+                  aria-label="Tabla periódica completa"
+                  (click)="openPeriodicPicker($event)"
+                >
+                  <app-icon name="more" />
+                </button>
+              </div>
+              <button type="button" (click)="changeLonePairs(1)">
+                <app-icon name="lone-pair" /><span
+                  ><strong>Añadir par solitario</strong><small>Estructura de Lewis</small></span
+                >
+              </button>
+              <button type="button" (click)="openSelectedInModel()">
+                <app-icon name="view3d" /><span
+                  ><strong>Construir en 3D</strong
+                  ><small>Visualizar el fragmento seleccionado</small></span
+                >
+              </button>
+              <button type="button" (click)="duplicateSelection()">
+                <app-icon name="plus" /><span
+                  ><strong>Duplicar</strong><small>Crear una copia desplazada</small></span
+                >
+              </button>
+              <button type="button" (click)="deleteSelection()">
+                <app-icon name="trash" /><span
+                  ><strong>Eliminar</strong><small>Supr o Retroceso</small></span
+                >
               </button>
             }
-            <button
-              type="button"
-              title="Tabla periódica completa"
-              aria-label="Tabla periódica completa"
-              (click)="openPeriodicPicker($event)"
-            >
-              <app-icon name="more" />
-            </button>
-          </div>
-          <button type="button" (click)="openSelectedInModel()">
-            <app-icon name="view3d" /><span
-              ><strong>Construir en 3D</strong
-              ><small>Visualizar el fragmento seleccionado</small></span
-            >
-          </button>
-          <button type="button" (click)="duplicateSelection()">
-            <app-icon name="plus" /><span
-              ><strong>Duplicar</strong><small>Crear una copia desplazada</small></span
-            >
-          </button>
-          <button type="button" (click)="deleteSelection()">
-            <app-icon name="trash" /><span
-              ><strong>Eliminar</strong><small>Supr o Retroceso</small></span
-            >
-          </button>
+            @case ('bond') {
+              <div class="context-title">Editar enlace</div>
+              <div class="context-bond-grid">
+                @for (option of bondOptions; track option.kind) {
+                  <button
+                    type="button"
+                    [title]="option.label"
+                    (click)="applyBondKind(menu.id, option.kind)"
+                  >
+                    <span>{{ option.glyph }}</span
+                    ><small>{{ option.label }}</small>
+                  </button>
+                }
+              </div>
+              <button type="button" (click)="deleteBond(menu.id)">
+                <app-icon name="trash" /><span
+                  ><strong>Eliminar enlace</strong
+                  ><small>Conservar los átomos extremos</small></span
+                >
+              </button>
+            }
+            @case ('arrow') {
+              <div class="context-title">Editar flecha química</div>
+              <button type="button" (click)="applyArrowKind(menu.id, 'forward')">
+                <span class="context-glyph">→</span
+                ><span><strong>Reacción</strong><small>Sentido directo</small></span>
+              </button>
+              <button type="button" (click)="applyArrowKind(menu.id, 'resonance')">
+                <span class="context-glyph">↔</span
+                ><span><strong>Resonancia</strong><small>Dos formas contribuyentes</small></span>
+              </button>
+              <button type="button" (click)="applyArrowKind(menu.id, 'equilibrium')">
+                <span class="context-glyph">⇌</span
+                ><span><strong>Equilibrio</strong><small>Proceso reversible</small></span>
+              </button>
+              <button type="button" (click)="deleteArrow(menu.id)">
+                <app-icon name="trash" /><span
+                  ><strong>Eliminar flecha</strong><small>Retirar del esquema</small></span
+                >
+              </button>
+            }
+          }
         </div>
       }
 
@@ -620,6 +963,15 @@
 
     @if (modelOpen()) {
       <app-three-d-viewer [molecule]="modelMolecule()" (closeRequested)="closeModel()" />
+      <button
+        class="model-close-safety"
+        type="button"
+        title="Cerrar visor 3D"
+        aria-label="Cerrar visor 3D"
+        (click)="closeModel()"
+      >
+        <app-icon name="close" />
+      </button>
     }
   </main>
 
@@ -654,7 +1006,7 @@
     <div class="panel-backdrop" (pointerdown)="closePanels()"></div>
     <aside
       class="floating-panel"
-      [class.wide]="panel === 'encyclopedia' || panel === 'about'"
+      [class.wide]="panel === 'formula' || panel === 'encyclopedia' || panel === 'about'"
       (pointerdown)="$event.stopPropagation()"
     >
       @switch (panel) {
@@ -740,6 +1092,54 @@
             }
           </div>
         }
+        @case ('formula') {
+          <header class="panel-header">
+            <div>
+              <span class="eyebrow">Construcción automática</span>
+              <h2>Generador de fórmulas</h2>
+            </div>
+            <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
+          </header>
+          <div class="panel-content formula-generator">
+            <div class="formula-intro">
+              <app-icon name="formula" />
+              <div>
+                <strong>Pega una fórmula molecular o una cadena SMILES</strong>
+                <p>
+                  SMILES fija la conectividad. Una fórmula como C₆H₁₂O₆ puede corresponder a varios
+                  isómeros, por lo que genera un borrador editable.
+                </p>
+              </div>
+            </div>
+            <label>
+              <span>Fórmula o SMILES</span>
+              <textarea
+                rows="4"
+                placeholder="Ejemplos: C6H12O6 · CC(=O)O · c1ccccc1"
+                [value]="formulaInput()"
+                (input)="formulaInput.set($any($event.target).value); formulaNotice.set('')"
+              ></textarea>
+            </label>
+            <div class="formula-examples">
+              <button type="button" (click)="formulaInput.set('C6H12O6')">C₆H₁₂O₆</button>
+              <button type="button" (click)="formulaInput.set('CC(=O)O')">Ácido acético</button>
+              <button type="button" (click)="formulaInput.set('c1ccccc1')">Benceno SMILES</button>
+            </div>
+            @if (formulaNotice()) {
+              <div class="formula-notice"><app-icon name="info" />{{ formulaNotice() }}</div>
+            }
+            <button class="formula-submit" type="button" (click)="generateFromFormula()">
+              <app-icon name="sparkles" /> Generar estructura editable
+            </button>
+            <div class="panel-note">
+              <app-icon name="info" />
+              <p>
+                El generador funciona localmente. No envía la fórmula ni el documento a ningún
+                servicio externo.
+              </p>
+            </div>
+          </div>
+        }
         @case ('layers') {
           <header class="panel-header">
             <div>
@@ -757,10 +1157,41 @@
             >
               <span
                 ><app-icon name="grid" /><i
-                  ><strong>Retícula de puntos</strong
-                  ><small>Referencia espacial del lienzo</small></i
+                  ><strong>Retícula completa</strong
+                  ><small>Cubre el lienzo y responde al zoom</small></i
                 ></span
               ><b [class.on]="layers.grid()"></b>
+            </button>
+            <div class="grid-style-choice" aria-label="Estilo de retícula">
+              <button
+                type="button"
+                [class.active]="gridStyle() === 'triangular'"
+                (click)="setGridStyle('triangular')"
+              >
+                <span class="grid-preview triangular"></span
+                ><i><strong>Triangular</strong><small>Geometría molecular</small></i>
+              </button>
+              <button
+                type="button"
+                [class.active]="gridStyle() === 'dots'"
+                (click)="setGridStyle('dots')"
+              >
+                <span class="grid-preview dots"></span
+                ><i><strong>Puntos</strong><small>Referencia clásica</small></i>
+              </button>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              [attr.aria-checked]="layers.skeletal()"
+              (click)="toggleLayer('skeletal')"
+            >
+              <span
+                ><app-icon name="skeletal" /><i
+                  ><strong>Representación esquelética</strong
+                  ><small>Oculta C y H implícitos; los extremos siguen editables</small></i
+                ></span
+              ><b [class.on]="layers.skeletal()"></b>
             </button>
             <button
               type="button"
@@ -991,8 +1422,8 @@
               <section>
                 <span class="eyebrow">Versión actual</span><strong>{{ version }}</strong>
                 <p>
-                  Tabla periódica completa, enlaces estereoquímicos, fragmentos, validación de
-                  capacidad, edición 2D, modelo WebGL, guardado local y exportación.
+                  Enlaces autónomos y avanzados, flechas de reacción, anotaciones de Lewis,
+                  generador de estructuras, edición 2D y cinco representaciones WebGL.
                 </p>
               </section>
               <section>
@@ -1006,12 +1437,14 @@
             <section class="about-purpose">
               <span class="eyebrow">Qué ofrece</span>
               <p>
-                Un lienzo de trabajo para dibujar moléculas con átomos, cargas, siete estilos de
-                enlace y fragmentos cíclicos; comprobar límites básicos de valencia; abrir la
-                selección en 3D; y exportar el resultado como SVG, PNG o documento editable.
+                Un lienzo continuo para dibujar átomos, enlaces independientes, grupos R, cargas,
+                pares solitarios, radicales, flechas y fragmentos; seleccionar por rectángulo o
+                lazo; limpiar la disposición; construir un borrador desde fórmula molecular o
+                SMILES; explorar la selección con profundidad 3D; y exportar el resultado.
               </p>
               <p>
-                La validación es educativa y explícita: evita estructuras obviamente imposibles,
+                La fórmula molecular no determina por sí sola un isómero y la geometría 3D es una
+                aproximación topológica educativa. La validación evita incompatibilidades básicas,
                 pero no sustituye un cálculo de química cuántica ni un análisis profesional.
               </p>
             </section>
