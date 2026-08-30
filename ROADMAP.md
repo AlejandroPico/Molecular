@@ -2,6 +2,14 @@
 
 Este documento separa lo publicado de lo previsto. Las fechas no son compromisos: el orden refleja dependencia técnica y valor para el editor.
 
+## 0.4.4 — Publicado
+
+- Flyouts laterales anclados a cada herramienta, limitados dinámicamente por el espacio real de la ventana y desplazables cuando no caben.
+- Historial con botón doble directo y vaciado confirmado integrado en el menú de la goma.
+- Fichas atómicas informativas que pueden fijarse, moverse y convivir sobre el lienzo.
+- Generación múltiple por comas, punto y coma o líneas; cada lote se añade sin destruir el documento y puede deshacerse de una vez.
+- Cobertura de pruebas para fórmulas tradicionales en minúsculas, lotes mixtos, conservación del documento e inspectores múltiples.
+
 ## 0.4.3 — Publicado
 
 - Panel de Lewis reducido a 202 px reales y verificado en el despliegue público junto con selección, enlaces e inspectores.

@@ -19,6 +19,7 @@ import {
   MoleculeDocument,
   QUICK_ELEMENTS,
   ReactionArrow,
+  bondOrderForAtom,
   bondKindForOrder,
   bondKindOrder,
   calculateStats,
@@ -29,11 +30,12 @@ import {
   createReactionArrow,
   documentFromPreset,
   implicitHydrogensForAtom,
+  maxValenceForAtom,
   validateBondChange,
   validateChargeChange,
   validateElementChange,
 } from './core/chemistry.models';
-import { generateStructure } from './core/formula-generator';
+import { generateStructures } from './core/formula-generator';
 import { ENCYCLOPEDIA_CHAPTERS } from './core/encyclopedia.data';
 import { resolveSolarTheme, SolarTheme } from './core/solar-theme';
 import { IconComponent } from './shared/icon.component';
@@ -62,6 +64,21 @@ interface ContextMenuState {
   y: number;
   target: 'atoms' | 'bond' | 'arrow';
   id?: string;
+}
+interface PinnedAtomInspector {
+  id: string;
+  atomId: string;
+  x: number;
+  y: number;
+  z: number;
+}
+interface PinnedInspectorDrag {
+  id: string;
+  pointerId: number;
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  height: number;
 }
 interface StoredDocument {
   id: string;
@@ -135,7 +152,7 @@ interface LineDraft {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  protected readonly version = '0.4.3';
+  protected readonly version = '0.4.4';
   protected readonly elements = ELEMENTS;
   protected readonly quickElements = QUICK_ELEMENTS;
   protected readonly presets = MOLECULE_PRESETS;
@@ -163,6 +180,7 @@ export class App {
   protected readonly pan = signal<CanvasPoint>({ x: 0, y: 0 });
   protected readonly selectionBox = signal<SelectionBox | null>(null);
   protected readonly contextMenu = signal<ContextMenuState | null>(null);
+  protected readonly pinnedAtomInspectors = signal<PinnedAtomInspector[]>([]);
   protected readonly searchQuery = signal('');
   protected readonly searchOpen = signal(false);
   protected readonly encyclopediaQuery = signal('');
@@ -319,9 +337,31 @@ export class App {
   private pinchState: PinchState | null = null;
   private spacePressed = false;
   private toastTimer = 0;
+  private pinnedInspectorDrag: PinnedInspectorDrag | null = null;
+  private pinnedInspectorZ = 130;
 
   constructor() {
     this.applyTheme(this.themeMode());
+  }
+
+  protected positionToolFlyout(event: Event): void {
+    const target = event.target;
+    const rail = event.currentTarget;
+    if (!(target instanceof Element) || !(rail instanceof HTMLElement)) return;
+    const group = target.closest<HTMLElement>('.rail-tool-group');
+    if (!group || !rail.contains(group)) return;
+    const flyout = group.querySelector<HTMLElement>('.tool-flyout');
+    if (!flyout) return;
+    requestAnimationFrame(() => {
+      const trigger = group.getBoundingClientRect();
+      const safeTop = window.innerWidth <= 560 ? 52 : 62;
+      const safeBottom = window.innerHeight <= 560 ? 50 : 64;
+      const availableHeight = Math.max(120, window.innerHeight - safeTop - safeBottom);
+      const flyoutHeight = Math.min(flyout.scrollHeight + 2, availableHeight);
+      const maximumTop = Math.max(safeTop, window.innerHeight - safeBottom - flyoutHeight);
+      const top = Math.max(safeTop, Math.min(trigger.top, maximumTop));
+      flyout.style.setProperty('--flyout-top', `${Math.round(top)}px`);
+    });
   }
 
   protected setTool(tool: EditorTool): void {
@@ -461,6 +501,7 @@ export class App {
       document.arrows = [];
     });
     this.selectedAtomIds.set(new Set());
+    this.pinnedAtomInspectors.set([]);
     this.notify('Lienzo vaciado');
   }
 
@@ -564,14 +605,15 @@ export class App {
 
   protected generateFromFormula(): void {
     try {
-      const result = generateStructure(this.formulaInput());
-      this.loadDocument(result.document);
-      this.formulaNotice.set(result.notice);
+      const results = generateStructures(this.formulaInput());
+      this.appendGeneratedDocuments(results.map((result) => result.document));
+      this.formulaNotice.set(results.map((result) => result.notice).join(' '));
+      this.formulaInput.set('');
       this.activePanel.set(null);
       this.notify(
-        result.inputKind === 'smiles'
-          ? 'Estructura SMILES generada'
-          : 'Borrador molecular generado',
+        results.length === 1
+          ? 'Estructura añadida al lienzo'
+          : `${results.length} estructuras añadidas al lienzo`,
       );
     } catch (error) {
       const message =
@@ -641,6 +683,7 @@ export class App {
       );
     });
     this.selectedAtomIds.set(new Set());
+    this.pinnedAtomInspectors.update((panels) => panels.filter((panel) => !ids.has(panel.atomId)));
     this.contextMenu.set(null);
     this.notify('Selección eliminada');
   }
@@ -920,6 +963,98 @@ export class App {
   }
   protected atomDefinition(symbol: AtomSymbol) {
     return ELEMENT_BY_SYMBOL.get(symbol)!;
+  }
+
+  protected atomById(atomId: string): Atom | null {
+    return this.molecule().atoms.find((atom) => atom.id === atomId) ?? null;
+  }
+
+  protected pinAtomInspector(atomId?: string): void {
+    const atom = atomId ? this.atomById(atomId) : null;
+    if (!atom || !atomId) return;
+    const existing = this.pinnedAtomInspectors().find((panel) => panel.atomId === atomId);
+    if (existing) {
+      const z = ++this.pinnedInspectorZ;
+      this.pinnedAtomInspectors.update((panels) =>
+        panels.map((panel) => (panel.id === existing.id ? { ...panel, z } : panel)),
+      );
+      this.contextMenu.set(null);
+      this.notify(`La ficha de ${this.atomDefinition(atom.element).name} ya estaba anclada`);
+      return;
+    }
+    const stage = this.canvasRef.nativeElement.getBoundingClientRect();
+    const context = this.contextMenu();
+    const offset = this.pinnedAtomInspectors().length * 28;
+    const panelWidth = Math.min(280, Math.max(220, stage.width - 80));
+    const panelHeight = 260;
+    const minimumX = stage.width < 360 ? 8 : 72;
+    const maximumX = Math.max(minimumX, stage.width - panelWidth - 8);
+    const maximumY = Math.max(62, stage.height - panelHeight - 60);
+    const desiredX = (context?.x ?? 330) - stage.left + 18 + offset;
+    const desiredY = (context?.y ?? 110) - stage.top - 32 + offset;
+    this.pinnedAtomInspectors.update((panels) => [
+      ...panels,
+      {
+        id:
+          typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `pin-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        atomId,
+        x: Math.max(minimumX, Math.min(desiredX, maximumX)),
+        y: Math.max(62, Math.min(desiredY, maximumY)),
+        z: ++this.pinnedInspectorZ,
+      },
+    ]);
+    this.contextMenu.set(null);
+    this.notify(`Ficha de ${this.atomDefinition(atom.element).name} anclada`);
+  }
+
+  protected closePinnedAtomInspector(id: string): void {
+    this.pinnedAtomInspectors.update((panels) => panels.filter((panel) => panel.id !== id));
+  }
+
+  protected selectPinnedAtom(atomId: string): void {
+    if (!this.atomById(atomId)) return;
+    this.setSelectionMode('direct');
+    this.selectedAtomIds.set(new Set([atomId]));
+    this.selectedBondId.set(null);
+  }
+
+  protected openPinnedAtomInModel(atomId: string): void {
+    if (this.atomById(atomId)) this.openModel(new Set([atomId]));
+  }
+
+  protected atomBondUsage(atom: Atom): string {
+    const used = bondOrderForAtom(this.molecule(), atom.id);
+    const maximum = maxValenceForAtom(atom);
+    return `${Number.isInteger(used) ? used : used.toFixed(1)} / ${maximum}`;
+  }
+
+  protected implicitHydrogenCount(atom: Atom): number {
+    return implicitHydrogensForAtom(this.molecule(), atom);
+  }
+
+  protected beginPinnedInspectorDrag(event: PointerEvent, id: string): void {
+    if (event.button !== 0) return;
+    const header = event.currentTarget as HTMLElement;
+    if ((event.target as Element).closest('button')) return;
+    const panel = header.closest<HTMLElement>('.pinned-atom-inspector');
+    if (!panel) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = panel.getBoundingClientRect();
+    const z = ++this.pinnedInspectorZ;
+    this.pinnedAtomInspectors.update((panels) =>
+      panels.map((item) => (item.id === id ? { ...item, z } : item)),
+    );
+    this.pinnedInspectorDrag = {
+      id,
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
   }
   protected atomRadius(atom: Atom): number {
     return atom.element === 'H' ? 22 : atom.element.length > 1 ? 27 : 25;
@@ -1487,6 +1622,7 @@ export class App {
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - 274)),
       y: Math.max(8, Math.min(event.clientY, window.innerHeight - 438)),
       target: 'atoms',
+      id: atom?.id ?? this.selectedAtoms()[0]?.id,
     });
   }
 
@@ -1571,6 +1707,10 @@ export class App {
     if (!previous) return;
     this.redoStack.push(cloneDocument(this.molecule()));
     this.molecule.set(previous);
+    const atomIds = new Set(previous.atoms.map((atom) => atom.id));
+    this.pinnedAtomInspectors.update((panels) =>
+      panels.filter((panel) => atomIds.has(panel.atomId)),
+    );
     this.selectedAtomIds.set(new Set());
     this.selectedBondId.set(null);
     this.updateHistoryFlags();
@@ -1582,10 +1722,53 @@ export class App {
     if (!next) return;
     this.undoStack.push(cloneDocument(this.molecule()));
     this.molecule.set(next);
+    const atomIds = new Set(next.atoms.map((atom) => atom.id));
+    this.pinnedAtomInspectors.update((panels) =>
+      panels.filter((panel) => atomIds.has(panel.atomId)),
+    );
     this.selectedAtomIds.set(new Set());
     this.selectedBondId.set(null);
     this.updateHistoryFlags();
     this.persistAutosave();
+  }
+
+  @HostListener('window:pointermove', ['$event'])
+  protected onPinnedInspectorPointerMove(event: PointerEvent): void {
+    const drag = this.pinnedInspectorDrag;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const stage = this.canvasRef.nativeElement.getBoundingClientRect();
+    const minimumX = stage.width < 360 ? 8 : 72;
+    const maximumX = Math.max(minimumX, stage.width - drag.width - 8);
+    const maximumY = Math.max(62, stage.height - drag.height - 60);
+    const x = Math.max(minimumX, Math.min(event.clientX - stage.left - drag.offsetX, maximumX));
+    const y = Math.max(62, Math.min(event.clientY - stage.top - drag.offsetY, maximumY));
+    this.pinnedAtomInspectors.update((panels) =>
+      panels.map((panel) => (panel.id === drag.id ? { ...panel, x, y } : panel)),
+    );
+  }
+
+  @HostListener('window:pointerup', ['$event'])
+  @HostListener('window:pointercancel', ['$event'])
+  protected onPinnedInspectorPointerUp(event: PointerEvent): void {
+    if (this.pinnedInspectorDrag?.pointerId === event.pointerId) this.pinnedInspectorDrag = null;
+  }
+
+  @HostListener('window:resize')
+  protected constrainPinnedInspectors(): void {
+    if (!this.pinnedAtomInspectors().length) return;
+    const stage = this.canvasRef.nativeElement.getBoundingClientRect();
+    const width = Math.min(280, Math.max(220, stage.width - 80));
+    const minimumX = stage.width < 360 ? 8 : 72;
+    const maximumX = Math.max(minimumX, stage.width - width - 8);
+    const maximumY = Math.max(62, stage.height - 260 - 60);
+    this.pinnedAtomInspectors.update((panels) =>
+      panels.map((panel) => ({
+        ...panel,
+        x: Math.max(minimumX, Math.min(panel.x, maximumX)),
+        y: Math.max(62, Math.min(panel.y, maximumY)),
+      })),
+    );
   }
 
   @HostListener('window:keydown', ['$event'])
@@ -1655,6 +1838,7 @@ export class App {
   @HostListener('window:blur')
   protected onWindowBlur(): void {
     this.spacePressed = false;
+    this.pinnedInspectorDrag = null;
   }
 
   @HostListener('window:focus')
@@ -1721,8 +1905,127 @@ export class App {
     this.persistAutosave();
   }
 
+  private appendGeneratedDocuments(sources: MoleculeDocument[]): void {
+    if (!sources.length) return;
+    const hadContent = this.molecule().atoms.length > 0 || this.molecule().arrows.length > 0;
+    const newAtomIds = new Set<string>();
+    this.mutate((document) => {
+      const initialBounds = this.documentBounds(document);
+      let cursorX = initialBounds ? initialBounds.maxX + 150 : 0;
+      let cursorY = initialBounds ? initialBounds.minY : 0;
+      let rowBottom = initialBounds?.maxY ?? 0;
+      const rowStartX = initialBounds ? Math.max(100, initialBounds.minX) : 100;
+
+      sources.forEach((source, sourceIndex) => {
+        const bounds = this.documentBounds(source);
+        if (!bounds) return;
+        const width = Math.max(80, bounds.maxX - bounds.minX);
+        const keepOriginalPosition = !hadContent && sourceIndex === 0;
+        let offsetX = 0;
+        let offsetY = 0;
+        if (!keepOriginalPosition) {
+          if (cursorX + width > this.viewWidth - 80) {
+            cursorX = rowStartX;
+            cursorY = rowBottom + 130;
+          }
+          offsetX = cursorX - bounds.minX;
+          offsetY = cursorY - bounds.minY;
+        }
+
+        const idMap = new Map<string, string>();
+        const atoms = source.atoms.map((atom) => {
+          const copy = createAtom(atom.element, atom.x + offsetX, atom.y + offsetY);
+          copy.charge = atom.charge;
+          copy.lonePairs = atom.lonePairs;
+          copy.radicalElectrons = atom.radicalElectrons;
+          copy.implicitHydrogenOverride = atom.implicitHydrogenOverride;
+          copy.isotope = atom.isotope;
+          copy.chirality = atom.chirality;
+          idMap.set(atom.id, copy.id);
+          newAtomIds.add(copy.id);
+          return copy;
+        });
+        const bonds = source.bonds.map((bond) =>
+          createBond(
+            idMap.get(bond.atomA)!,
+            idMap.get(bond.atomB)!,
+            bond.order,
+            bond.kind ?? bondKindForOrder(bond.order),
+            bond.color,
+          ),
+        );
+        const arrows = source.arrows.map((arrow) =>
+          createReactionArrow(
+            arrow.kind,
+            arrow.x1 + offsetX,
+            arrow.y1 + offsetY,
+            arrow.x2 + offsetX,
+            arrow.y2 + offsetY,
+          ),
+        );
+        document.atoms.push(...atoms);
+        document.bonds.push(...bonds);
+        document.arrows.push(...arrows);
+        const translatedMaxX = bounds.maxX + offsetX;
+        const translatedMaxY = bounds.maxY + offsetY;
+        cursorX = translatedMaxX + 150;
+        rowBottom = Math.max(rowBottom, translatedMaxY);
+        if (!hadContent && sourceIndex === 0) cursorY = bounds.minY;
+      });
+
+      if (!hadContent) {
+        document.name =
+          sources.length === 1 ? sources[0].name : `Composición · ${sources.length} estructuras`;
+      }
+    });
+    this.selectedAtomIds.set(newAtomIds);
+    this.selectedBondId.set(null);
+    this.contextMenu.set(null);
+    this.frameCurrentDocument();
+  }
+
+  private documentBounds(
+    document: MoleculeDocument,
+  ): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    const xValues = [
+      ...document.atoms.map((atom) => atom.x),
+      ...document.arrows.flatMap((arrow) => [arrow.x1, arrow.x2]),
+    ];
+    const yValues = [
+      ...document.atoms.map((atom) => atom.y),
+      ...document.arrows.flatMap((arrow) => [arrow.y1, arrow.y2]),
+    ];
+    if (!xValues.length || !yValues.length) return null;
+    return {
+      minX: Math.min(...xValues),
+      minY: Math.min(...yValues),
+      maxX: Math.max(...xValues),
+      maxY: Math.max(...yValues),
+    };
+  }
+
+  private frameCurrentDocument(): void {
+    const bounds = this.documentBounds(this.molecule());
+    if (!bounds) {
+      this.resetView();
+      return;
+    }
+    const width = Math.max(180, bounds.maxX - bounds.minX + 180);
+    const height = Math.max(160, bounds.maxY - bounds.minY + 160);
+    const zoom = Math.max(
+      0.35,
+      Math.min(1, (this.viewWidth - 120) / width, (this.viewHeight - 100) / height),
+    );
+    this.zoom.set(Number(zoom.toFixed(3)));
+    this.pan.set({
+      x: this.viewWidth / 2 - ((bounds.minX + bounds.maxX) / 2) * zoom,
+      y: this.viewHeight / 2 - ((bounds.minY + bounds.maxY) / 2) * zoom,
+    });
+  }
+
   private loadDocument(document: MoleculeDocument): void {
     this.molecule.set(cloneDocument(document));
+    this.pinnedAtomInspectors.set([]);
     this.selectedAtomIds.set(new Set());
     this.selectedBondId.set(null);
     this.modelAtomIds.set(new Set());
@@ -2012,6 +2315,7 @@ export class App {
     const selected = new Set(this.selectedAtomIds());
     selected.delete(id);
     this.selectedAtomIds.set(selected);
+    this.pinnedAtomInspectors.update((panels) => panels.filter((panel) => panel.atomId !== id));
     if (!this.selectedBond()) this.selectedBondId.set(null);
   }
 

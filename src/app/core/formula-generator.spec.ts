@@ -1,5 +1,5 @@
 import { calculateStats } from './chemistry.models';
-import { generateStructure } from './formula-generator';
+import { generateStructure, generateStructures, splitStructureInputs } from './formula-generator';
 
 describe('formula generator', () => {
   it('creates an editable draft with the requested molecular formula', () => {
@@ -27,6 +27,18 @@ describe('formula generator', () => {
     expect(result.document.atoms.filter((atom) => atom.element === 'S').length).toBe(1);
     expect(result.document.bonds.filter((bond) => bond.order === 2).length).toBe(2);
     expect(calculateStats(result.document).formula).toBe('H2O4S');
+  });
+
+  it('splits several formulas without breaking bracket expressions', () => {
+    expect(splitStructureInputs('h2o, h2so4\nC2H2')).toEqual(['h2o', 'h2so4', 'C2H2']);
+    expect(splitStructureInputs('[NH4+], C6H12O6')).toEqual(['[NH4+]', 'C6H12O6']);
+  });
+
+  it('generates several independent inputs in one operation', () => {
+    const results = generateStructures('h2o, h2so4');
+    expect(results).toHaveLength(2);
+    expect(results[0].document.name).toBe('Agua');
+    expect(results[1].document.name).toBe('Ácido sulfúrico');
   });
 
   it('parses branches and double bonds from SMILES', () => {

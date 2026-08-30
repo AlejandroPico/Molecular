@@ -15,7 +15,7 @@ describe('App', () => {
     aboutButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Acerca de Molecular');
-    expect(fixture.nativeElement.textContent).toContain('0.4.3');
+    expect(fixture.nativeElement.textContent).toContain('0.4.4');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {
@@ -38,7 +38,66 @@ describe('App', () => {
     expect(selectionGroup.textContent).toContain('Rectangular');
     expect(selectionGroup.textContent).toContain('Lazo');
     expect(selectionGroup.textContent).toContain('Desplazar');
-    expect(fixture.nativeElement.querySelectorAll('.history-flyout button').length).toBe(2);
+    expect(fixture.nativeElement.querySelectorAll('.history-split button').length).toBe(2);
+    expect(fixture.nativeElement.querySelector('.history-undo')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.history-redo')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.erase-flyout').textContent).toContain(
+      'Vaciar lienzo',
+    );
+  });
+
+  it('appends several formulas without replacing the document and undoes the whole batch', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const initialAtomCount = fixture.nativeElement.querySelectorAll('.atom-node').length;
+
+    fixture.nativeElement.querySelector('[aria-label="Generador de fórmulas"]').click();
+    fixture.detectChanges();
+    const input: HTMLTextAreaElement = fixture.nativeElement.querySelector(
+      '.formula-generator textarea',
+    );
+    input.value = 'h2o, h2so4';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('.formula-submit').click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelectorAll('.atom-node').length).toBeGreaterThan(
+      initialAtomCount,
+    );
+    const undo: HTMLButtonElement = fixture.nativeElement.querySelector('.history-undo');
+    expect(undo.disabled).toBe(false);
+    undo.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.atom-node').length).toBe(initialAtomCount);
+  });
+
+  it('pins independent movable atom information cards from the context menu', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const atoms = fixture.nativeElement.querySelectorAll('.atom-node');
+
+    atoms[0].dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, clientX: 320, clientY: 180 }),
+    );
+    fixture.detectChanges();
+    let pinButton = [...fixture.nativeElement.querySelectorAll('.context-menu button')].find(
+      (button: Element) => button.textContent?.includes('Fijar ficha informativa'),
+    ) as HTMLButtonElement;
+    pinButton.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.pinned-atom-inspector').length).toBe(1);
+
+    atoms[1].dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, clientX: 380, clientY: 220 }),
+    );
+    fixture.detectChanges();
+    pinButton = [...fixture.nativeElement.querySelectorAll('.context-menu button')].find(
+      (button: Element) => button.textContent?.includes('Fijar ficha informativa'),
+    ) as HTMLButtonElement;
+    pinButton.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.pinned-atom-inspector').length).toBe(2);
   });
 
   it('keeps the molecular canvas proportional and exposes all 118 elements', () => {

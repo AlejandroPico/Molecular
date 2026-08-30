@@ -20,6 +20,39 @@ export interface FormulaGenerationResult {
   notice: string;
 }
 
+export function generateStructures(source: string): FormulaGenerationResult[] {
+  const inputs = splitStructureInputs(source);
+  if (!inputs.length) throw new Error('Escribe una fórmula molecular o una cadena SMILES.');
+  if (inputs.length > 12)
+    throw new Error('Puedes añadir un máximo de 12 fórmulas o cadenas SMILES a la vez.');
+  return inputs.map((input, index) => {
+    try {
+      return generateStructure(input);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Entrada no reconocida.';
+      throw new Error(`Entrada ${index + 1} («${input}»): ${message}`);
+    }
+  });
+}
+
+export function splitStructureInputs(source: string): string[] {
+  const inputs: string[] = [];
+  let bracketDepth = 0;
+  let current = '';
+  for (const character of source) {
+    if (character === '[') bracketDepth += 1;
+    if (character === ']') bracketDepth = Math.max(0, bracketDepth - 1);
+    if (bracketDepth === 0 && (character === ',' || character === ';' || character === '\n')) {
+      if (current.trim()) inputs.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += character;
+  }
+  if (current.trim()) inputs.push(current.trim());
+  return inputs;
+}
+
 interface PendingBond {
   order: 1 | 2 | 3;
   kind: BondKind;
@@ -87,7 +120,8 @@ function normalizeMolecularFormula(input: string): string | null {
 
     let best: Candidate | null = null;
     for (const [symbol, definition] of ELEMENT_BY_SYMBOL) {
-      if (ascii.slice(index, index + symbol.length).toLowerCase() !== symbol.toLowerCase()) continue;
+      if (ascii.slice(index, index + symbol.length).toLowerCase() !== symbol.toLowerCase())
+        continue;
       let cursor = index + symbol.length;
       while (cursor < ascii.length && /\d/.test(ascii[cursor])) cursor += 1;
       const digits = ascii.slice(index + symbol.length, cursor);

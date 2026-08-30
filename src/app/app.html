@@ -409,7 +409,12 @@
         </g>
       </svg>
 
-      <aside class="tool-rail" aria-label="Herramientas de edición">
+      <aside
+        class="tool-rail"
+        aria-label="Herramientas de edición"
+        (pointerover)="positionToolFlyout($event)"
+        (focusin)="positionToolFlyout($event)"
+      >
         <div class="rail-tool-group">
           <button
             type="button"
@@ -476,29 +481,27 @@
         >
           <app-icon name="skeletal" />
         </button>
-        <div class="rail-tool-group history-tool-group">
+        <div class="history-split" role="group" aria-label="Deshacer y rehacer">
           <button
+            class="history-undo"
             type="button"
-            [disabled]="!canUndo() && !canRedo()"
-            title="Historial de edición"
-            aria-label="Historial: deshacer y rehacer"
-            (click)="canUndo() ? undo() : redo()"
+            [disabled]="!canUndo()"
+            title="Deshacer (Ctrl+Z)"
+            aria-label="Deshacer"
+            (click)="undo()"
           >
             <app-icon name="undo" />
           </button>
-          <div class="tool-flyout history-flyout">
-            <span class="flyout-title">Historial</span>
-            <button type="button" [disabled]="!canUndo()" (click)="undo()">
-              <app-icon name="undo" /><span
-                ><strong>Deshacer</strong><small>Ctrl + Z</small></span
-              >
-            </button>
-            <button type="button" [disabled]="!canRedo()" (click)="redo()">
-              <app-icon name="redo" /><span
-                ><strong>Rehacer</strong><small>Ctrl + Y</small></span
-              >
-            </button>
-          </div>
+          <button
+            class="history-redo"
+            type="button"
+            [disabled]="!canRedo()"
+            title="Rehacer (Ctrl+Y)"
+            aria-label="Rehacer"
+            (click)="redo()"
+          >
+            <app-icon name="redo" />
+          </button>
         </div>
         <button
           type="button"
@@ -782,24 +785,39 @@
             >
           </div>
         </div>
-        <button
-          type="button"
-          [class.active]="activeTool() === 'erase'"
-          title="Borrar átomo o enlace (E)"
-          aria-label="Borrar"
-          (click)="setTool('erase')"
-        >
-          <app-icon name="eraser" /><kbd>E</kbd>
-        </button>
-        <div class="rail-divider"></div>
-        <button
-          type="button"
-          title="Vaciar lienzo"
-          aria-label="Vaciar lienzo"
-          (click)="clearMolecule()"
-        >
-          <app-icon name="trash" />
-        </button>
+        <div class="rail-tool-group erase-tool-group">
+          <button
+            type="button"
+            [class.active]="activeTool() === 'erase'"
+            title="Borrar átomo o enlace (E)"
+            aria-label="Borrar"
+            (click)="setTool('erase')"
+          >
+            <app-icon name="eraser" /><kbd>E</kbd>
+          </button>
+          <div class="tool-flyout erase-flyout">
+            <span class="flyout-title">Borrado</span>
+            <button
+              type="button"
+              [class.active]="activeTool() === 'erase'"
+              (click)="setTool('erase')"
+            >
+              <app-icon name="eraser" /><span
+                ><strong>Goma</strong><small>Borra un átomo o enlace</small></span
+              >
+            </button>
+            <button
+              class="danger-flyout-action"
+              type="button"
+              [disabled]="!molecule().atoms.length && !molecule().arrows.length"
+              (click)="clearMolecule()"
+            >
+              <app-icon name="trash" /><span
+                ><strong>Vaciar lienzo</strong><small>Solicita confirmación</small></span
+              >
+            </button>
+          </div>
+        </div>
       </aside>
 
       @if (selectedBond(); as bond) {
@@ -1011,6 +1029,81 @@
         </aside>
       }
 
+      @for (panel of pinnedAtomInspectors(); track panel.id) {
+        @if (atomById(panel.atomId); as atom) {
+          <aside
+            class="pinned-atom-inspector"
+            [attr.data-pin-id]="panel.id"
+            [style.left.px]="panel.x"
+            [style.top.px]="panel.y"
+            [style.z-index]="panel.z"
+            (pointerdown)="$event.stopPropagation()"
+          >
+            <header
+              class="pinned-inspector-handle"
+              title="Arrastra para mover la ficha"
+              (pointerdown)="beginPinnedInspectorDrag($event, panel.id)"
+            >
+              <span
+                class="pinned-element-symbol"
+                [style.--element-color]="atomDefinition(atom.element).color"
+                >{{ atom.element }}</span
+              >
+              <div>
+                <small>Ficha anclada · arrastrable</small>
+                <strong>{{ atomDefinition(atom.element).name }}</strong>
+              </div>
+              <button
+                type="button"
+                title="Cerrar ficha"
+                aria-label="Cerrar ficha informativa"
+                (pointerdown)="$event.stopPropagation()"
+                (click)="closePinnedAtomInspector(panel.id)"
+              >
+                <app-icon name="close" />
+              </button>
+            </header>
+            <div class="pinned-inspector-content">
+              <dl>
+                <div>
+                  <dt>Número atómico</dt>
+                  <dd>{{ atomDefinition(atom.element).atomicNumber || '—' }}</dd>
+                </div>
+                <div>
+                  <dt>Masa atómica</dt>
+                  <dd>{{ atomDefinition(atom.element).atomicMass.toFixed(3) }} u</dd>
+                </div>
+                <div>
+                  <dt>Enlace usado / límite</dt>
+                  <dd>{{ atomBondUsage(atom) }}</dd>
+                </div>
+                <div>
+                  <dt>H implícitos</dt>
+                  <dd>{{ implicitHydrogenCount(atom) }}</dd>
+                </div>
+                <div>
+                  <dt>Carga formal</dt>
+                  <dd>{{ atomChargeLabel(atom) || '0' }}</dd>
+                </div>
+                <div>
+                  <dt>Pares / radicales</dt>
+                  <dd>{{ atom.lonePairs }} / {{ atom.radicalElectrons }}</dd>
+                </div>
+              </dl>
+              <p>{{ atomDefinition(atom.element).description }}</p>
+              <footer>
+                <button type="button" (click)="selectPinnedAtom(atom.id)">
+                  <app-icon name="cursor" /> Seleccionar
+                </button>
+                <button type="button" (click)="openPinnedAtomInModel(atom.id)">
+                  <app-icon name="view3d" /> Ver en 3D
+                </button>
+              </footer>
+            </div>
+          </aside>
+        }
+      }
+
       @if (!molecule().atoms.length) {
         <div class="empty-canvas">
           <div class="empty-orbit"><app-icon name="atom" /></div>
@@ -1075,6 +1168,14 @@
                   ><strong>Añadir par solitario</strong><small>Estructura de Lewis</small></span
                 >
               </button>
+              @if (menu.id) {
+                <button type="button" (click)="pinAtomInspector(menu.id)">
+                  <app-icon name="info" /><span
+                    ><strong>Fijar ficha informativa</strong
+                    ><small>Ventana independiente y desplazable</small></span
+                  >
+                </button>
+              }
               <button type="button" (click)="openSelectedInModel()">
                 <app-icon name="view3d" /><span
                   ><strong>Construir en 3D</strong
@@ -1269,15 +1370,16 @@
                   SMILES fija la conectividad. Una fórmula como C₆H₁₂O₆ puede corresponder a varios
                   isómeros, por lo que genera un borrador editable. En SMILES, C y c no son
                   equivalentes: la minúscula marca aromaticidad. Las fórmulas tradicionales también
-                  admiten minúsculas y subíndices: h2o, H₂O o h2so4.
+                  admiten minúsculas y subíndices: h2o, H₂O o h2so4. Separa varias entradas con
+                  comas, punto y coma o saltos de línea.
                 </p>
               </div>
             </div>
             <label>
-              <span>Fórmula o SMILES</span>
+              <span>Una o varias fórmulas o cadenas SMILES</span>
               <textarea
                 rows="4"
-                placeholder="Ejemplos: C6H12O6 · CC(=O)O · c1ccccc1"
+                placeholder="Ejemplos: h2o, h2so4 · CC(=O)O · c1ccccc1"
                 [value]="formulaInput()"
                 (input)="formulaInput.set($any($event.target).value); formulaNotice.set('')"
               ></textarea>
@@ -1299,13 +1401,14 @@
               <div class="formula-notice"><app-icon name="info" />{{ formulaNotice() }}</div>
             }
             <button class="formula-submit" type="button" (click)="generateFromFormula()">
-              <app-icon name="sparkles" /> Generar estructura editable
+              <app-icon name="sparkles" /> Añadir estructura(s) al lienzo
             </button>
             <div class="panel-note">
               <app-icon name="info" />
               <p>
-                El generador funciona localmente. No envía la fórmula ni el documento a ningún
-                servicio externo.
+                El generador añade el resultado junto al documento actual —sin sustituirlo— y todo
+                el lote se puede deshacer en un solo paso. Funciona localmente y no envía datos a
+                servicios externos.
               </p>
             </div>
           </div>

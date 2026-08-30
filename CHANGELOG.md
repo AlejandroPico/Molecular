@@ -1,5 +1,25 @@
 # Historial de versiones
 
+## 0.4.4 — 2026-08-30
+
+### Añadido
+
+- Entrada por lotes de hasta doce fórmulas o cadenas SMILES separadas por coma, punto y coma o salto de línea.
+- Fichas informativas atómicas independientes, desplazables y acumulables desde el menú contextual.
+- Pruebas de interfaz para la adición no destructiva, el deshacer del lote y las fichas simultáneas.
+
+### Cambiado
+
+- El generador añade cada estructura junto al documento actual y registra el lote completo como una única operación de historial.
+- Los desplegables laterales se alinean con el botón que los abre y solo se elevan lo imprescindible para caber en la ventana.
+- Deshacer y rehacer forman un control doble directo, con Deshacer como acción principal y sin submenú.
+- Vaciar lienzo pasa al desplegable de la goma; conserva la confirmación explícita y la goma sigue siendo la acción principal.
+
+### Corregido
+
+- Generar una fórmula deja de borrar silenciosamente el documento y de reiniciar el historial.
+- Los menús cortos de átomos, flechas y Lewis dejan de desaparecer durante el recorrido entre botón y opciones.
+
 ## 0.4.3 — 2026-08-30
 
 ### Corregido
