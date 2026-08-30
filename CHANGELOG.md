@@ -1,5 +1,11 @@
 # Historial de versiones
 
+## 0.4.1 — 2026-08-30
+
+### Corregido
+
+- Los paneles flotantes y su fondo modal quedan por encima del pie de fórmula y de los inspectores, evitando que estos elementos tapen el borde inferior de la enciclopedia.
+
 ## 0.4.0 — 2026-08-30
 
 ### Añadido

@@ -646,14 +646,14 @@ select:focus-visible {
 }
 .panel-backdrop {
   position: fixed;
-  z-index: 55;
+  z-index: 80;
   inset: var(--header-height) 0 var(--status-height);
   background: rgba(8, 18, 30, 0.08);
 }
 
 .floating-panel {
   position: fixed;
-  z-index: 60;
+  z-index: 90;
   top: calc(var(--header-height) + 9px);
   right: 10px;
   width: min(380px, calc(100vw - 20px));

@@ -2,7 +2,7 @@
 
 Este documento separa lo publicado de lo previsto. Las fechas no son compromisos: el orden refleja dependencia técnica y valor para el editor.
 
-## 0.4.0 — Publicado
+## 0.4.1 — Publicado
 
 - Inspector diferenciado para enlaces con extremos A/B editables y color propio.
 - Distribución anticolisión de H, carga, pares libres y radicales en pantalla y SVG.
@@ -11,6 +11,7 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 - Colocación 3D de hidrógenos guiada por direcciones libres y cierre integrado en la barra del visor.
 - Temas Mañana, Tarde, Noche y Automático mediante cálculo solar local opcional.
 - Enciclopedia didáctica de 15 capítulos con diagramas, buscador, glosario y fuentes primarias.
+- Capas flotantes corregidas para que enciclopedia e inspectores no queden bajo el pie informativo.
 
 ## 0.5 — Mecanismos e interoperabilidad
 
