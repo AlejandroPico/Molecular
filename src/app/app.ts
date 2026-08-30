@@ -34,13 +34,15 @@ import {
   validateElementChange,
 } from './core/chemistry.models';
 import { generateStructure } from './core/formula-generator';
+import { ENCYCLOPEDIA_CHAPTERS } from './core/encyclopedia.data';
+import { resolveSolarTheme, SolarTheme } from './core/solar-theme';
 import { IconComponent } from './shared/icon.component';
 import { ThreeDViewerComponent } from './three-d-viewer/three-d-viewer.component';
 
 type EditorTool = 'select' | 'pan' | 'atom' | 'bond' | 'fragment' | 'arrow' | 'erase';
 type PanelName =
   'file' | 'formula' | 'layers' | 'encyclopedia' | 'theme' | 'export' | 'about' | null;
-type ThemeMode = 'auto' | 'light' | 'dark';
+type ThemeMode = 'auto' | SolarTheme;
 type SelectionMode = 'direct' | 'rectangle' | 'lasso';
 type GridStyle = 'triangular' | 'dots';
 
@@ -87,6 +89,17 @@ interface BondLine {
   y2: number;
 }
 
+interface AnnotationPoint extends CanvasPoint {
+  rotation?: number;
+}
+
+interface AtomAnnotationLayout {
+  charge: CanvasPoint | null;
+  hydrogen: CanvasPoint | null;
+  lonePairs: AnnotationPoint[];
+  radicals: CanvasPoint[];
+}
+
 interface FragmentTemplate {
   id:
     | 'benzene'
@@ -122,7 +135,7 @@ interface LineDraft {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  protected readonly version = '0.3.0';
+  protected readonly version = '0.4.0';
   protected readonly elements = ELEMENTS;
   protected readonly quickElements = QUICK_ELEMENTS;
   protected readonly presets = MOLECULE_PRESETS;
@@ -130,12 +143,14 @@ export class App {
 
   protected readonly molecule = signal<MoleculeDocument>(this.initialDocument());
   protected readonly selectedAtomIds = signal<Set<string>>(new Set());
+  protected readonly selectedBondId = signal<string | null>(null);
   protected readonly modelAtomIds = signal<Set<string>>(new Set());
   protected readonly activeTool = signal<EditorTool>('select');
   protected readonly selectionMode = signal<SelectionMode>('direct');
   protected readonly activeElement = signal<AtomSymbol>('C');
   protected readonly bondOrder = signal<1 | 2 | 3>(1);
   protected readonly bondKind = signal<BondKind>('single');
+  protected readonly activeBondColor = signal<string | null>(null);
   protected readonly activeArrowKind = signal<ArrowKind>('forward');
   protected readonly activeFragment = signal<FragmentTemplate['id']>('benzene');
   protected readonly bondStartId = signal<string | null>(null);
@@ -151,11 +166,16 @@ export class App {
   protected readonly searchQuery = signal('');
   protected readonly searchOpen = signal(false);
   protected readonly encyclopediaQuery = signal('');
+  protected readonly encyclopediaChapterId = signal(ENCYCLOPEDIA_CHAPTERS[0].id);
+  protected readonly encyclopediaChapters = ENCYCLOPEDIA_CHAPTERS;
   protected readonly periodicQuery = signal('');
   protected readonly periodicPickerOpen = signal(false);
+  protected readonly periodicTargetAtomId = signal<string | null>(null);
   protected readonly formulaInput = signal('');
   protected readonly formulaNotice = signal('');
   protected readonly themeMode = signal<ThemeMode>(this.initialTheme());
+  protected readonly resolvedTheme = signal<SolarTheme>('morning');
+  protected readonly themeLocationStatus = signal('Horario local aproximado');
   protected readonly toast = signal<string | null>(null);
   protected readonly savedDocuments = signal<StoredDocument[]>(this.loadStoredDocuments());
   protected readonly canUndo = signal(false);
@@ -201,6 +221,16 @@ export class App {
   protected readonly selectedAtoms = computed(() =>
     this.molecule().atoms.filter((atom) => this.selectedAtomIds().has(atom.id)),
   );
+  protected readonly selectedBond = computed(
+    () => this.molecule().bonds.find((bond) => bond.id === this.selectedBondId()) ?? null,
+  );
+  protected readonly selectedBondAtoms = computed(() => {
+    const bond = this.selectedBond();
+    if (!bond) return null;
+    const atomA = this.molecule().atoms.find((atom) => atom.id === bond.atomA);
+    const atomB = this.molecule().atoms.find((atom) => atom.id === bond.atomB);
+    return atomA && atomB ? { atomA, atomB } : null;
+  });
   protected readonly selectedElement = computed(() => {
     const atoms = this.selectedAtoms();
     if (!atoms.length) return null;
@@ -228,6 +258,30 @@ export class App {
       this.normalize(element.name + ' ' + element.symbol + ' ' + element.group).includes(query),
     );
   });
+  protected readonly filteredEncyclopediaChapters = computed(() => {
+    const query = this.normalize(this.encyclopediaQuery());
+    if (!query) return this.encyclopediaChapters;
+    return this.encyclopediaChapters.filter((chapter) =>
+      this.normalize(
+        [
+          chapter.title,
+          chapter.eyebrow,
+          chapter.summary,
+          ...chapter.sections.flatMap((section) => [
+            section.title,
+            ...section.paragraphs,
+            ...(section.points ?? []),
+            section.example ?? '',
+          ]),
+        ].join(' '),
+      ).includes(query),
+    );
+  });
+  protected readonly activeEncyclopediaChapter = computed(
+    () =>
+      this.encyclopediaChapters.find((chapter) => chapter.id === this.encyclopediaChapterId()) ??
+      this.encyclopediaChapters[0],
+  );
   protected readonly filteredPeriodicElements = computed(() => {
     const query = this.normalize(this.periodicQuery());
     if (!query) return this.elements;
@@ -257,6 +311,7 @@ export class App {
   private readonly autosaveKey = 'molecular.autosave.v1';
   private readonly libraryKey = 'molecular.library.v1';
   private readonly themeKey = 'molecular.theme.v1';
+  private readonly themeLocationKey = 'molecular.theme.location.v1';
   private undoStack: MoleculeDocument[] = [];
   private redoStack: MoleculeDocument[] = [];
   private pointerState: PointerState | null = null;
@@ -328,9 +383,10 @@ export class App {
     );
   }
 
-  protected openPeriodicPicker(event?: Event): void {
+  protected openPeriodicPicker(event?: Event, atomId?: string): void {
     event?.stopPropagation();
     this.periodicQuery.set('');
+    this.periodicTargetAtomId.set(atomId ?? null);
     this.periodicPickerOpen.set(true);
     this.activePanel.set(null);
     this.contextMenu.set(null);
@@ -339,9 +395,15 @@ export class App {
   protected closePeriodicPicker(): void {
     this.periodicPickerOpen.set(false);
     this.periodicQuery.set('');
+    this.periodicTargetAtomId.set(null);
   }
 
   protected selectPeriodicElement(symbol: AtomSymbol): void {
+    const atomId = this.periodicTargetAtomId();
+    if (atomId) {
+      if (this.changeAtomElement(atomId, symbol)) this.closePeriodicPicker();
+      return;
+    }
     if (this.setElement(symbol)) this.closePeriodicPicker();
   }
 
@@ -538,21 +600,34 @@ export class App {
   protected openSelectedInModel(): void {
     this.openModel(new Set(this.selectedAtomIds()));
   }
+
+  protected openBondInModel(): void {
+    const bond = this.selectedBond();
+    if (bond) this.openModel(new Set([bond.atomA, bond.atomB]));
+  }
   protected closeModel(): void {
     this.modelOpen.set(false);
     this.modelAtomIds.set(new Set());
   }
 
   protected selectAll(): void {
+    this.selectedBondId.set(null);
     this.selectedAtomIds.set(new Set(this.molecule().atoms.map((atom) => atom.id)));
     this.contextMenu.set(null);
   }
 
   protected clearSelection(): void {
     this.selectedAtomIds.set(new Set());
+    this.selectedBondId.set(null);
   }
 
   protected deleteSelection(): void {
+    const selectedBondId = this.selectedBondId();
+    if (selectedBondId) {
+      this.deleteBond(selectedBondId);
+      this.selectedBondId.set(null);
+      return;
+    }
     const ids = this.selectedAtomIds();
     if (!ids.size) return;
     this.mutate((document) => {
@@ -596,12 +671,14 @@ export class App {
             idMap.get(bond.atomB)!,
             bond.order,
             bond.kind ?? bondKindForOrder(bond.order),
+            bond.color,
           ),
         );
       document.atoms.push(...copies);
       document.bonds.push(...bonds);
     });
     this.selectedAtomIds.set(newIds);
+    this.selectedBondId.set(null);
     this.contextMenu.set(null);
     this.notify('Fragmento duplicado');
   }
@@ -626,6 +703,22 @@ export class App {
       });
     });
     this.notify('Selección convertida en ' + this.atomDefinition(symbol).name);
+    return true;
+  }
+
+  protected changeAtomElement(atomId: string, symbol: AtomSymbol): boolean {
+    const atom = this.molecule().atoms.find((candidate) => candidate.id === atomId);
+    if (!atom) return false;
+    const validation = validateElementChange(this.molecule(), atom, symbol);
+    if (!validation.valid) {
+      this.notify(validation.message);
+      return false;
+    }
+    this.mutate((document) => {
+      const target = document.atoms.find((candidate) => candidate.id === atomId)!;
+      target.element = symbol;
+      target.implicitHydrogenOverride = undefined;
+    });
     return true;
   }
 
@@ -685,6 +778,62 @@ export class App {
     this.notify(delta > 0 ? 'Electrón desapareado añadido' : 'Electrón desapareado retirado');
   }
 
+  protected changeAtomCharge(atomId: string, delta: number): void {
+    const atom = this.molecule().atoms.find((candidate) => candidate.id === atomId);
+    if (!atom) return;
+    const charge = Math.max(-4, Math.min(4, atom.charge + delta));
+    if (charge === atom.charge) {
+      this.notify('La carga formal del editor está limitada entre −4 y +4');
+      return;
+    }
+    const validation = validateChargeChange(this.molecule(), atom, charge);
+    if (!validation.valid) {
+      this.notify(validation.message);
+      return;
+    }
+    this.mutate((document) => {
+      const target = document.atoms.find((candidate) => candidate.id === atomId)!;
+      target.charge = charge;
+      target.implicitHydrogenOverride = undefined;
+    });
+  }
+
+  protected changeAtomLonePairs(atomId: string, delta: number): void {
+    this.mutate((document) => {
+      const atom = document.atoms.find((candidate) => candidate.id === atomId);
+      if (atom) atom.lonePairs = Math.max(0, Math.min(4, atom.lonePairs + delta));
+    });
+  }
+
+  protected changeAtomRadicals(atomId: string, delta: number): void {
+    this.mutate((document) => {
+      const atom = document.atoms.find((candidate) => candidate.id === atomId);
+      if (atom) atom.radicalElectrons = Math.max(0, Math.min(2, atom.radicalElectrons + delta));
+    });
+  }
+
+  protected setBondColor(color: string | null): void {
+    this.activeBondColor.set(color);
+    const bondId = this.selectedBondId();
+    if (bondId) this.applyBondColor(bondId, color);
+  }
+
+  protected applyBondColor(bondId: string, color: string | null): void {
+    this.mutate((document) => {
+      const bond = document.bonds.find((candidate) => candidate.id === bondId);
+      if (bond) bond.color = color ?? undefined;
+    });
+  }
+
+  protected selectionValue(property: 'charge' | 'lonePairs' | 'radicalElectrons'): string {
+    const atoms = this.selectedAtoms();
+    if (!atoms.length) return '0';
+    const value = atoms[0][property];
+    if (!atoms.every((atom) => atom[property] === value)) return 'Mixto';
+    if (property === 'charge') return value > 0 ? `+${value}` : String(value);
+    return String(value);
+  }
+
   protected changeZoom(delta: number): void {
     this.zoom.update((value) => Math.max(0.35, Math.min(3.2, Number((value + delta).toFixed(2)))));
   }
@@ -742,6 +891,28 @@ export class App {
     this.themeMode.set(mode);
     localStorage.setItem(this.themeKey, mode);
     this.applyTheme(mode);
+  }
+
+  protected openEncyclopediaChapter(id: string): void {
+    this.encyclopediaChapterId.set(id);
+  }
+
+  protected locateForTheme(): void {
+    if (!navigator.geolocation) {
+      this.themeLocationStatus.set('Ubicación no disponible en este navegador');
+      return;
+    }
+    this.themeLocationStatus.set('Calculando la luz solar local…');
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const coordinates = { latitude: coords.latitude, longitude: coords.longitude };
+        localStorage.setItem(this.themeLocationKey, JSON.stringify(coordinates));
+        this.themeLocationStatus.set('Amanecer y ocaso ajustados a tu ubicación');
+        if (this.themeMode() === 'auto') this.applyTheme('auto');
+      },
+      () => this.themeLocationStatus.set('Sin permiso: se usa el horario local aproximado'),
+      { enableHighAccuracy: false, maximumAge: 86_400_000, timeout: 8000 },
+    );
   }
 
   protected toggleLayer(layer: keyof typeof this.layers): void {
@@ -825,21 +996,55 @@ export class App {
     ];
   }
 
-  protected lonePairOffsets(atom: Atom): CanvasPoint[] {
-    return Array.from({ length: atom.lonePairs ?? 0 }, (_, index) => {
-      const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(1, atom.lonePairs);
-      return {
-        x: Math.cos(angle) * (this.atomRadius(atom) + 11),
-        y: Math.sin(angle) * (this.atomRadius(atom) + 11),
-      };
+  protected annotationLayout(atom: Atom): AtomAnnotationLayout {
+    const neighbours = this.molecule()
+      .bonds.filter((bond) => bond.atomA === atom.id || bond.atomB === atom.id)
+      .map((bond) => {
+        const otherId = bond.atomA === atom.id ? bond.atomB : bond.atomA;
+        const other = this.molecule().atoms.find((candidate) => candidate.id === otherId);
+        return other ? Math.atan2(other.y - atom.y, other.x - atom.x) : null;
+      })
+      .filter((angle): angle is number => angle != null);
+    const candidates = Array.from({ length: 12 }, (_, index) => (index * Math.PI * 2) / 12);
+    const used: number[] = [];
+    const angularDistance = (a: number, b: number): number =>
+      Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+    const choose = (preferred: number): number => {
+      const available = candidates.filter(
+        (angle) => !used.some((taken) => angularDistance(angle, taken) < 0.46),
+      );
+      const angle = (available.length ? available : candidates).sort((a, b) => {
+        const penalty = (candidate: number): number =>
+          neighbours.reduce(
+            (sum, bondAngle) =>
+              sum + Math.max(0, 0.82 - angularDistance(candidate, bondAngle)) * 18,
+            0,
+          ) +
+          used.reduce(
+            (sum, taken) => sum + Math.max(0, 0.72 - angularDistance(candidate, taken)) * 28,
+            0,
+          ) +
+          angularDistance(candidate, preferred) * 0.7;
+        return penalty(a) - penalty(b);
+      })[0];
+      used.push(angle);
+      return angle;
+    };
+    const point = (angle: number, distance: number): CanvasPoint => ({
+      x: Math.cos(angle) * distance,
+      y: Math.sin(angle) * distance,
     });
-  }
-
-  protected radicalOffsets(atom: Atom): CanvasPoint[] {
-    return Array.from({ length: atom.radicalElectrons ?? 0 }, (_, index) => ({
-      x: this.atomRadius(atom) + 10 + index * 7,
-      y: -this.atomRadius(atom) - 3,
-    }));
+    const radius = this.atomRadius(atom);
+    const hydrogen = this.implicitHydrogenLabel(atom) ? point(choose(0), radius + 20) : null;
+    const charge = atom.charge ? point(choose(-Math.PI / 4), radius + 18) : null;
+    const lonePairs = Array.from({ length: atom.lonePairs ?? 0 }, (_, index) => {
+      const angle = choose(-Math.PI / 2 + (index * Math.PI * 2) / Math.max(1, atom.lonePairs));
+      return { ...point(angle, radius + 16), rotation: (angle * 180) / Math.PI + 90 };
+    });
+    const radicals = Array.from({ length: atom.radicalElectrons ?? 0 }, (_, index) =>
+      point(choose(Math.PI / 4 + index * 0.7), radius + 19),
+    );
+    return { charge, hydrogen, lonePairs, radicals };
   }
 
   protected wedgePoints(bond: Bond): string {
@@ -904,6 +1109,10 @@ export class App {
     return this.selectedAtomIds().has(id);
   }
 
+  protected isBondSelected(id: string): boolean {
+    return this.selectedBondId() === id;
+  }
+
   protected selectionRect(): { x: number; y: number; width: number; height: number } | null {
     const box = this.selectionBox();
     if (!box) return null;
@@ -931,6 +1140,7 @@ export class App {
       return;
     }
     if (event.button !== 0) return;
+    this.selectedBondId.set(null);
     if (this.activeTool() === 'atom') {
       this.mutate((document) =>
         document.atoms.push(createAtom(this.activeElement(), point.x, point.y)),
@@ -953,12 +1163,20 @@ export class App {
           this.bondStartId.set(null);
           return;
         }
+        const bond = createBond(
+          startId,
+          endpoint.id,
+          this.bondOrder(),
+          this.bondKind(),
+          this.activeBondColor() ?? undefined,
+        );
         this.mutate((document) => {
           this.clearHydrogenOverrides(document, [startId]);
           document.atoms.push(endpoint);
-          document.bonds.push(createBond(startId, endpoint.id, this.bondOrder(), this.bondKind()));
+          document.bonds.push(bond);
         });
-        this.selectedAtomIds.set(new Set([startId, endpoint.id]));
+        this.selectedAtomIds.set(new Set());
+        this.selectedBondId.set(bond.id);
         this.bondStartId.set(null);
         return;
       }
@@ -1003,6 +1221,7 @@ export class App {
     this.contextMenu.set(null);
     if (this.registerTouchPointer(event)) return;
     if (event.button !== 0) return;
+    this.selectedBondId.set(null);
     if (this.activeTool() === 'erase') {
       this.deleteAtom(atom.id);
       return;
@@ -1070,7 +1289,10 @@ export class App {
       });
       return;
     }
-    if (this.activeTool() === 'select') this.selectedAtomIds.set(new Set([bond.atomA, bond.atomB]));
+    if (this.activeTool() === 'select') {
+      this.selectedAtomIds.set(new Set());
+      this.selectedBondId.set(bond.id);
+    }
   }
 
   protected onArrowPointerDown(event: PointerEvent, arrow: ReactionArrow): void {
@@ -1195,11 +1417,19 @@ export class App {
       if (draft && Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y) >= 28) {
         const first = createAtom('C', draft.start.x, draft.start.y);
         const second = createAtom('C', draft.end.x, draft.end.y);
+        const bond = createBond(
+          first.id,
+          second.id,
+          this.bondOrder(),
+          this.bondKind(),
+          this.activeBondColor() ?? undefined,
+        );
         this.mutate((document) => {
           document.atoms.push(first, second);
-          document.bonds.push(createBond(first.id, second.id, this.bondOrder(), this.bondKind()));
+          document.bonds.push(bond);
         });
-        this.selectedAtomIds.set(new Set([first.id, second.id]));
+        this.selectedAtomIds.set(new Set());
+        this.selectedBondId.set(bond.id);
         this.notify(`${this.bondKindLabel(this.bondKind())} creado con extremos editables`);
       }
       this.bondDraft.set(null);
@@ -1250,6 +1480,7 @@ export class App {
   protected openContextMenu(event: MouseEvent, atom?: Atom): void {
     event.preventDefault();
     event.stopPropagation();
+    this.selectedBondId.set(null);
     if (atom && !this.selectedAtomIds().has(atom.id)) this.selectedAtomIds.set(new Set([atom.id]));
     if (!this.selectedAtomIds().size) return;
     this.contextMenu.set({
@@ -1263,6 +1494,7 @@ export class App {
     event.preventDefault();
     event.stopPropagation();
     this.selectedAtomIds.set(new Set());
+    this.selectedBondId.set(bond.id);
     this.contextMenu.set({
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - 306)),
       y: Math.max(8, Math.min(event.clientY, window.innerHeight - 472)),
@@ -1275,6 +1507,7 @@ export class App {
     event.preventDefault();
     event.stopPropagation();
     this.selectedAtomIds.set(new Set());
+    this.selectedBondId.set(null);
     this.contextMenu.set({
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - 286)),
       y: Math.max(8, Math.min(event.clientY, window.innerHeight - 320)),
@@ -1311,6 +1544,7 @@ export class App {
       document.bonds = document.bonds.filter((candidate) => candidate.id !== bondId);
     });
     this.contextMenu.set(null);
+    if (this.selectedBondId() === bondId) this.selectedBondId.set(null);
     this.notify('Enlace eliminado');
   }
 
@@ -1338,6 +1572,7 @@ export class App {
     this.redoStack.push(cloneDocument(this.molecule()));
     this.molecule.set(previous);
     this.selectedAtomIds.set(new Set());
+    this.selectedBondId.set(null);
     this.updateHistoryFlags();
     this.persistAutosave();
   }
@@ -1348,6 +1583,7 @@ export class App {
     this.undoStack.push(cloneDocument(this.molecule()));
     this.molecule.set(next);
     this.selectedAtomIds.set(new Set());
+    this.selectedBondId.set(null);
     this.updateHistoryFlags();
     this.persistAutosave();
   }
@@ -1392,6 +1628,7 @@ export class App {
       this.arrowDraft.set(null);
       this.lassoPoints.set([]);
       this.selectedAtomIds.set(new Set());
+      this.selectedBondId.set(null);
       if (this.modelOpen()) this.closeModel();
       this.closePanels();
       return;
@@ -1420,6 +1657,11 @@ export class App {
     this.spacePressed = false;
   }
 
+  @HostListener('window:focus')
+  protected onWindowFocus(): void {
+    if (this.themeMode() === 'auto') this.applyTheme('auto');
+  }
+
   private initialDocument(): MoleculeDocument {
     try {
       const saved = localStorage.getItem('molecular.autosave.v1');
@@ -1437,7 +1679,10 @@ export class App {
   private initialTheme(): ThemeMode {
     try {
       const stored = localStorage.getItem('molecular.theme.v1');
-      if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored;
+      if (stored === 'light') return 'morning';
+      if (stored === 'dark') return 'night';
+      if (stored === 'morning' || stored === 'afternoon' || stored === 'night' || stored === 'auto')
+        return stored;
     } catch {
       /* localStorage unavailable */
     }
@@ -1455,10 +1700,14 @@ export class App {
 
   private applyTheme(mode: ThemeMode): void {
     if (typeof document === 'undefined') return;
-    const prefersDark =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const resolved = mode === 'auto' ? (prefersDark ? 'dark' : 'light') : mode;
+    let coordinates: { latitude: number; longitude: number } | null = null;
+    try {
+      coordinates = JSON.parse(localStorage.getItem(this.themeLocationKey) ?? 'null');
+    } catch {
+      /* fall back to local clock */
+    }
+    const resolved = mode === 'auto' ? resolveSolarTheme(new Date(), coordinates) : mode;
+    this.resolvedTheme.set(resolved);
     document.documentElement.dataset['theme'] = resolved;
   }
 
@@ -1475,6 +1724,7 @@ export class App {
   private loadDocument(document: MoleculeDocument): void {
     this.molecule.set(cloneDocument(document));
     this.selectedAtomIds.set(new Set());
+    this.selectedBondId.set(null);
     this.modelAtomIds.set(new Set());
     this.bondStartId.set(null);
     this.bondDraft.set(null);
@@ -1675,6 +1925,7 @@ export class App {
         (bond.atomA === startId && bond.atomB === atomId) ||
         (bond.atomA === atomId && bond.atomB === startId),
     );
+    let selectedBondId = existing?.id ?? '';
     if (existing)
       this.mutate((document) => {
         this.clearHydrogenOverrides(document, [startId, atomId]);
@@ -1682,11 +1933,22 @@ export class App {
         target.order = this.bondOrder();
         target.kind = this.bondKind();
       });
-    else
+    else {
+      const bond = createBond(
+        startId,
+        atomId,
+        this.bondOrder(),
+        this.bondKind(),
+        this.activeBondColor() ?? undefined,
+      );
+      selectedBondId = bond.id;
       this.mutate((document) => {
         this.clearHydrogenOverrides(document, [startId, atomId]);
-        document.bonds.push(createBond(startId, atomId, this.bondOrder(), this.bondKind()));
+        document.bonds.push(bond);
       });
+    }
+    this.selectedAtomIds.set(new Set());
+    this.selectedBondId.set(selectedBondId);
     this.bondStartId.set(null);
   }
 
@@ -1734,6 +1996,7 @@ export class App {
       }
     });
     this.selectedAtomIds.set(newIds);
+    this.selectedBondId.set(null);
     this.notify(this.fragmentLabel(id) + ' insertado');
   }
 
@@ -1749,6 +2012,7 @@ export class App {
     const selected = new Set(this.selectedAtomIds());
     selected.delete(id);
     this.selectedAtomIds.set(selected);
+    if (!this.selectedBond()) this.selectedBondId.set(null);
   }
 
   private createSvgMarkup(): string {
@@ -1775,17 +2039,21 @@ export class App {
         const definition = ELEMENT_BY_SYMBOL.get(atom.element)!;
         const radius = this.atomRadius(atom);
         const charge = this.atomChargeLabel(atom);
-        const lonePairs = this.lonePairOffsets(atom)
-          .map(
-            (pair) =>
-              `<circle cx="${atom.x + pair.x - 2.5}" cy="${atom.y + pair.y}" r="1.7"/><circle cx="${atom.x + pair.x + 2.5}" cy="${atom.y + pair.y}" r="1.7"/>`,
-          )
+        const annotations = this.annotationLayout(atom);
+        const lonePairs = annotations.lonePairs
+          .map((pair) => {
+            const angle = (((pair.rotation ?? 0) - 90) * Math.PI) / 180;
+            const tangentX = Math.cos(angle) * 2.7;
+            const tangentY = Math.sin(angle) * 2.7;
+            return `<circle cx="${atom.x + pair.x - tangentX}" cy="${atom.y + pair.y - tangentY}" r="1.7"/><circle cx="${atom.x + pair.x + tangentX}" cy="${atom.y + pair.y + tangentY}" r="1.7"/>`;
+          })
           .join('');
-        const radicals = this.radicalOffsets(atom)
+        const radicals = annotations.radicals
           .map(
             (radical) => `<circle cx="${atom.x + radical.x}" cy="${atom.y + radical.y}" r="2.1"/>`,
           )
           .join('');
+        const hydrogen = this.implicitHydrogenLabel(atom);
         return (
           '<g><circle cx="' +
           atom.x +
@@ -1804,17 +2072,17 @@ export class App {
           '">' +
           atom.element +
           '</text>' +
-          (charge
-            ? '<text x="' +
-              (atom.x + radius - 2) +
-              '" y="' +
-              (atom.y - radius + 4) +
-              '" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700">' +
-              charge +
-              '</text>'
+          (charge && annotations.charge
+            ? `<text x="${atom.x + annotations.charge.x}" y="${atom.y + annotations.charge.y + 4}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700" fill="#c43f5a">${charge}</text>`
             : '') +
-          lonePairs +
-          radicals +
+          (hydrogen &&
+          annotations.hydrogen &&
+          this.layers.implicitHydrogens() &&
+          !this.layers.skeletal()
+            ? `<text x="${atom.x + annotations.hydrogen.x}" y="${atom.y + annotations.hydrogen.y + 5}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="13" font-weight="700" fill="#087c8c">${hydrogen}</text>`
+            : '') +
+          `<g fill="#6d3cc4">${lonePairs}</g>` +
+          `<g fill="#c43f5a">${radicals}</g>` +
           '</g>'
         );
       })
@@ -1840,7 +2108,7 @@ export class App {
       width +
       '" height="' +
       height +
-      '" fill="#ffffff"/><g stroke="#263142" stroke-width="4" stroke-linecap="round">' +
+      '" fill="#ffffff"/><g stroke="#58677b" stroke-width="4" stroke-linecap="round">' +
       bondMarkup +
       '</g>' +
       '<g fill="none" stroke="#263142" stroke-width="3" stroke-linecap="round">' +
@@ -1853,18 +2121,23 @@ export class App {
 
   private createBondSvgMarkup(bond: Bond): string {
     const kind = this.bondVisualKind(bond);
+    const color = bond.color ?? '#58677b';
     if (kind === 'up')
-      return `<polygon points="${this.wedgePoints(bond)}" fill="#263142" stroke="none"/>`;
+      return `<polygon points="${this.wedgePoints(bond)}" fill="${color}" stroke="none"/>`;
     if (kind === 'down') {
       return this.hashedBondLines(bond)
-        .map((line) => `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}"/>`)
+        .map(
+          (line) =>
+            `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" stroke="${color}"/>`,
+        )
         .join('');
     }
-    if (kind === 'any') return `<path d="${this.wavyBondPath(bond)}" fill="none"/>`;
+    if (kind === 'any')
+      return `<path d="${this.wavyBondPath(bond)}" fill="none" stroke="${color}"/>`;
     if (kind === 'dative') {
       const line = this.bondLines(bond)[0];
       return line
-        ? `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" marker-end="url(#export-arrow)"/>`
+        ? `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" stroke="${color}" marker-end="url(#export-arrow)"/>`
         : '';
     }
     const dash =
@@ -1877,7 +2150,8 @@ export class App {
             : '';
     return this.bondLines(bond)
       .map(
-        (line) => `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}"${dash}/>`,
+        (line) =>
+          `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" stroke="${color}"${dash}/>`,
       )
       .join('');
   }

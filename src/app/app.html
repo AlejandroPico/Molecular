@@ -237,6 +237,8 @@
             @for (bond of molecule().bonds; track bond.id) {
               <g
                 class="bond-group"
+                [class.selected]="isBondSelected(bond.id)"
+                [style.--bond-ink]="bond.color || null"
                 (pointerdown)="onBondPointerDown($event, bond)"
                 (contextmenu)="openBondContextMenu($event, bond)"
               >
@@ -344,38 +346,44 @@
                     {{ atom.element }}
                   </text>
                 }
-                @if (atom.charge) {
-                  <text
-                    class="charge-label"
-                    [attr.x]="atomRadius(atom) - 2"
-                    [attr.y]="-atomRadius(atom) + 3"
-                  >
-                    {{ atomChargeLabel(atom) }}
-                  </text>
-                }
-                @for (pair of lonePairOffsets(atom); track $index) {
-                  <g
-                    class="lone-pair"
-                    [attr.transform]="'translate(' + pair.x + ' ' + pair.y + ')'"
-                  >
-                    <circle cx="-2.5" r="1.7" />
-                    <circle cx="2.5" r="1.7" />
-                  </g>
-                }
-                @for (radical of radicalOffsets(atom); track $index) {
-                  <circle
-                    class="radical-electron"
-                    [attr.cx]="radical.x"
-                    [attr.cy]="radical.y"
-                    r="2.1"
-                  />
-                }
-                @if (
-                  !layers.skeletal() && layers.implicitHydrogens() && implicitHydrogenLabel(atom)
-                ) {
-                  <text class="implicit-hydrogen" [attr.x]="atomRadius(atom) + 8" y="5">
-                    {{ implicitHydrogenLabel(atom) }}
-                  </text>
+                @if (annotationLayout(atom); as annotations) {
+                  @if (annotations.charge) {
+                    <text
+                      class="charge-label"
+                      [attr.x]="annotations.charge.x"
+                      [attr.y]="annotations.charge.y + 4"
+                    >
+                      {{ atomChargeLabel(atom) }}
+                    </text>
+                  }
+                  @for (pair of annotations.lonePairs; track $index) {
+                    <g
+                      class="lone-pair"
+                      [attr.transform]="
+                        'translate(' + pair.x + ' ' + pair.y + ') rotate(' + pair.rotation + ')'
+                      "
+                    >
+                      <circle cx="-2.8" r="1.8" />
+                      <circle cx="2.8" r="1.8" />
+                    </g>
+                  }
+                  @for (radical of annotations.radicals; track $index) {
+                    <circle
+                      class="radical-electron"
+                      [attr.cx]="radical.x"
+                      [attr.cy]="radical.y"
+                      r="2.3"
+                    />
+                  }
+                  @if (!layers.skeletal() && layers.implicitHydrogens() && annotations.hydrogen) {
+                    <text
+                      class="implicit-hydrogen"
+                      [attr.x]="annotations.hydrogen.x"
+                      [attr.y]="annotations.hydrogen.y + 5"
+                    >
+                      {{ implicitHydrogenLabel(atom) }}
+                    </text>
+                  }
                 }
                 @if (layers.atomIndexes()) {
                   <text class="atom-index" [attr.y]="atomRadius(atom) + 20">
@@ -624,6 +632,20 @@
               <span class="bond-sample any">∿</span
               ><span><strong>Indeterminado</strong><small>Consulta o esquema</small></span>
             </button>
+            <div class="bond-ink-picker">
+              <span>Tinta de los nuevos enlaces</span>
+              <div>
+                @for (color of [null, '#2567d8', '#0f8a83', '#a23c75', '#c36b2c']; track $index) {
+                  <button
+                    type="button"
+                    [class.active]="activeBondColor() === color"
+                    [style.--swatch]="color || 'var(--bond)'"
+                    [attr.aria-label]="color ? 'Elegir tinta de enlace' : 'Usar tinta del tema'"
+                    (click)="setBondColor(color)"
+                  ></button>
+                }
+              </div>
+            </div>
           </div>
         </div>
         <div class="rail-tool-group">
@@ -711,37 +733,40 @@
           </button>
           <div class="tool-flyout charge-flyout lewis-flyout">
             <span class="flyout-title">Cargas y estructura de Lewis</span>
-            <button type="button" (click)="changeCharge(-1)">
-              <app-icon name="minus" /><span
-                ><strong>Reducir carga</strong><small>−1 en la selección</small></span
+            <p class="lewis-help">Selecciona uno o varios átomos y ajusta cada magnitud.</p>
+            <div class="property-stepper">
+              <button type="button" aria-label="Reducir carga" (click)="changeCharge(-1)">−</button>
+              <span
+                ><small>Carga formal</small><strong>{{ selectionValue('charge') }}</strong></span
               >
-            </button>
-            <button type="button" (click)="changeCharge(1)">
-              <app-icon name="plus" /><span
-                ><strong>Aumentar carga</strong><small>+1 en la selección</small></span
+              <button type="button" aria-label="Aumentar carga" (click)="changeCharge(1)">+</button>
+            </div>
+            <div class="property-stepper">
+              <button type="button" aria-label="Retirar par libre" (click)="changeLonePairs(-1)">
+                −
+              </button>
+              <span
+                ><small>Pares libres</small><strong>{{ selectionValue('lonePairs') }}</strong></span
               >
-            </button>
-            <button type="button" (click)="changeLonePairs(1)">
-              <app-icon name="lone-pair" /><span
-                ><strong>Añadir par solitario</strong
-                ><small>Dos electrones no enlazantes</small></span
+              <button type="button" aria-label="Añadir par libre" (click)="changeLonePairs(1)">
+                +
+              </button>
+            </div>
+            <div class="property-stepper">
+              <button type="button" aria-label="Retirar radical" (click)="changeRadicals(-1)">
+                −
+              </button>
+              <span
+                ><small>Electrones radicalarios</small
+                ><strong>{{ selectionValue('radicalElectrons') }}</strong></span
               >
-            </button>
-            <button type="button" (click)="changeLonePairs(-1)">
-              <app-icon name="minus" /><span
-                ><strong>Retirar par solitario</strong><small>De la selección</small></span
-              >
-            </button>
-            <button type="button" (click)="changeRadicals(1)">
-              <app-icon name="radical" /><span
-                ><strong>Añadir electrón libre</strong><small>Centro radicalario</small></span
-              >
-            </button>
-            <button type="button" (click)="changeRadicals(-1)">
-              <app-icon name="minus" /><span
-                ><strong>Retirar electrón libre</strong><small>De la selección</small></span
-              >
-            </button>
+              <button type="button" aria-label="Añadir radical" (click)="changeRadicals(1)">
+                +
+              </button>
+            </div>
+            <small class="lewis-limits"
+              >Límites visuales: 4 pares y 2 electrones radicalarios por átomo.</small
+            >
           </div>
         </div>
         <button
@@ -764,7 +789,125 @@
         </button>
       </aside>
 
-      @if (selectedAtoms().length) {
+      @if (selectedBond(); as bond) {
+        @if (selectedBondAtoms(); as endpoints) {
+          <aside class="selection-inspector bond-inspector">
+            <header>
+              <div>
+                <span>Enlace seleccionado</span>
+                <strong>{{ bondKindLabel(bondVisualKind(bond)) }} · orden {{ bond.order }}</strong>
+              </div>
+              <button
+                type="button"
+                title="Deseleccionar"
+                aria-label="Deseleccionar enlace"
+                (click)="clearSelection()"
+              >
+                <app-icon name="close" />
+              </button>
+            </header>
+            <div class="bond-inspector-summary">
+              <label>
+                <span>Tipo de enlace</span>
+                <select
+                  [value]="bondVisualKind(bond)"
+                  (change)="applyBondKind(bond.id, $any($event.target).value)"
+                >
+                  @for (option of bondOptions; track option.kind) {
+                    <option [value]="option.kind">{{ option.glyph }} {{ option.label }}</option>
+                  }
+                </select>
+              </label>
+              <div class="bond-color-row" aria-label="Color del enlace">
+                @for (color of [null, '#2567d8', '#0f8a83', '#a23c75', '#c36b2c']; track $index) {
+                  <button
+                    type="button"
+                    [class.active]="(bond.color || null) === color"
+                    [style.--swatch]="color || 'var(--bond)'"
+                    [attr.aria-label]="color ? 'Aplicar color al enlace' : 'Usar color del tema'"
+                    (click)="applyBondColor(bond.id, color)"
+                  ></button>
+                }
+              </div>
+            </div>
+            <p class="bond-inspector-note">
+              Las líneas de un enlace doble o triple forman una sola entidad química. Los extremos A
+              y B sí se editan por separado.
+            </p>
+            <div class="bond-endpoints">
+              @for (
+                endpoint of [endpoints.atomA, endpoints.atomB];
+                track endpoint.id;
+                let endpointIndex = $index
+              ) {
+                <section class="bond-endpoint-card">
+                  <header>
+                    <span>Extremo {{ endpointIndex === 0 ? 'A' : 'B' }}</span>
+                    <strong>{{ endpoint.element }}</strong>
+                    <small>{{ atomDefinition(endpoint.element).name }}</small>
+                  </header>
+                  <div class="endpoint-elements">
+                    @for (symbol of quickElements.slice(0, 6); track symbol) {
+                      <button
+                        type="button"
+                        [class.active]="endpoint.element === symbol"
+                        (click)="changeAtomElement(endpoint.id, $any(symbol))"
+                      >
+                        {{ symbol }}
+                      </button>
+                    }
+                    <button
+                      type="button"
+                      [class.active]="endpoint.element === 'R'"
+                      (click)="changeAtomElement(endpoint.id, 'R')"
+                    >
+                      R
+                    </button>
+                    <button
+                      type="button"
+                      title="Elegir otro elemento"
+                      [attr.aria-label]="
+                        'Tabla periódica para extremo ' + (endpointIndex ? 'B' : 'A')
+                      "
+                      (click)="openPeriodicPicker($event, endpoint.id)"
+                    >
+                      <app-icon name="more" />
+                    </button>
+                  </div>
+                  <div class="property-stepper compact">
+                    <button
+                      type="button"
+                      aria-label="Reducir carga formal"
+                      (click)="changeAtomCharge(endpoint.id, -1)"
+                    >
+                      −
+                    </button>
+                    <span
+                      ><small>Carga</small
+                      ><strong>{{ atomChargeLabel(endpoint) || '0' }}</strong></span
+                    >
+                    <button
+                      type="button"
+                      aria-label="Aumentar carga formal"
+                      (click)="changeAtomCharge(endpoint.id, 1)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </section>
+              }
+            </div>
+            <div class="inspector-footer-actions">
+              <button type="button" (click)="openBondInModel()">
+                <app-icon name="view3d" /> Ver enlace en 3D
+              </button>
+              <button class="danger" type="button" (click)="deleteBond(bond.id)">
+                <app-icon name="trash" /> Eliminar
+              </button>
+            </div>
+          </aside>
+        }
+      } @else if (selectedAtoms().length) {
         <aside class="selection-inspector">
           <header>
             <div>
@@ -812,19 +955,44 @@
               </button>
             </div>
           </div>
-          <div class="inspector-actions">
-            <button type="button" (click)="changeCharge(-1)">
-              <app-icon name="minus" /> Carga
-            </button>
-            <button type="button" (click)="changeCharge(1)"><app-icon name="plus" /> Carga</button>
-            <button type="button" (click)="changeLonePairs(1)">
-              <app-icon name="lone-pair" /> Par libre
-            </button>
-            <button type="button" (click)="changeRadicals(1)">
-              <app-icon name="radical" /> Radical
-            </button>
-            <button class="primary" type="button" (click)="openSelectedInModel()">
+          <div class="inspector-steppers">
+            <div class="property-stepper">
+              <button type="button" aria-label="Reducir carga" (click)="changeCharge(-1)">−</button>
+              <span
+                ><small>Carga</small><strong>{{ selectionValue('charge') }}</strong></span
+              >
+              <button type="button" aria-label="Aumentar carga" (click)="changeCharge(1)">+</button>
+            </div>
+            <div class="property-stepper">
+              <button type="button" aria-label="Retirar par libre" (click)="changeLonePairs(-1)">
+                −
+              </button>
+              <span
+                ><small>Pares libres</small><strong>{{ selectionValue('lonePairs') }}</strong></span
+              >
+              <button type="button" aria-label="Añadir par libre" (click)="changeLonePairs(1)">
+                +
+              </button>
+            </div>
+            <div class="property-stepper">
+              <button type="button" aria-label="Retirar radical" (click)="changeRadicals(-1)">
+                −
+              </button>
+              <span
+                ><small>Radicales</small
+                ><strong>{{ selectionValue('radicalElectrons') }}</strong></span
+              >
+              <button type="button" aria-label="Añadir radical" (click)="changeRadicals(1)">
+                +
+              </button>
+            </div>
+          </div>
+          <div class="inspector-footer-actions">
+            <button type="button" (click)="openSelectedInModel()">
               <app-icon name="view3d" /> Ver selección
+            </button>
+            <button type="button" (click)="duplicateSelection()">
+              <app-icon name="copy" /> Duplicar
             </button>
           </div>
         </aside>
@@ -963,24 +1131,10 @@
 
     @if (modelOpen()) {
       <app-three-d-viewer [molecule]="modelMolecule()" (closeRequested)="closeModel()" />
-      <button
-        class="model-close-safety"
-        type="button"
-        title="Cerrar visor 3D"
-        aria-label="Cerrar visor 3D"
-        (click)="closeModel()"
-      >
-        <app-icon name="close" />
-      </button>
     }
   </main>
 
   <footer class="statusbar">
-    <div class="status-primary">
-      <span class="status-dot" [class.warning]="stats().warnings.length"></span>
-      <strong>{{ stats().warnings.length ? 'Revisar estructura' : 'Estructura coherente' }}</strong>
-      <span class="desktop-only">Motor local · sin conexión necesaria</span>
-    </div>
     <div class="molecule-metrics">
       <span
         ><small>Fórmula estimada</small
@@ -989,15 +1143,6 @@
       <span
         ><small>Masa molar</small
         ><strong>{{ stats().molecularMass.toFixed(3) }} g/mol</strong></span
-      >
-      <span
-        ><small>Átomos</small
-        ><strong
-          >{{ stats().atomCount }} <em>({{ molecule().atoms.length }} explícitos)</em></strong
-        ></span
-      >
-      <span
-        ><small>Enlaces</small><strong>{{ stats().bondCount }}</strong></span
       >
     </div>
   </footer>
@@ -1107,7 +1252,8 @@
                 <strong>Pega una fórmula molecular o una cadena SMILES</strong>
                 <p>
                   SMILES fija la conectividad. Una fórmula como C₆H₁₂O₆ puede corresponder a varios
-                  isómeros, por lo que genera un borrador editable.
+                  isómeros, por lo que genera un borrador editable. En SMILES, C y c no son
+                  equivalentes: la minúscula marca aromaticidad.
                 </p>
               </div>
             </div>
@@ -1124,6 +1270,12 @@
               <button type="button" (click)="formulaInput.set('C6H12O6')">C₆H₁₂O₆</button>
               <button type="button" (click)="formulaInput.set('CC(=O)O')">Ácido acético</button>
               <button type="button" (click)="formulaInput.set('c1ccccc1')">Benceno SMILES</button>
+              <button type="button" (click)="formulaInput.set('N[13C@@H](C)C(=O)O')">
+                Isótopo y quiralidad
+              </button>
+              <button type="button" (click)="formulaInput.set('CCc1ccccc1')">
+                Alifático + aromático
+              </button>
             </div>
             @if (formulaNotice()) {
               <div class="formula-notice"><app-icon name="info" />{{ formulaNotice() }}</div>
@@ -1267,50 +1419,370 @@
           </div>
         }
         @case ('encyclopedia') {
-          <header class="panel-header">
+          <header class="panel-header encyclopedia-header">
             <div>
-              <span class="eyebrow">Consulta</span>
+              <span class="eyebrow">Aprender · consultar · construir</span>
               <h2>Enciclopedia química</h2>
             </div>
+            <span class="encyclopedia-count">15 capítulos · fuentes primarias</span>
             <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
           </header>
-          <div class="encyclopedia-search">
-            <app-icon name="search" /><input
-              type="search"
-              placeholder="Buscar elemento, símbolo o familia…"
-              [value]="encyclopediaQuery()"
-              (input)="encyclopediaQuery.set($any($event.target).value)"
-            />
-          </div>
-          <div class="panel-content encyclopedia-content">
-            <div class="chemistry-guide">
-              <div><app-icon name="bond" /></div>
-              <span
-                ><strong>Guía rápida de construcción</strong>
-                <p>
-                  La suma de los órdenes de enlace alrededor de un átomo no debe superar normalmente
-                  su valencia. Un enlace simple aporta 1, uno doble 2 y uno triple 3.
-                </p></span
-              >
-            </div>
-            <div class="element-cards">
-              @for (element of filteredElements(); track element.symbol) {
-                <button
-                  type="button"
-                  [style.--card-element]="element.color"
-                  (click)="setElement(element.symbol); closePanels()"
-                >
-                  <span class="atomic-number">{{ element.atomicNumber }}</span>
-                  <strong>{{ element.symbol }}</strong>
-                  <span class="element-name">{{ element.name }}</span>
-                  <small
-                    >{{ element.atomicMass.toFixed(3) }} u · Valencia
-                    {{ element.valences.join(', ') }}</small
+          <div class="encyclopedia-reader">
+            <nav class="encyclopedia-index" aria-label="Índice de la enciclopedia">
+              <label class="encyclopedia-search">
+                <app-icon name="search" />
+                <input
+                  type="search"
+                  placeholder="Buscar enlace, SMILES, carga…"
+                  [value]="encyclopediaQuery()"
+                  (input)="encyclopediaQuery.set($any($event.target).value)"
+                />
+              </label>
+              <div class="encyclopedia-chapters">
+                @for (chapter of filteredEncyclopediaChapters(); track chapter.id) {
+                  <button
+                    type="button"
+                    [class.active]="encyclopediaChapterId() === chapter.id"
+                    (click)="openEncyclopediaChapter(chapter.id)"
                   >
-                  <p>{{ element.description }}</p>
-                </button>
-              }
-            </div>
+                    <span>{{ chapter.number }}</span>
+                    <i
+                      ><strong>{{ chapter.title }}</strong
+                      ><small>{{ chapter.readTime }} min</small></i
+                    >
+                  </button>
+                } @empty {
+                  <p>No hay capítulos que coincidan. Prueba con “valencia”, “aromático” o “3D”.</p>
+                }
+              </div>
+            </nav>
+
+            @if (activeEncyclopediaChapter(); as chapter) {
+              <article class="encyclopedia-article">
+                <div class="article-heading">
+                  <span>{{ chapter.number }} · {{ chapter.eyebrow }}</span>
+                  <h3>{{ chapter.title }}</h3>
+                  <p>{{ chapter.summary }}</p>
+                  <small>Lectura estimada: {{ chapter.readTime }} minutos</small>
+                </div>
+
+                <figure class="chemistry-diagram" [attr.data-diagram]="chapter.diagram">
+                  @switch (chapter.diagram) {
+                    @case ('lewis') {
+                      <svg
+                        viewBox="0 0 620 190"
+                        role="img"
+                        aria-label="Agua, amonio y radical metilo en notación de Lewis"
+                      >
+                        <g class="diagram-bond"><path d="M82 96h72M202 96h72" /></g>
+                        <g class="diagram-atom">
+                          <circle cx="178" cy="96" r="31" />
+                          <text x="178" y="104">O</text>
+                          <text class="electron" x="170" y="53">••</text>
+                          <text class="electron" x="170" y="151">••</text>
+                          <text x="67" y="104">H</text>
+                          <text x="287" y="104">H</text>
+                        </g>
+                        <g class="diagram-atom">
+                          <circle cx="420" cy="96" r="31" />
+                          <text x="420" y="104">N</text>
+                          <text class="charge" x="451" y="64">+</text>
+                          <text x="350" y="104">H₄</text>
+                        </g>
+                        <g class="diagram-atom">
+                          <circle cx="548" cy="96" r="31" />
+                          <text x="548" y="104">C</text>
+                          <text class="radical" x="580" y="67">•</text>
+                          <text x="548" y="157">CH₃•</text>
+                        </g>
+                      </svg>
+                      <figcaption>
+                        Dos puntos forman un par libre; un punto aislado es un electrón desapareado;
+                        + indica carga formal.
+                      </figcaption>
+                    }
+                    @case ('bonds') {
+                      <svg
+                        viewBox="0 0 620 190"
+                        role="img"
+                        aria-label="Comparación entre enlaces simple, doble y triple"
+                      >
+                        <g class="diagram-bond">
+                          <path
+                            d="M70 82h110M255 76h110M255 88h110M440 70h110M440 82h110M440 94h110"
+                          />
+                        </g>
+                        <g class="diagram-label">
+                          <text x="125" y="130">simple · 1 σ</text>
+                          <text x="310" y="130">doble · 1 σ + 1 π</text>
+                          <text x="495" y="130">triple · 1 σ + 2 π</text>
+                        </g>
+                      </svg>
+                      <figcaption>
+                        Las líneas paralelas son partes visuales de un único enlace químico
+                        seleccionable.
+                      </figcaption>
+                    }
+                    @case ('stereo') {
+                      <svg
+                        viewBox="0 0 620 190"
+                        role="img"
+                        aria-label="Enlaces en el plano, hacia delante y hacia atrás"
+                      >
+                        <g class="diagram-atom">
+                          <circle cx="310" cy="94" r="28" />
+                          <text x="310" y="102">C*</text>
+                        </g>
+                        <g class="diagram-bond">
+                          <path d="M282 94H150" />
+                          <path d="M338 94H470" />
+                        </g>
+                        <path class="solid-wedge" d="M302 71 258 20 320 65Z" />
+                        <g class="hash-wedge">
+                          <path d="m320 119 12 4M327 126l20 7M334 133l29 10M341 140l38 13" />
+                        </g>
+                        <g class="diagram-label">
+                          <text x="114" y="129">plano</text>
+                          <text x="214" y="28">hacia ti</text>
+                          <text x="390" y="164">detrás</text>
+                        </g>
+                      </svg>
+                      <figcaption>
+                        La cuña sólida sale del plano; la rayada se aleja. La configuración depende
+                        también del orden de sustituyentes.
+                      </figcaption>
+                    }
+                    @case ('resonance') {
+                      <svg
+                        viewBox="0 0 620 190"
+                        role="img"
+                        aria-label="Formas de resonancia de un carboxilato"
+                      >
+                        <g class="diagram-bond">
+                          <path
+                            d="M90 72h95M90 84h95M185 78l58 48M382 126l58-48M440 72h95M440 84h95"
+                          />
+                          <path class="dashed" d="M259 95h104" />
+                        </g>
+                        <g class="diagram-label">
+                          <text x="55" y="84">O</text>
+                          <text x="190" y="84">C</text>
+                          <text x="248" y="147">O⁻</text>
+                          <text x="279" y="86">↔</text>
+                          <text x="368" y="147">O⁻</text>
+                          <text x="430" y="84">C</text>
+                          <text x="549" y="84">O</text>
+                        </g>
+                      </svg>
+                      <figcaption>
+                        Son contribuyentes de una estructura deslocalizada, no especies que
+                        reaccionan entre sí.
+                      </figcaption>
+                    }
+                    @case ('interactions') {
+                      <svg
+                        viewBox="0 0 620 190"
+                        role="img"
+                        aria-label="Enlace dativo y puente de hidrógeno"
+                      >
+                        <g class="diagram-bond">
+                          <path d="M95 70h148" />
+                          <path d="m243 70-15-8M243 70l-15 8" />
+                          <path class="dotted" d="M370 122h150" />
+                        </g>
+                        <g class="diagram-label">
+                          <text x="45" y="77">NH₃:</text>
+                          <text x="260" y="77">BF₃</text>
+                          <text x="316" y="129">O–H</text>
+                          <text x="536" y="129">:O</text>
+                          <text x="130" y="107">dativo</text>
+                          <text x="410" y="157">puente H</text>
+                        </g>
+                      </svg>
+                      <figcaption>
+                        La flecha dativa va del donante al aceptor; el puente H es una interacción y
+                        no consume orden covalente ordinario.
+                      </figcaption>
+                    }
+                    @case ('rings') {
+                      <svg
+                        viewBox="0 0 620 190"
+                        role="img"
+                        aria-label="Anillos de tres, cuatro, cinco y seis miembros"
+                      >
+                        <g class="ring-shapes">
+                          <path d="m50 130 55-90 55 90Z" />
+                          <path d="m195 45 85 0 0 85-85 0Z" />
+                          <path d="m365 38 62 45-24 73h-76l-24-73Z" />
+                          <path d="m482 46 56-32 56 32v65l-56 32-56-32Z" />
+                        </g>
+                        <g class="diagram-label">
+                          <text x="77" y="176">C₃</text>
+                          <text x="223" y="176">C₄</text>
+                          <text x="350" y="176">C₅</text>
+                          <text x="516" y="176">C₆</text>
+                        </g>
+                      </svg>
+                      <figcaption>
+                        El polígono comunica conectividad; la conformación 3D real puede plegarse
+                        para reducir tensión.
+                      </figcaption>
+                    }
+                    @case ('smiles') {
+                      <svg
+                        viewBox="0 0 620 190"
+                        role="img"
+                        aria-label="Anatomía de la cadena SMILES CC paréntesis igual O paréntesis O"
+                      >
+                        <g class="smiles-code"><text x="74" y="96">C C ( = O ) O</text></g>
+                        <g class="diagram-label">
+                          <text x="69" y="137">inicio</text>
+                          <text x="174" y="137">rama</text>
+                          <text x="272" y="137">doble</text>
+                          <text x="405" y="137">retorno</text>
+                        </g>
+                        <g class="guide-lines">
+                          <path d="M96 107v16M222 107v16M316 107v16M455 107v16" />
+                        </g>
+                      </svg>
+                      <figcaption>
+                        CC(=O)O: los paréntesis abren una rama desde el átomo actual; “=” especifica
+                        enlace doble.
+                      </figcaption>
+                    }
+                    @case ('reaction') {
+                      <svg
+                        viewBox="0 0 620 190"
+                        role="img"
+                        aria-label="Flechas de reacción, resonancia y equilibrio"
+                      >
+                        <g class="diagram-label">
+                          <text x="55" y="60">A + B</text>
+                          <text x="288" y="60">→</text>
+                          <text x="480" y="60">C</text>
+                          <text x="55" y="110">forma 1</text>
+                          <text x="288" y="110">↔</text>
+                          <text x="465" y="110">forma 2</text>
+                          <text x="55" y="160">ácido + base</text>
+                          <text x="288" y="160">⇌</text>
+                          <text x="440" y="160">productos</text>
+                        </g>
+                      </svg>
+                      <figcaption>
+                        → transformación; ↔ contribuyentes de resonancia; ⇌ equilibrio entre
+                        especies.
+                      </figcaption>
+                    }
+                    @case ('geometry') {
+                      <svg
+                        viewBox="0 0 620 190"
+                        role="img"
+                        aria-label="Geometrías lineal, trigonal y tetraédrica"
+                      >
+                        <g class="geometry-shapes">
+                          <path d="M38 94h134M254 42l56 98 56-98M450 126l66-84 66 84M516 42v120" />
+                        </g>
+                        <g class="diagram-label">
+                          <text x="85" y="155">lineal</text>
+                          <text x="270" y="171">trigonal</text>
+                          <text x="481" y="177">tetraédrica</text>
+                        </g>
+                      </svg>
+                      <figcaption>
+                        Dos, tres y cuatro dominios electrónicos conducen a disposiciones ideales
+                        distintas; pares libres deforman los ángulos.
+                      </figcaption>
+                    }
+                    @case ('formula') {
+                      <div class="formula-diagram">
+                        <strong>C₂H₆O</strong><span>misma fórmula</span>
+                        <div><b>CH₃CH₂OH</b><i>etanol</i></div>
+                        <em>≠</em>
+                        <div><b>CH₃OCH₃</b><i>dimetil éter</i></div>
+                      </div>
+                      <figcaption>
+                        La fórmula cuenta elementos, pero no determina por sí sola la conectividad.
+                      </figcaption>
+                    }
+                    @case ('workflow') {
+                      <div class="workflow-diagram">
+                        <span>Átomos</span><b>→</b><span>Enlaces</span><b>→</b><span>Lewis</span
+                        ><b>→</b><span>3D</span><b>→</b><span>SVG</span>
+                      </div>
+                      <figcaption>
+                        El JSON conserva la editabilidad; el SVG conserva la calidad gráfica.
+                      </figcaption>
+                    }
+                    @case ('validation') {
+                      <div class="validation-diagram">
+                        <span><b>✓</b>Sintaxis</span><span><b>✓</b>Grafo</span
+                        ><span><b>✓</b>Valencia habitual</span
+                        ><span class="limit"><b>!</b>Estabilidad real</span>
+                      </div>
+                      <figcaption>
+                        El editor verifica el documento y heurísticas químicas; no sustituye
+                        evidencia experimental o cálculo electrónico.
+                      </figcaption>
+                    }
+                    @default {
+                      <svg
+                        viewBox="0 0 620 190"
+                        role="img"
+                        aria-label="Del símbolo químico a la molécula"
+                      >
+                        <g class="diagram-atom">
+                          <circle cx="110" cy="95" r="32" />
+                          <text x="110" y="103">C</text>
+                          <circle cx="310" cy="95" r="32" />
+                          <text x="310" y="103">O</text>
+                          <circle cx="510" cy="95" r="32" />
+                          <text x="510" y="103">H</text>
+                        </g>
+                        <g class="diagram-bond"><path d="M142 89h136M342 89h136" /></g>
+                      </svg>
+                      <figcaption>
+                        Una estructura combina entidades atómicas, relaciones de enlace y
+                        anotaciones electrónicas.
+                      </figcaption>
+                    }
+                  }
+                </figure>
+
+                <div class="article-body">
+                  @for (section of chapter.sections; track section.title) {
+                    <section>
+                      <h4>{{ section.title }}</h4>
+                      @for (paragraph of section.paragraphs; track paragraph) {
+                        <p>{{ paragraph }}</p>
+                      }
+                      @if (section.points?.length) {
+                        <ul>
+                          @for (point of section.points; track point) {
+                            <li>{{ point }}</li>
+                          }
+                        </ul>
+                      }
+                      @if (section.example) {
+                        <aside>
+                          <strong>Ejemplo</strong><span>{{ section.example }}</span>
+                        </aside>
+                      }
+                    </section>
+                  }
+                </div>
+
+                <footer class="article-sources">
+                  <strong>Fuentes y ampliación</strong>
+                  <div>
+                    @for (source of chapter.sources; track source.url) {
+                      <a [href]="source.url" target="_blank" rel="noreferrer"
+                        >{{ source.label }} ↗</a
+                      >
+                    }
+                  </div>
+                </footer>
+              </article>
+            }
           </div>
         }
         @case ('theme') {
@@ -1327,9 +1799,19 @@
               [class.active]="themeMode() === 'auto'"
               (click)="setTheme('auto')"
             >
-              <span class="theme-preview auto"><i></i><i></i></span
+              <span class="theme-preview auto"><i></i><i></i><i></i></span
               ><span
-                ><strong>Automático</strong><small>Sigue la configuración del sistema</small></span
+                ><strong>Automático</strong
+                ><small
+                  >Ahora:
+                  {{
+                    resolvedTheme() === 'morning'
+                      ? 'mañana'
+                      : resolvedTheme() === 'afternoon'
+                        ? 'tarde'
+                        : 'noche'
+                  }}</small
+                ></span
               >
               @if (themeMode() === 'auto') {
                 <app-icon name="check" />
@@ -1337,25 +1819,43 @@
             </button>
             <button
               type="button"
-              [class.active]="themeMode() === 'light'"
-              (click)="setTheme('light')"
+              [class.active]="themeMode() === 'morning'"
+              (click)="setTheme('morning')"
             >
-              <span class="theme-preview light"><app-icon name="sun" /></span
-              ><span><strong>Claro</strong><small>Estudio luminoso y técnico</small></span>
-              @if (themeMode() === 'light') {
+              <span class="theme-preview morning"><app-icon name="sun" /></span
+              ><span><strong>Mañana</strong><small>Luz limpia y contraste técnico</small></span>
+              @if (themeMode() === 'morning') {
                 <app-icon name="check" />
               }
             </button>
             <button
               type="button"
-              [class.active]="themeMode() === 'dark'"
-              (click)="setTheme('dark')"
+              [class.active]="themeMode() === 'afternoon'"
+              (click)="setTheme('afternoon')"
             >
-              <span class="theme-preview dark"><app-icon name="moon" /></span
-              ><span><strong>Oscuro</strong><small>Contraste suave para poca luz</small></span>
-              @if (themeMode() === 'dark') {
+              <span class="theme-preview afternoon"><app-icon name="sun" /></span
+              ><span><strong>Tarde</strong><small>Tonos cálidos para luz descendente</small></span>
+              @if (themeMode() === 'afternoon') {
                 <app-icon name="check" />
               }
+            </button>
+            <button
+              type="button"
+              [class.active]="themeMode() === 'night'"
+              (click)="setTheme('night')"
+            >
+              <span class="theme-preview night"><app-icon name="moon" /></span
+              ><span><strong>Noche</strong><small>Contraste suave para poca luz</small></span>
+              @if (themeMode() === 'night') {
+                <app-icon name="check" />
+              }
+            </button>
+            <button class="theme-location" type="button" (click)="locateForTheme()">
+              <app-icon name="sun" />
+              <span
+                ><strong>Ajustar a la luz local</strong
+                ><small>{{ themeLocationStatus() }}</small></span
+              >
             </button>
           </div>
         }
@@ -1422,8 +1922,8 @@
               <section>
                 <span class="eyebrow">Versión actual</span><strong>{{ version }}</strong>
                 <p>
-                  Enlaces autónomos y avanzados, flechas de reacción, anotaciones de Lewis,
-                  generador de estructuras, edición 2D y cinco representaciones WebGL.
+                  Inspector A/B de enlaces, Lewis sin solapes, SMILES ampliado, temas solares,
+                  enciclopedia de 15 capítulos y cinco representaciones WebGL.
                 </p>
               </section>
               <section>
@@ -1480,9 +1980,11 @@
             <h2 id="periodic-title">Seleccionar átomo</h2>
             <p>
               {{
-                selectedAtoms().length
-                  ? 'El elemento sustituirá la selección actual.'
-                  : 'El elemento quedará activo para dibujar.'
+                periodicTargetAtomId()
+                  ? 'El elemento sustituirá únicamente el extremo elegido del enlace.'
+                  : selectedAtoms().length
+                    ? 'El elemento sustituirá la selección actual.'
+                    : 'El elemento quedará activo para dibujar.'
               }}
             </p>
           </div>

@@ -1,6 +1,6 @@
 # Molecular
 
-**Versión 0.3.0**
+**Versión 0.4.0**
 
 Molecular es un estudio químico visual de Alejandro Pico para construir estructuras en dos dimensiones, comprobar reglas básicas de enlace y explorarlas como modelos tridimensionales. Toma como referencia conceptual el flujo 2D → 3D de herramientas educativas como [MolView](https://molview.org/), con interfaz, arquitectura y motor propios.
 
@@ -10,34 +10,30 @@ Molecular es un estudio químico visual de Alejandro Pico para construir estruct
 
 El despliegue se actualiza automáticamente con cada publicación en `main`.
 
-## Novedades de la versión 0.3.0
+## Novedades de la versión 0.4.0
 
-### Lienzo e interacción
+### Edición precisa y notación de Lewis
 
-- Fondo continuo de retícula triangular o de puntos que cubre toda el área útil y acompaña el zoom y el desplazamiento.
-- Selección directa, rectangular o por lazo, con selección aditiva mediante `Mayús`.
-- Deshacer, rehacer y limpieza geométrica se integran en la barra vertical de herramientas.
-- Modo esquelético con carbonos terminales implícitos y modo desarrollado para inspeccionar todos los nodos.
-- Visor 3D con cierre desde su cabecera, desde el control superior o mediante `Esc`, también en móvil.
+- Los enlaces disponen de selección e inspector propios. Un doble o triple enlace es una entidad química única y sus extremos A/B se editan de manera independiente.
+- Carga, pares libres y electrones radicalarios usan controles reversibles `− / +`, tanto en la herramienta lateral como en el inspector.
+- Las anotaciones se distribuyen en posiciones libres alrededor del átomo para que H, carga, pares, radicales y enlaces no se tapen.
+- Color de enlace configurable por herramienta o por entidad y conservado en el documento y en la exportación SVG.
+- Pie informativo reducido a fórmula estimada y masa molar, centrado y sin mensajes permanentes redundantes.
 
-### Dibujo químico ampliado
+### SMILES y visualización 3D
 
-- Los enlaces son entidades editables: pueden dibujarse sobre un espacio vacío y sus extremos nacen como carbonos sustituibles.
-- Diez familias visibles: simple, doble, triple, arriba, abajo, deslocalizado, puente de hidrógeno, dativo, aromático e indeterminado.
-- Menú contextual propio para cambiar el tipo de un enlace o eliminarlo.
-- Grupo R, carga formal positiva o negativa, pares solitarios y electrones radicalarios.
-- Flechas de reacción, resonancia y equilibrio, editables y exportables.
-- Tabla periódica completa de 118 elementos y fragmentos cíclicos o de cadena.
-- La validación previa bloquea enlaces, elementos o cargas que excedan las capacidades educativas configuradas.
+- El analizador local distingue correctamente símbolos alifáticos y aromáticos sensibles a mayúsculas (`C`/`c`).
+- Admite ramas, componentes, anillos de un dígito, `%10` y `%(123)`, enlaces `- = # : ~ / \\`, isótopos, H entre corchetes, cargas repetidas o numéricas y quiralidad `@/@@`.
+- Los hidrógenos implícitos de cargas sin regla fiable dejan de reaparecer por una caída errónea a la valencia neutra.
+- El generador 3D coloca H en direcciones que maximizan su separación respecto de vecinos explícitos y de otros H; los H del benceno salen del anillo.
+- El cierre 3D vive en la misma línea que hidrógenos, giro, cámara y exportación, sin superponerse a ningún control.
 
-### Generador y visualización 3D
+### Enciclopedia y temas ambientales
 
-- Generador local desde fórmula molecular o SMILES. Reconoce ramas, anillos, enlaces múltiples, aromaticidad y cargas SMILES básicas.
-- Una fórmula sin conectividad produce un borrador editable y advierte que distintos isómeros pueden compartirla.
-- Limpieza 2D local mediante relajación de enlaces y separación de nodos, sin enviar el documento a un servicio externo.
-- Geometría 3D topológica con direcciones tetraédricas, influencia de enlaces arriba/abajo y relajación espacial.
-- Cinco representaciones mediante iconos: bola y varilla, licorice, relleno espacial, varillas y alambre.
-- Exportación 2D en SVG o PNG, captura 3D en PNG y documento `.molecular.json` editable.
+- Nueva enciclopedia narrativa de 15 capítulos con buscador, índice, diagramas SVG, tutorial completo, glosario y fuentes primarias enlazadas.
+- Explica lectura estructural, valencia, Lewis, enlaces, estereoquímica, resonancia, aromaticidad, interacciones, anillos, isomería, SMILES, flechas, 3D y límites de validación.
+- Temas Mañana, Tarde y Noche, más Automático. El modo automático estima amanecer y ocaso según fecha, zona horaria y ubicación opcional autorizada.
+- El modo Tarde añade una paleta cálida propia; la preferencia y la última ubicación aproximada se guardan solo en el dispositivo.
 
 ## Uso rápido
 
@@ -76,7 +72,7 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 
 ## Arquitectura sin servidor
 
-GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.3.0 funciona íntegramente en el navegador para mantener edición, validación, generación, guardado y 3D inmediatos.
+GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.4.0 funciona íntegramente en el navegador para mantener edición, validación, generación, consulta, guardado y 3D inmediatos.
 
 La evolución prevista conserva dos vías:
 
@@ -116,7 +112,9 @@ Molecular/
 ├── src/app/core/
 │   ├── periodic-table.data.ts     # catálogo de 118 elementos
 │   ├── chemistry.models.ts        # documento, valencia, fórmulas y validación
-│   └── formula-generator.ts       # fórmula molecular y subconjunto SMILES
+│   ├── formula-generator.ts       # fórmula molecular y subconjunto OpenSMILES
+│   ├── encyclopedia.data.ts       # lector químico de 15 capítulos y fuentes
+│   └── solar-theme.ts             # amanecer, ocaso y tema ambiental
 ├── src/app/shared/                # iconografía SVG local
 ├── src/app/three-d-viewer/        # motor y panel 3D
 ├── src/app/app.*                  # editor 2D e interfaz
@@ -126,7 +124,7 @@ Molecular/
 
 ## Alcance científico
 
-La validación 0.3.0 es educativa. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Las marcas arriba/abajo influyen en la profundidad, pero no determinan todavía configuración R/S ni conformación rigurosa.
+La validación 0.4.0 es educativa. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Las marcas arriba/abajo y `@/@@` influyen en la profundidad inicial, pero no constituyen todavía una asignación CIP ni una conformación rigurosa.
 
 Una fórmula molecular no contiene conectividad suficiente para identificar un isómero. El generador produce en ese caso un punto de partida editable; SMILES es la entrada apropiada cuando la conectividad debe ser inequívoca. La colocación 3D es una incrustación topológica relajada, no una optimización energética.
 
@@ -134,7 +132,7 @@ Molecular no calcula resonancia electrónica, aromaticidad formal, cargas parcia
 
 ## Roadmap
 
-El plan versionado se mantiene en [ROADMAP.md](ROADMAP.md). Los siguientes hitos se centran en flechas curvas de mecanismo, importación y exportación química estándar, conformadores reales, optimización geométrica y compatibilidad con Atlas Editor.
+El plan versionado se mantiene en [ROADMAP.md](ROADMAP.md). Los siguientes hitos se centran en flechas curvas de mecanismo, formatos MOL/SDF, estereoquímica formal, conformadores reales y compatibilidad con Atlas Editor.
 
 ## Autor
 

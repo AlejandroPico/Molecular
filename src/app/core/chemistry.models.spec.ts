@@ -72,6 +72,8 @@ describe('chemistry model', () => {
     expect(implicitHydrogensForAtom(molecule, carbon)).toBe(3);
     carbon.charge = -1;
     expect(implicitHydrogensForAtom(molecule, carbon)).toBe(3);
+    carbon.charge = 2;
+    expect(implicitHydrogensForAtom(molecule, carbon)).toBe(0);
   });
 
   it('rejects a charge that conflicts with existing carbon bonds', () => {

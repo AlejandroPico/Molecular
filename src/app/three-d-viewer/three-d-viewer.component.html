@@ -4,15 +4,6 @@
       <span class="eyebrow">Visor molecular</span>
       <h2>{{ molecule().name }}</h2>
     </div>
-    <button
-      class="icon-button"
-      type="button"
-      aria-label="Cerrar visor 3D"
-      title="Cerrar visor 3D"
-      (click)="closeRequested.emit()"
-    >
-      <app-icon name="close" />
-    </button>
   </header>
 
   <div class="model-toolbar">
@@ -30,46 +21,57 @@
         </button>
       }
     </div>
+    <div class="model-toolbar-actions">
+      <button
+        type="button"
+        class="tool-button"
+        [class.active]="showHydrogens()"
+        [disabled]="!!webglError()"
+        (click)="toggleHydrogens()"
+      >
+        <span class="hydrogen-mark">H</span>
+        Hidrógenos
+      </button>
+      <button
+        type="button"
+        class="icon-button"
+        [class.active]="spin()"
+        title="Giro automático"
+        aria-label="Giro automático"
+        [disabled]="!!webglError()"
+        (click)="toggleSpin()"
+      >
+        <app-icon name="arrow" />
+      </button>
+      <button
+        type="button"
+        class="icon-button"
+        title="Restablecer cámara"
+        aria-label="Restablecer cámara"
+        [disabled]="!!webglError()"
+        (click)="resetView()"
+      >
+        <app-icon name="view3d" />
+      </button>
+      <button
+        type="button"
+        class="icon-button"
+        title="Exportar imagen 3D"
+        aria-label="Exportar imagen 3D"
+        [disabled]="!!webglError()"
+        (click)="exportSnapshot()"
+      >
+        <app-icon name="download" />
+      </button>
+    </div>
     <button
+      class="icon-button model-close"
       type="button"
-      class="tool-button"
-      [class.active]="showHydrogens()"
-      [disabled]="!!webglError()"
-      (click)="toggleHydrogens()"
+      aria-label="Cerrar visor 3D"
+      title="Cerrar visor 3D"
+      (click)="closeRequested.emit()"
     >
-      <span class="hydrogen-mark">H</span>
-      Hidrógenos
-    </button>
-    <button
-      type="button"
-      class="icon-button"
-      [class.active]="spin()"
-      title="Giro automático"
-      aria-label="Giro automático"
-      [disabled]="!!webglError()"
-      (click)="toggleSpin()"
-    >
-      <app-icon name="arrow" />
-    </button>
-    <button
-      type="button"
-      class="icon-button"
-      title="Restablecer cámara"
-      aria-label="Restablecer cámara"
-      [disabled]="!!webglError()"
-      (click)="resetView()"
-    >
-      <app-icon name="view3d" />
-    </button>
-    <button
-      type="button"
-      class="icon-button"
-      title="Exportar imagen 3D"
-      aria-label="Exportar imagen 3D"
-      [disabled]="!!webglError()"
-      (click)="exportSnapshot()"
-    >
-      <app-icon name="download" />
+      <app-icon name="close" />
     </button>
   </div>
 

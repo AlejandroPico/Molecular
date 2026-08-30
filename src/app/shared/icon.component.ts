@@ -9,6 +9,7 @@ export type IconName =
   | 'check'
   | 'chevron'
   | 'close'
+  | 'copy'
   | 'download'
   | 'eraser'
   | 'file'
@@ -85,6 +86,10 @@ export type IconName =
         }
         @case ('check') {
           <path d="m5 12 4 4L19 6" />
+        }
+        @case ('copy') {
+          <rect x="8" y="8" width="11" height="11" />
+          <path d="M5 16H4V4h12v1" />
         }
         @case ('chevron') {
           <path d="m8 10 4 4 4-4" />

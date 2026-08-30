@@ -195,7 +195,7 @@ select:focus-visible {
 }
 
 .bond-line {
-  stroke: var(--bond);
+  stroke: var(--bond-ink, var(--bond));
   stroke-width: 4;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
@@ -267,7 +267,7 @@ select:focus-visible {
   stroke-dasharray: none;
 }
 .charge-label {
-  fill: var(--text);
+  fill: var(--charge);
   font-size: 12px;
   font-weight: 800;
   paint-order: stroke;
@@ -275,7 +275,7 @@ select:focus-visible {
   stroke-width: 4px;
 }
 .implicit-hydrogen {
-  fill: var(--muted-strong);
+  fill: var(--hydrogen-label);
   font-size: 13px;
   font-weight: 700;
   paint-order: stroke;
@@ -597,35 +597,10 @@ select:focus-visible {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 0;
   padding: 0 14px;
   border-top: 1px solid var(--border);
   background: var(--surface);
-}
-
-.status-primary {
-  min-width: 245px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.status-primary strong {
-  font-size: 0.62rem;
-}
-.status-primary > span:last-child {
-  color: var(--muted);
-  font-size: 0.56rem;
-}
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 14%, transparent);
-}
-.status-dot.warning {
-  background: var(--danger);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent);
 }
 
 .molecule-metrics {
@@ -643,6 +618,9 @@ select:focus-visible {
   gap: 1px;
   padding: 0 15px;
   border-left: 1px solid var(--border);
+}
+.molecule-metrics > span:first-child {
+  border-left: 0;
 }
 .molecule-metrics small {
   color: var(--muted);
@@ -1069,7 +1047,7 @@ select:focus-visible {
   gap: 6px;
 }
 .theme-list > button {
-  min-height: 62px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1101,24 +1079,28 @@ select:focus-visible {
   color: var(--accent);
 }
 .theme-preview {
-  width: 48px;
-  height: 38px;
+  width: 42px;
+  height: 32px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
   border: 1px solid var(--border-strong);
   overflow: hidden;
 }
-.theme-preview.light {
+.theme-preview.morning {
   color: #376cd2;
   background: #f6f8fb;
 }
-.theme-preview.dark {
+.theme-preview.afternoon {
+  color: #b65723;
+  background: #f7e8d8;
+}
+.theme-preview.night {
   color: #8ab3ff;
   background: #172033;
 }
 .theme-preview.auto {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
 }
 .theme-preview.auto i {
   width: 100%;
@@ -1127,8 +1109,403 @@ select:focus-visible {
 .theme-preview.auto i:first-child {
   background: #f6f8fb;
 }
+.theme-preview.auto i:nth-child(2) {
+  background: #f7e8d8;
+}
 .theme-preview.auto i:last-child {
   background: #172033;
+}
+
+.theme-list > button.theme-location {
+  min-height: 42px;
+  margin-top: 3px;
+  border-style: dashed;
+  background: transparent;
+}
+
+/* Enciclopedia 0.4: lector narrativo, no selector de elementos. */
+.floating-panel.wide:has(.encyclopedia-reader) {
+  width: min(1180px, calc(100vw - 24px));
+  height: min(820px, calc(100vh - 76px));
+  max-height: calc(100vh - 76px);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.encyclopedia-header {
+  min-height: 62px;
+  gap: 16px;
+}
+
+.encyclopedia-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.58rem;
+  white-space: nowrap;
+}
+
+.encyclopedia-reader {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 268px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.encyclopedia-index {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border-right: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.encyclopedia-index .encyclopedia-search {
+  height: 54px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+}
+
+.encyclopedia-index .encyclopedia-search input {
+  border: 0;
+  border-bottom: 1px solid var(--border-strong);
+  background: transparent;
+}
+
+.encyclopedia-chapters {
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.encyclopedia-chapters > button {
+  width: 100%;
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 31px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.encyclopedia-chapters > button:hover,
+.encyclopedia-chapters > button.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.encyclopedia-chapters > button > span {
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 780;
+}
+
+.encyclopedia-chapters > button > i {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 7px;
+  align-items: center;
+  font-style: normal;
+}
+
+.encyclopedia-chapters strong {
+  overflow: hidden;
+  font-size: 0.62rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.encyclopedia-chapters small {
+  color: var(--muted);
+  font-size: 0.5rem;
+}
+
+.encyclopedia-chapters > p {
+  margin: 0;
+  padding: 18px 14px;
+  color: var(--muted);
+  font-size: 0.62rem;
+  line-height: 1.55;
+}
+
+.encyclopedia-article {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 36px clamp(26px, 5vw, 70px) 52px;
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+}
+
+.article-heading {
+  max-width: 760px;
+  margin: 0 auto 24px;
+}
+
+.article-heading > span {
+  color: var(--accent);
+  font-size: 0.62rem;
+  font-weight: 780;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.article-heading h3 {
+  margin: 7px 0 10px;
+  font-size: clamp(1.45rem, 3vw, 2.25rem);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+}
+
+.article-heading p {
+  margin: 0 0 12px;
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+  line-height: 1.68;
+}
+
+.article-heading small {
+  color: var(--muted);
+  font-size: 0.56rem;
+}
+
+.chemistry-diagram {
+  max-width: 760px;
+  margin: 0 auto 31px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+}
+
+.chemistry-diagram svg {
+  width: 100%;
+  max-height: 230px;
+  display: block;
+}
+
+.chemistry-diagram figcaption {
+  padding: 9px 13px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  font-size: 0.57rem;
+  line-height: 1.48;
+}
+
+.chemistry-diagram .diagram-bond,
+.chemistry-diagram .hash-wedge,
+.chemistry-diagram .ring-shapes,
+.chemistry-diagram .geometry-shapes,
+.chemistry-diagram .guide-lines {
+  fill: none;
+  stroke: var(--bond);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chemistry-diagram .diagram-bond .dashed {
+  stroke-dasharray: 8 7;
+}
+
+.chemistry-diagram .diagram-bond .dotted {
+  stroke-dasharray: 2 9;
+}
+
+.chemistry-diagram .diagram-atom circle {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.chemistry-diagram text,
+.chemistry-diagram .diagram-atom text,
+.chemistry-diagram .diagram-label text {
+  fill: var(--text);
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 720;
+  text-anchor: middle;
+}
+
+.chemistry-diagram .diagram-label text {
+  fill: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.chemistry-diagram .electron {
+  fill: var(--electron);
+  font-size: 14px;
+}
+
+.chemistry-diagram .charge,
+.chemistry-diagram .radical {
+  fill: var(--charge);
+}
+
+.chemistry-diagram .solid-wedge {
+  fill: var(--bond);
+}
+
+.smiles-code text {
+  fill: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 34px;
+  letter-spacing: 0.07em;
+}
+
+.formula-diagram,
+.workflow-diagram,
+.validation-diagram {
+  min-height: 175px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 25px;
+}
+
+.formula-diagram > strong {
+  color: var(--accent);
+  font-size: 2rem;
+}
+
+.formula-diagram > span {
+  color: var(--muted);
+  font-size: 0.64rem;
+}
+
+.formula-diagram > div {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.formula-diagram b,
+.workflow-diagram span,
+.validation-diagram span {
+  font-size: 0.73rem;
+}
+
+.formula-diagram i {
+  color: var(--muted);
+  font-size: 0.57rem;
+  font-style: normal;
+}
+
+.workflow-diagram span,
+.validation-diagram span {
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--accent);
+  font-weight: 720;
+}
+
+.workflow-diagram b {
+  color: var(--muted);
+}
+
+.validation-diagram span {
+  display: grid;
+  gap: 5px;
+  text-align: center;
+}
+
+.validation-diagram b {
+  color: var(--success);
+  font-size: 1.2rem;
+}
+
+.validation-diagram .limit b {
+  color: var(--danger);
+}
+
+.article-body {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.article-body section {
+  padding: 0 0 25px;
+}
+
+.article-body h4 {
+  margin: 0 0 9px;
+  font-size: 0.86rem;
+  letter-spacing: -0.012em;
+}
+
+.article-body p,
+.article-body li {
+  color: var(--muted-strong);
+  font-size: 0.72rem;
+  line-height: 1.78;
+}
+
+.article-body p {
+  margin: 0 0 11px;
+}
+
+.article-body ul {
+  margin: 12px 0;
+  padding-left: 19px;
+}
+
+.article-body li {
+  padding-left: 3px;
+  margin-bottom: 5px;
+}
+
+.article-body aside {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 13px;
+  padding: 11px 0 11px 13px;
+  border-left: 3px solid var(--accent);
+  color: var(--muted-strong);
+  background: var(--accent-soft);
+  font-size: 0.64rem;
+  line-height: 1.55;
+}
+
+.article-body aside strong {
+  color: var(--accent);
+}
+
+.article-sources {
+  max-width: 760px;
+  margin: 8px auto 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.article-sources > strong {
+  color: var(--muted);
+  font-size: 0.57rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.article-sources > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 16px;
+  margin-top: 9px;
+}
+
+.article-sources a {
+  color: var(--accent);
+  font-size: 0.61rem;
+  text-decoration: none;
+}
+
+.article-sources a:hover {
+  text-decoration: underline;
 }
 
 .export-list {
@@ -1425,7 +1802,7 @@ select:focus-visible {
 }
 
 .bond-wedge {
-  fill: var(--bond);
+  fill: var(--bond-ink, var(--bond));
   cursor: pointer;
 }
 
@@ -1717,7 +2094,8 @@ select:focus-visible {
   z-index: 66;
   right: auto;
   bottom: 12px;
-  left: 12px;
+  left: 50%;
+  translate: -50% 0;
   width: auto;
   min-height: 42px;
   height: auto;
@@ -1731,7 +2109,6 @@ select:focus-visible {
   backdrop-filter: blur(18px);
 }
 
-.status-primary,
 .molecule-metrics {
   min-height: 42px;
 }
@@ -1982,7 +2359,7 @@ select:focus-visible {
 
 .lone-pair,
 .radical-electron {
-  fill: var(--text);
+  fill: var(--electron);
   pointer-events: none;
 }
 
@@ -2081,28 +2458,6 @@ select:focus-visible {
 .context-bond-grid small {
   color: var(--muted);
   font-size: 0.56rem;
-}
-
-.model-close-safety {
-  position: fixed;
-  z-index: 132;
-  top: 64px;
-  right: 14px;
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--border-strong);
-  color: var(--text);
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: var(--shadow-md);
-  cursor: pointer;
-}
-
-.model-close-safety:hover {
-  color: var(--danger);
-  border-color: var(--danger);
 }
 
 .formula-generator {
@@ -2377,6 +2732,290 @@ select:focus-visible {
   background: var(--surface-2);
 }
 
+/* Inspector contextual 0.4: átomos y enlaces son selecciones diferentes. */
+.bond-group {
+  --bond-ink: var(--bond);
+}
+
+.bond-group.selected .bond-line {
+  stroke: var(--accent);
+  stroke-width: 5;
+}
+
+.bond-group.selected .bond-wedge {
+  fill: var(--accent);
+}
+
+.selection-inspector {
+  left: 72px;
+  bottom: 64px;
+  width: 340px;
+  max-height: calc(100% - 142px);
+  overflow: auto;
+}
+
+.selection-inspector.bond-inspector {
+  width: min(470px, calc(100vw - 96px));
+}
+
+.bond-inspector-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.bond-inspector-summary label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 740;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.bond-inspector-summary select {
+  min-width: 180px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: var(--surface-2);
+  font-size: 0.68rem;
+  text-transform: none;
+}
+
+.bond-inspector-note {
+  margin: 0 0 9px;
+  color: var(--muted);
+  font-size: 0.58rem;
+  line-height: 1.45;
+}
+
+.bond-endpoints {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.bond-endpoint-card {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.bond-endpoint-card > header {
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: auto 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  padding: 0 0 7px;
+}
+
+.bond-endpoint-card > header span,
+.bond-endpoint-card > header small {
+  color: var(--muted);
+  font-size: 0.54rem;
+}
+
+.bond-endpoint-card > header strong {
+  color: var(--accent);
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+.endpoint-elements {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.endpoint-elements button {
+  height: 25px;
+  padding: 0;
+  border: 1px solid var(--border);
+  color: var(--muted-strong);
+  background: var(--surface);
+  font-size: 0.58rem;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.endpoint-elements button:hover,
+.endpoint-elements button.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.endpoint-elements app-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.inspector-steppers {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 7px;
+}
+
+.property-stepper {
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  align-items: center;
+  border-block: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.property-stepper + .property-stepper {
+  border-top: 0;
+}
+
+.property-stepper > button,
+.tool-flyout .property-stepper > button {
+  width: 36px;
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  color: var(--accent);
+  background: transparent;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.property-stepper > button:hover,
+.tool-flyout .property-stepper > button:hover {
+  color: var(--accent-hover);
+  border: 0;
+  background: var(--accent-soft);
+}
+
+.property-stepper > span {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 5px;
+  text-align: left;
+}
+
+.property-stepper small {
+  color: var(--muted-strong);
+  font-size: 0.58rem;
+}
+
+.property-stepper strong {
+  color: var(--text);
+  font-size: 0.65rem;
+}
+
+.property-stepper.compact {
+  min-height: 31px;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+}
+
+.property-stepper.compact > button {
+  width: 30px;
+  min-height: 30px;
+}
+
+.lewis-help,
+.lewis-limits {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.58rem;
+  line-height: 1.4;
+}
+
+.lewis-flyout .property-stepper {
+  margin: 0 8px;
+}
+
+.lewis-flyout .lewis-help,
+.lewis-flyout .lewis-limits {
+  padding: 4px 9px;
+}
+
+.inspector-footer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.inspector-footer-actions button {
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: var(--surface-2);
+  font-size: 0.6rem;
+  cursor: pointer;
+}
+
+.inspector-footer-actions button:first-child {
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.inspector-footer-actions button.danger {
+  color: var(--danger);
+}
+
+.inspector-footer-actions app-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.bond-color-row,
+.bond-ink-picker > div {
+  display: flex;
+  gap: 4px;
+}
+
+.bond-color-row button,
+.bond-ink-picker button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  background: var(--swatch);
+  cursor: pointer;
+}
+
+.bond-color-row button.active,
+.bond-ink-picker button.active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.bond-ink-picker {
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.bond-ink-picker > span {
+  color: var(--muted);
+  font-size: 0.57rem;
+  font-weight: 740;
+}
+
 @media (max-width: 880px) {
   .topbar {
     top: 8px;
@@ -2406,11 +3045,6 @@ select:focus-visible {
     left: 8px;
   }
 
-  .model-close-safety {
-    top: 58px;
-    right: 8px;
-  }
-
   .workspace.with-model {
     grid-template-columns: 1fr;
   }
@@ -2431,23 +3065,18 @@ select:focus-visible {
 
   .statusbar {
     bottom: 8px;
-    left: 8px;
+    left: 50%;
   }
 
   .molecule-metrics {
-    display: none;
-  }
-
-  .status-primary {
     display: flex;
-    border-right: 0;
   }
 
   .selection-inspector {
     display: block;
     right: 8px;
     bottom: 60px;
-    left: 8px;
+    left: 62px;
     width: auto;
   }
 
@@ -2509,9 +3138,17 @@ select:focus-visible {
     flex: 0 0 50px;
   }
 
-  .status-primary > span:last-child,
   .desktop-only {
     display: none;
+  }
+
+  .molecule-metrics > span {
+    min-width: 118px;
+    padding: 0 11px;
+  }
+
+  .bond-endpoints {
+    grid-template-columns: 1fr;
   }
 
   .periodic-dialog > footer {
@@ -2529,5 +3166,63 @@ select:focus-visible {
   .about-grid,
   .about-links {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .floating-panel.wide:has(.encyclopedia-reader) {
+    top: 58px;
+    right: 6px;
+    width: calc(100vw - 12px);
+    height: calc(100vh - 64px);
+    max-height: calc(100vh - 64px);
+  }
+
+  .encyclopedia-header {
+    min-height: 56px;
+  }
+
+  .encyclopedia-count {
+    display: none;
+  }
+
+  .encyclopedia-reader {
+    grid-template-columns: 1fr;
+    grid-template-rows: 152px minmax(0, 1fr);
+  }
+
+  .encyclopedia-index {
+    grid-template-rows: 48px minmax(0, 1fr);
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .encyclopedia-index .encyclopedia-search {
+    height: 48px;
+  }
+
+  .encyclopedia-chapters {
+    display: flex;
+    overflow: auto hidden;
+  }
+
+  .encyclopedia-chapters > button {
+    width: 190px;
+    min-width: 190px;
+    height: 54px;
+    border-right: 1px solid var(--border);
+  }
+
+  .encyclopedia-article {
+    padding: 25px 18px 44px;
+  }
+
+  .formula-diagram,
+  .workflow-diagram,
+  .validation-diagram {
+    min-height: 145px;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 16px;
   }
 }

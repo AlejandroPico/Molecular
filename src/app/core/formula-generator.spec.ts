@@ -21,4 +21,36 @@ describe('formula generator', () => {
     expect(calculateStats(result.document).formula).toBe('C6H6');
     expect(result.document.bonds.filter((bond) => bond.kind === 'aromatic').length).toBe(6);
   });
+
+  it('keeps adjacent aliphatic C and aromatic c as separate atoms', () => {
+    const result = generateStructure('CCc1ccccc1');
+    expect(result.inputKind).toBe('smiles');
+    expect(result.document.atoms.filter((atom) => atom.element === 'C').length).toBe(8);
+    expect(result.document.bonds.filter((bond) => bond.kind === 'aromatic').length).toBe(6);
+  });
+
+  it('supports bracket hydrogens, formal charge, isotope and chirality', () => {
+    const ammonium = generateStructure('[NH4+]');
+    expect(calculateStats(ammonium.document).formula).toBe('H4N');
+    expect(ammonium.document.atoms[0].charge).toBe(1);
+
+    const chiral = generateStructure('N[13C@@H](C)C(=O)O');
+    const center = chiral.document.atoms.find((atom) => atom.isotope === 13);
+    expect(center?.chirality).toBe('@@');
+    expect(center?.implicitHydrogenOverride).toBe(1);
+  });
+
+  it('supports extended ring numbers and forced SMILES prefixes', () => {
+    const result = generateStructure('SMILES: C%10CCCCC%10');
+    expect(result.inputKind).toBe('smiles');
+    expect(result.document.bonds.length).toBe(6);
+  });
+
+  it('parses a long mixed-case aromatic and chiral SMILES chain', () => {
+    const result = generateStructure('C[C@H](N)C(=O)N[C@@H](Cc1ccccc1)C(=O)O');
+    expect(result.inputKind).toBe('smiles');
+    expect(result.document.atoms.length).toBeGreaterThan(15);
+    expect(result.document.atoms.filter((atom) => atom.chirality).length).toBe(2);
+    expect(result.document.bonds.filter((bond) => bond.kind === 'aromatic').length).toBe(6);
+  });
 });

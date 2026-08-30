@@ -28,10 +28,29 @@ interface PendingBond {
 const DEFAULT_BOND: PendingBond = { order: 1, kind: 'single' };
 
 export function generateStructure(source: string): FormulaGenerationResult {
-  const input = source.trim().replace(/\s+/g, '');
+  let input = source.trim();
   if (!input) throw new Error('Escribe una fórmula molecular o una cadena SMILES.');
-  const formula = parseMolecularFormula(input);
-  return formula ? generateFromFormula(input, formula) : generateFromSmiles(input);
+  const prefix = input.match(/^(smiles|smi|formula|fórmula)\s*[:=]\s*/i)?.[1]?.toLowerCase();
+  if (prefix) input = input.replace(/^[^:=]+[:=]\s*/, '').trim();
+  const forcedFormula = prefix === 'formula' || prefix === 'fórmula';
+  const forcedSmiles = prefix === 'smiles' || prefix === 'smi';
+  const compact = input.replace(/\s+/g, '');
+  const formula = parseMolecularFormula(compact);
+  if (forcedFormula) {
+    if (!formula)
+      throw new Error('La fórmula molecular contiene un elemento o recuento no válido.');
+    return generateFromFormula(compact, formula);
+  }
+  const smiles = input.split(/\s+/)[0];
+  return !forcedSmiles && formula && looksLikeMolecularFormula(compact)
+    ? generateFromFormula(compact, formula)
+    : generateFromSmiles(smiles);
+}
+
+function looksLikeMolecularFormula(input: string): boolean {
+  if (/[^A-Za-z0-9]/.test(input)) return false;
+  const symbols = [...input.matchAll(/([A-Z][a-z]?|R)(\d*)/g)].map((match) => match[1]);
+  return new Set(symbols).size === symbols.length;
 }
 
 function parseMolecularFormula(input: string): Map<AtomSymbol, number> | null {
@@ -150,21 +169,27 @@ function generateFromSmiles(smiles: string): FormulaGenerationResult {
   let depth = 0;
   let component = 0;
 
-  const addAtom = (symbol: AtomSymbol, charge = 0, aromatic = false): Atom => {
+  const addAtom = (parsed: ParsedSmilesAtom): Atom => {
     const parent = document.atoms.find((atom) => atom.id === currentAtomId);
     const neighbourIndex = parent ? (neighbourCounts.get(parent.id) ?? 0) : 0;
     const angles = [0, -Math.PI / 3, Math.PI / 3, -Math.PI * 0.72, Math.PI * 0.72, Math.PI];
     const angle = angles[Math.min(neighbourIndex, angles.length - 1)] + depth * 0.12;
     const atom = createAtom(
-      symbol,
+      parsed.symbol,
       parent ? parent.x + Math.cos(angle) * 112 : 470 + component * 220,
       parent ? parent.y + Math.sin(angle) * 112 : 390,
     );
-    atom.charge = charge;
+    atom.charge = parsed.charge;
+    atom.isotope = parsed.isotope;
+    atom.chirality = parsed.chirality;
+    if (parsed.bracketed) atom.implicitHydrogenOverride = parsed.hydrogens;
     document.atoms.push(atom);
-    if (aromatic) aromaticAtomIds.add(atom.id);
+    if (parsed.aromatic) aromaticAtomIds.add(atom.id);
     if (parent) {
-      const kind = aromatic && pendingBond.kind === 'single' ? 'aromatic' : pendingBond.kind;
+      const kind =
+        parsed.aromatic && aromaticAtomIds.has(parent.id) && pendingBond.kind === 'single'
+          ? 'aromatic'
+          : pendingBond.kind;
       document.bonds.push(createBond(parent.id, atom.id, pendingBond.order, kind));
       neighbourCounts.set(parent.id, neighbourIndex + 1);
       neighbourCounts.set(atom.id, 1);
@@ -203,9 +228,10 @@ function generateFromSmiles(smiles: string): FormulaGenerationResult {
       index += 1;
       continue;
     }
-    if (/\d/.test(character)) {
+    const ringToken = parseRingToken(smiles, index);
+    if (ringToken) {
       if (!currentAtomId) throw new Error('El cierre de anillo SMILES no tiene átomo.');
-      const previous = ringClosures.get(character);
+      const previous = ringClosures.get(ringToken.id);
       if (previous) {
         let selected = pendingBond.kind === 'single' ? previous.bond : pendingBond;
         if (
@@ -217,33 +243,39 @@ function generateFromSmiles(smiles: string): FormulaGenerationResult {
         document.bonds.push(
           createBond(previous.atomId, currentAtomId, selected.order, selected.kind),
         );
-        ringClosures.delete(character);
+        ringClosures.delete(ringToken.id);
       } else {
-        ringClosures.set(character, { atomId: currentAtomId, bond: pendingBond });
+        ringClosures.set(ringToken.id, { atomId: currentAtomId, bond: pendingBond });
       }
       pendingBond = { ...DEFAULT_BOND };
-      index += 1;
+      index += ringToken.length;
       continue;
     }
 
     let token = '';
+    let bracketed = false;
     if (character === '[') {
       const end = smiles.indexOf(']', index + 1);
       if (end < 0) throw new Error('Falta cerrar un átomo entre corchetes en SMILES.');
       token = smiles.slice(index + 1, end);
+      bracketed = true;
       index = end + 1;
-    } else if (/[A-Z]/.test(character)) {
-      token = character + (/[a-z]/.test(smiles[index + 1] ?? '') ? smiles[index + 1] : '');
-      index += token.length;
-    } else if (/[bcnosp]/.test(character)) {
-      token = character;
+    } else if (character === '*') {
+      token = 'R';
       index += 1;
+    } else if (/[A-Z]/.test(character)) {
+      const pair = smiles.slice(index, index + 2);
+      token = pair === 'Cl' || pair === 'Br' ? pair : character;
+      index += token.length;
+    } else if (/[abcnops]/.test(character)) {
+      const pair = smiles.slice(index, index + 2);
+      token = pair === 'se' || pair === 'as' ? pair : character;
+      index += token.length;
     } else {
       throw new Error(`Símbolo SMILES no reconocido cerca de «${smiles.slice(index, index + 6)}».`);
     }
 
-    const parsed = parseSmilesAtom(token);
-    addAtom(parsed.symbol, parsed.charge, parsed.aromatic);
+    addAtom(parseSmilesAtom(token, bracketed));
   }
 
   if (branchStack.length || ringClosures.size)
@@ -264,22 +296,57 @@ function parseBondCharacter(character: string): PendingBond | null {
   if (character === ':') return { order: 1, kind: 'delocalized' };
   if (character === '/') return { order: 1, kind: 'up' };
   if (character === '\\') return { order: 1, kind: 'down' };
+  if (character === '~') return { order: 1, kind: 'any' };
   return null;
 }
 
-function parseSmilesAtom(token: string): {
+interface ParsedSmilesAtom {
   symbol: AtomSymbol;
   charge: number;
   aromatic: boolean;
-} {
-  const match = token.match(/^([A-Z][a-z]?|[bcnosp]|R)/);
+  hydrogens: number;
+  isotope?: number;
+  chirality?: '@' | '@@';
+  bracketed: boolean;
+}
+
+function parseSmilesAtom(token: string, bracketed: boolean): ParsedSmilesAtom {
+  const isotopeMatch = bracketed ? token.match(/^(\d+)/) : null;
+  const isotope = isotopeMatch ? Number(isotopeMatch[1]) : undefined;
+  const body = isotopeMatch ? token.slice(isotopeMatch[1].length) : token;
+  const match = body.match(/^([A-Z][a-z]?|se|as|[bcnosp]|R)/);
   if (!match) throw new Error(`Átomo SMILES «${token}» no reconocido.`);
-  const aromatic = /^[bcnosp]$/.test(match[1]);
-  const symbol = (aromatic ? match[1][0].toUpperCase() : match[1]) as AtomSymbol;
+  const aromatic = /^(?:se|as|[bcnosp])$/.test(match[1]);
+  const symbol = (
+    aromatic ? match[1][0].toUpperCase() + match[1].slice(1) : match[1]
+  ) as AtomSymbol;
   if (!ELEMENT_BY_SYMBOL.has(symbol)) throw new Error(`El elemento ${symbol} no está disponible.`);
-  const chargeToken = token.slice(match[0].length).match(/([+-])(\d*)/);
-  const magnitude = chargeToken?.[2] ? Number(chargeToken[2]) : chargeToken ? 1 : 0;
-  return { symbol, charge: chargeToken?.[1] === '-' ? -magnitude : magnitude, aromatic };
+  const modifiers = body.slice(match[0].length);
+  const hydrogenToken = modifiers.match(/H(\d*)/);
+  const hydrogens = hydrogenToken ? Number(hydrogenToken[1] || 1) : 0;
+  const chargeToken = modifiers.match(/([+-]\d+|[+-]{1,8})/);
+  let charge = 0;
+  if (chargeToken) {
+    const sign = chargeToken[1][0] === '-' ? -1 : 1;
+    const digits = chargeToken[1].slice(1);
+    charge = sign * (digits && /^\d+$/.test(digits) ? Number(digits) : chargeToken[1].length);
+  }
+  const chirality: '@' | '@@' | undefined = modifiers.includes('@@')
+    ? '@@'
+    : modifiers.includes('@')
+      ? '@'
+      : undefined;
+  return { symbol, charge, aromatic, hydrogens, isotope, chirality, bracketed };
+}
+
+function parseRingToken(source: string, index: number): { id: string; length: number } | null {
+  if (/\d/.test(source[index])) return { id: source[index], length: 1 };
+  if (source[index] !== '%') return null;
+  const parenthesized = source.slice(index).match(/^%\((\d{3,})\)/);
+  if (parenthesized) return { id: parenthesized[1], length: parenthesized[0].length };
+  const pair = source.slice(index + 1, index + 3);
+  if (/^\d{2}$/.test(pair)) return { id: pair, length: 3 };
+  throw new Error('Un cierre de anillo con % necesita dos dígitos, por ejemplo %10.');
 }
 
 function centerDocument(document: MoleculeDocument): void {

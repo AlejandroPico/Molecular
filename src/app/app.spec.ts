@@ -15,7 +15,7 @@ describe('App', () => {
     aboutButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Acerca de Molecular');
-    expect(fixture.nativeElement.textContent).toContain('0.3.0');
+    expect(fixture.nativeElement.textContent).toContain('0.4.0');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {
@@ -26,7 +26,8 @@ describe('App', () => {
     );
     expect(canvas).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain('C₂H₆O');
-    expect(fixture.nativeElement.textContent).toContain('Estructura coherente');
+    expect(fixture.nativeElement.textContent).toContain('Masa molar');
+    expect(fixture.nativeElement.textContent).not.toContain('Motor local');
   });
 
   it('keeps the molecular canvas proportional and exposes all 118 elements', () => {
@@ -69,12 +70,23 @@ describe('App', () => {
     fixture.detectChanges();
     fixture.nativeElement.querySelector('[aria-label="Construir modelo 3D"]').click();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.model-close-safety')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.model-toolbar .model-close')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[aria-label="Cerrar modelo 3D"]')).toBeTruthy();
 
-    fixture.nativeElement.querySelector('.model-close-safety').click();
+    fixture.nativeElement.querySelector('.model-toolbar .model-close').click();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.model-close-safety')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.model-toolbar .model-close')).toBeNull();
     expect(fixture.nativeElement.querySelector('[aria-label="Construir modelo 3D"]')).toBeTruthy();
+  });
+
+  it('opens a chaptered encyclopedia instead of an element picker', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[aria-label="Enciclopedia química"]').click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.encyclopedia-chapters button').length).toBe(15);
+    expect(fixture.nativeElement.textContent).toContain('Cómo leer una estructura química');
+    expect(fixture.nativeElement.textContent).toContain('Fuentes y ampliación');
+    expect(fixture.nativeElement.querySelector('.element-cards')).toBeNull();
   });
 });

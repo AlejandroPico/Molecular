@@ -54,6 +54,8 @@ export interface Atom {
   lonePairs: number;
   radicalElectrons: number;
   implicitHydrogenOverride?: number;
+  isotope?: number;
+  chirality?: '@' | '@@';
 }
 
 export interface Bond {
@@ -62,6 +64,7 @@ export interface Bond {
   atomB: string;
   order: 1 | 2 | 3;
   kind?: BondKind;
+  color?: string;
 }
 
 export interface ReactionArrow {
@@ -151,8 +154,9 @@ export function createBond(
   atomB: string,
   order: 1 | 2 | 3 = 1,
   kind: BondKind = bondKindForOrder(order),
+  color?: string,
 ): Bond {
-  return { id: uid('bond'), atomA, atomB, order, kind };
+  return { id: uid('bond'), atomA, atomB, order, kind, color };
 }
 
 export function createDocument(name = 'Molécula sin título'): MoleculeDocument {
@@ -305,6 +309,7 @@ export function implicitHydrogensForAtom(document: MoleculeDocument, atom: Atom)
     return Math.max(0, Math.floor(atom.implicitHydrogenOverride));
   const definition = ELEMENT_BY_SYMBOL.get(atom.element);
   if (!definition?.implicitHydrogens) return 0;
+  if (atom.charge !== 0 && !CHARGED_VALENCES[atom.element]?.[atom.charge]) return 0;
   const occupied = bondOrderForAtom(document, atom.id);
   const target = allowedValencesForAtom(atom).find((valence) => valence >= occupied) ?? 0;
   return Math.max(0, target - occupied);

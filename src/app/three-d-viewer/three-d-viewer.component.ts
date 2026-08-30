@@ -248,13 +248,19 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
       const count = implicitHydrogensForAtom(molecule, source);
       const origin = positions.get(source.id);
       if (!origin || count <= 0) continue;
-      const directions = this.hydrogenDirections(count, atomIndex);
+      const occupied = molecule.bonds
+        .filter((bond) => bond.atomA === source.id || bond.atomB === source.id)
+        .map((bond) => positions.get(bond.atomA === source.id ? bond.atomB : bond.atomA))
+        .filter((position): position is THREE.Vector3 => !!position)
+        .map((position) => position.clone().sub(origin).normalize());
+      const directions = this.hydrogenDirections(count, atomIndex, occupied);
+      const hydrogenDistance = this.targetBondLength(source.element, 'H');
       directions.forEach((direction, index) => {
         const id = source.id + '-implicit-h-' + index;
         atoms.push({
           id,
           element: 'H',
-          position: origin.clone().add(direction.multiplyScalar(1.18)),
+          position: origin.clone().add(direction.multiplyScalar(hydrogenDistance)),
           implicit: true,
         });
         bonds.push({ a: source.id, b: id, order: 1, kind: 'single' });
@@ -315,11 +321,13 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
               (bond.atomA === current.id && bond.atomB === neighbourId) ||
               (bond.atomB === current.id && bond.atomA === neighbourId),
           );
-          if (connectingBond?.kind === 'up') direction.z = Math.abs(direction.z || 0.55);
-          if (connectingBond?.kind === 'down') direction.z = -Math.abs(direction.z || 0.55);
-          direction.normalize();
           const source = molecule.atoms.find((atom) => atom.id === current.id)!;
           const target = molecule.atoms.find((atom) => atom.id === neighbourId)!;
+          if (connectingBond?.kind === 'up') direction.z = Math.abs(direction.z || 0.55);
+          if (connectingBond?.kind === 'down') direction.z = -Math.abs(direction.z || 0.55);
+          if (target.chirality === '@') direction.z = -Math.abs(direction.z || 0.55);
+          if (target.chirality === '@@') direction.z = Math.abs(direction.z || 0.55);
+          direction.normalize();
           const distance = this.targetBondLength(source.element, target.element);
           positions.set(neighbourId, origin.clone().add(direction.multiplyScalar(distance)));
           visited.add(neighbourId);
@@ -372,31 +380,48 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
     return Math.max(0.9, Math.min(1.65, (radiusA + radiusB) * 0.92));
   }
 
-  private hydrogenDirections(count: number, seed: number): THREE.Vector3[] {
-    const tetrahedral = [
-      new THREE.Vector3(1, 1, 1),
-      new THREE.Vector3(-1, -1, 1),
-      new THREE.Vector3(-1, 1, -1),
-      new THREE.Vector3(1, -1, -1),
-    ];
-    const rotation = new THREE.Euler(seed * 0.47, seed * 0.31, seed * 0.22);
-    if (count === 1) return [new THREE.Vector3(0.9, 0.45, 0.35).applyEuler(rotation).normalize()];
-    if (count === 2) {
-      return [new THREE.Vector3(-0.79, 0.61, 0.25), new THREE.Vector3(0.79, 0.61, -0.25)].map(
-        (vector) => vector.applyEuler(rotation).normalize(),
-      );
+  private hydrogenDirections(
+    count: number,
+    seed: number,
+    occupied: THREE.Vector3[],
+  ): THREE.Vector3[] {
+    const outward = occupied
+      .reduce((sum, direction) => sum.add(direction), new THREE.Vector3())
+      .multiplyScalar(-1);
+    const candidates: THREE.Vector3[] = [];
+    if (outward.lengthSq() > 0.0001) candidates.push(outward.normalize());
+
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    const phase = (seed * 0.61803398875) % 1;
+    for (let index = 0; index < 64; index += 1) {
+      const y = 1 - ((index + 0.5) / 64) * 2;
+      const radius = Math.sqrt(Math.max(0, 1 - y * y));
+      const angle = goldenAngle * (index + phase);
+      candidates.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
     }
-    if (count === 3) {
-      return [0, 1, 2].map((index) => {
-        const angle = (index * Math.PI * 2) / 3;
-        return new THREE.Vector3(Math.cos(angle), -0.28, Math.sin(angle))
-          .applyEuler(rotation)
-          .normalize();
-      });
+
+    const selected: THREE.Vector3[] = [];
+    for (let index = 0; index < Math.min(count, 4); index += 1) {
+      let best = candidates[0];
+      let bestScore = Number.POSITIVE_INFINITY;
+      for (const candidate of candidates) {
+        const collisions = [...occupied, ...selected];
+        const closestDirection = collisions.length
+          ? Math.max(...collisions.map((direction) => candidate.dot(direction)))
+          : -1;
+        const outwardPenalty = outward.lengthSq() > 0 ? -candidate.dot(outward) * 0.08 : 0;
+        const score = closestDirection + outwardPenalty;
+        if (score < bestScore) {
+          bestScore = score;
+          best = candidate;
+        }
+      }
+      const chosen = best.clone().normalize();
+      selected.push(chosen);
+      const candidateIndex = candidates.indexOf(best);
+      if (candidateIndex >= 0) candidates.splice(candidateIndex, 1);
     }
-    return tetrahedral
-      .slice(0, Math.min(count, 4))
-      .map((vector) => vector.applyEuler(rotation).normalize());
+    return selected;
   }
 
   private addAtom(atom: RenderAtom, representation: Representation): void {

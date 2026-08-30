@@ -1,5 +1,31 @@
 # Historial de versiones
 
+## 0.4.0 — 2026-08-30
+
+### Añadido
+
+- Inspector exclusivo de enlaces, con tipo, tinta, extremos A/B independientes y acceso 3D del enlace seleccionado.
+- Controles reversibles y minimalistas para carga formal, pares libres y electrones radicalarios.
+- Paletas Mañana, Tarde y Noche, más modo Automático por ventana solar y ubicación opcional.
+- Enciclopedia narrativa de 15 capítulos con índice, búsqueda, diagramas SVG, ejemplos, tutorial, glosario y fuentes IUPAC/OpenSMILES/PubChem.
+- Soporte SMILES para anillos `%10` y `%(123)`, isótopos, H entre corchetes, cargas numéricas o repetidas, `~` y quiralidad `@/@@`.
+- Color configurable para nuevos enlaces y para enlaces seleccionados.
+
+### Cambiado
+
+- H, carga, pares libres y radicales se distribuyen en huecos angulares separados respecto de los enlaces; la exportación SVG reutiliza la misma disposición.
+- El visor 3D sitúa hidrógenos implícitos en las direcciones menos ocupadas y conserva indicios de cuñas y quiralidad.
+- Las acciones del visor 3D se centran en una única barra y el cierre ocupa su extremo derecho.
+- El pie flotante contiene únicamente fórmula estimada y masa molar.
+- La enciclopedia deja de actuar como selector rápido de elementos; la tabla periódica sigue siendo el selector específico del editor.
+
+### Corregido
+
+- `C` y `c` dejan de fusionarse como si fueran un símbolo de elemento de dos letras; la aromaticidad es sensible a mayúsculas.
+- Un carbono con una carga sin regla de valencia configurada ya no recupera hidrógenos de la valencia neutra.
+- Las líneas visuales de enlaces dobles o triples dejan de provocar una edición ambigua de sus dos extremos.
+- El botón de cierre 3D deja de tapar Restablecer cámara y Exportar imagen.
+
 ## 0.3.0 — 2026-08-29
 
 ### Añadido

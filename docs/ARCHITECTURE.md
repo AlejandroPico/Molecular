@@ -1,6 +1,6 @@
 # Arquitectura de Molecular
 
-## Decisión de la versión 0.3.0
+## Decisión de la versión 0.4.0
 
 Molecular se publica en GitHub Pages. Ese alojamiento sirve archivos estáticos y no ejecuta procesos Python, Java, Go ni un servidor SQLite. Por ello, el primer núcleo se ejecuta íntegramente en el navegador:
 
@@ -19,7 +19,9 @@ src/app/
 ├── core/
 │   ├── periodic-table.data.ts    # 118 elementos, posiciones y capacidades
 │   ├── chemistry.models.ts       # documentos, enlaces, valencias y fórmulas
-│   └── formula-generator.ts      # fórmula molecular y subconjunto SMILES
+│   ├── formula-generator.ts      # fórmula molecular y subconjunto OpenSMILES
+│   ├── encyclopedia.data.ts      # capítulos, secciones y fuentes
+│   └── solar-theme.ts            # ventana solar y tema automático
 ├── shared/
 │   └── icon.component.ts         # iconografía SVG local
 ├── three-d-viewer/
@@ -37,7 +39,7 @@ El formato `.molecular.json` es deliberadamente sencillo y versionable. Conserva
 
 - identificador y nombre del documento;
 - átomos con elemento, posición 2D, carga y anotaciones de Lewis;
-- enlaces con sus extremos, orden y clase química o visual;
+- enlaces con sus extremos, orden, clase química o visual y color opcional;
 - flechas con tipo, origen y destino;
 - fechas de creación y modificación.
 
@@ -59,9 +61,15 @@ La retícula es una capa HTML independiente y absoluta que ocupa el escenario co
 
 ## Generación y geometría
 
-El generador distingue una fórmula molecular de una cadena SMILES. Para fórmulas conocidas puede usar una plantilla; en los demás casos distribuye la composición en un borrador que conserva el recuento pedido y deja clara la ambigüedad de isómeros. El analizador SMILES local cubre átomos, ramas, anillos, componentes, cargas y enlaces simples, dobles, triples, aromáticos y direccionales básicos.
+El generador distingue una fórmula molecular de una cadena SMILES. Para fórmulas conocidas puede usar una plantilla; en los demás casos distribuye la composición en un borrador que conserva el recuento pedido y deja clara la ambigüedad de isómeros. El analizador SMILES local cubre átomos alifáticos y aromáticos sensibles a caja, ramas, componentes, anillos simples y extendidos, cargas, isótopos, H explícitos, `@/@@` y enlaces simples, dobles, triples, aromáticos, indeterminados y direccionales básicos.
 
-El visor 3D recorre el grafo molecular, asigna direcciones espaciales semejantes a una distribución tetraédrica y aplica iteraciones de resorte y repulsión. El resultado mejora la legibilidad y aporta profundidad, pero no es un conformador físico ni una minimización de energía.
+El visor 3D recorre el grafo molecular, asigna direcciones espaciales semejantes a una distribución tetraédrica y aplica iteraciones de resorte y repulsión. Los hidrógenos implícitos se añaden después, escogiendo direcciones de una esfera de Fibonacci que minimizan la coincidencia con vecinos ocupados. El resultado mejora la legibilidad y aporta profundidad, pero no es un conformador físico ni una minimización de energía.
+
+## Contenido didáctico y temas
+
+La enciclopedia es un conjunto TypeScript versionado de capítulos narrativos, secciones, ejemplos y fuentes. Los diagramas se dibujan como SVG semántico dentro de la interfaz, de modo que mantienen nitidez, contraste temático y adaptación móvil sin depender de recursos de terceros.
+
+El modo Automático calcula una ventana solar aproximada con fecha, zona horaria y, si el usuario lo autoriza expresamente, latitud y longitud. La ubicación queda en `localStorage`; no se transmite. Sin permiso se aplican franjas locales predecibles.
 
 ## Evolución de datos y Python
 
@@ -74,4 +82,4 @@ El modo de cálculo no será obligatorio para dibujar, guardar o visualizar. As�
 
 ## Límites científicos actuales
 
-La 0.3.0 aplica reglas de valencia y coordinación simplificadas y genera una geometría 3D didáctica a partir de la topología. No realiza minimización de energía, configuración R/S, aromaticidad formal, orbitales ni dinámica molecular. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.
+La 0.4.0 aplica reglas de valencia y coordinación simplificadas y genera una geometría 3D didáctica a partir de la topología. No realiza minimización de energía, asignación CIP R/S, aromaticidad formal, orbitales ni dinámica molecular. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.

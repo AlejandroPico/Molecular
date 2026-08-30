@@ -2,16 +2,17 @@
 
 Este documento separa lo publicado de lo previsto. Las fechas no son compromisos: el orden refleja dependencia técnica y valor para el editor.
 
-## 0.3.0 — Publicado
+## 0.4.0 — Publicado
 
-- Lienzo continuo con retícula triangular o de puntos.
-- Enlaces autónomos y diez clases visibles.
-- Grupo R, carga formal, pares solitarios, radicales y tres flechas de reacción.
-- Selección directa, rectangular y por lazo; modo esquelético y limpieza local.
-- Generación desde fórmula molecular y subconjunto SMILES.
-- Geometría 3D topológica y cinco representaciones visuales.
+- Inspector diferenciado para enlaces con extremos A/B editables y color propio.
+- Distribución anticolisión de H, carga, pares libres y radicales en pantalla y SVG.
+- Controles `− / +` reversibles para todas las anotaciones de Lewis.
+- SMILES ampliado con aromaticidad sensible a caja, anillos extendidos, isótopos, cargas y `@/@@`.
+- Colocación 3D de hidrógenos guiada por direcciones libres y cierre integrado en la barra del visor.
+- Temas Mañana, Tarde, Noche y Automático mediante cálculo solar local opcional.
+- Enciclopedia didáctica de 15 capítulos con diagramas, buscador, glosario y fuentes primarias.
 
-## 0.4 — Mecanismos e interoperabilidad
+## 0.5 — Mecanismos e interoperabilidad
 
 - Flechas curvas de empuje electrónico con puntos de control editables.
 - Etiquetas, corchetes, coeficientes, condiciones de reacción y objetos de texto.
@@ -19,14 +20,14 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 - Editor explícito de hidrógenos, isotopía y numeración de átomos.
 - Portapapeles vectorial y contratos de intercambio iniciales con Atlas Editor.
 
-## 0.5 — Química estructural
+## 0.6 — Química estructural
 
 - Aromaticidad formal, estereoquímica tetraédrica y dobles enlaces E/Z.
 - Grupos funcionales, abreviaturas químicas y plantillas ampliables.
 - Normalización de enlaces, detección de anillos y limpieza 2D con restricciones químicas.
 - Conformadores reales y propiedades verificadas mediante una fuente química externa opcional.
 
-## 0.6 — Datos locales y cálculo opcional
+## 0.7 — Datos locales y cálculo opcional
 
 - SQLite-WASM con OPFS/IndexedDB para catálogos, proyectos y búsqueda local.
 - Servicio opcional FastAPI con RDKit u Open Babel para conversión y optimización geométrica.
@@ -42,4 +43,4 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 
 ## Fuera del alcance actual
 
-Molecular 0.3 no realiza química cuántica, dinámica molecular, predicción de reacciones ni validación experimental. La geometría 3D actual es topológica y educativa; cualquier capacidad avanzada deberá indicar su método y procedencia.
+Molecular 0.4 no realiza química cuántica, dinámica molecular, predicción de reacciones ni validación experimental. La geometría 3D actual es topológica y educativa; cualquier capacidad avanzada deberá indicar su método y procedencia.

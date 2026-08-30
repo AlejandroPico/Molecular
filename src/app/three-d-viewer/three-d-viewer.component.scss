@@ -72,7 +72,8 @@ select:disabled {
 
 .model-toolbar {
   min-height: 54px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(152px, 1fr) auto minmax(34px, 1fr);
   gap: 6px;
   align-items: center;
   padding: 9px 14px;
@@ -82,10 +83,25 @@ select:disabled {
 
 .representation-picker {
   min-width: 0;
-  flex: 1;
   display: flex;
   align-items: center;
   gap: 2px;
+}
+
+.model-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.model-close {
+  justify-self: end;
+}
+
+.model-close:hover {
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .representation-picker button {
@@ -300,6 +316,7 @@ select {
   }
 
   .model-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
     padding: 7px 9px;
   }
 
@@ -311,7 +328,17 @@ select {
   }
 
   .representation-picker button {
-    width: 32px;
+    width: 28px;
+    min-width: 28px;
     height: 32px;
+  }
+
+  .representation-picker {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .model-toolbar-actions {
+    gap: 2px;
   }
 }
