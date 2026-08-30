@@ -1,5 +1,11 @@
 # Historial de versiones
 
+## 0.4.3 — 2026-08-30
+
+### Corregido
+
+- Una regla de estilo posterior ya no anula la anchura compacta del panel de Lewis; el desplegable pasa de 286 a 202 píxeles en escritorio.
+
 ## 0.4.2 — 2026-08-30
 
 ### Añadido

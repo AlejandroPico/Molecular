@@ -2,6 +2,10 @@
 
 Este documento separa lo publicado de lo previsto. Las fechas no son compromisos: el orden refleja dependencia técnica y valor para el editor.
 
+## 0.4.3 — Publicado
+
+- Panel de Lewis reducido a 202 px reales y verificado en el despliegue público junto con selección, enlaces e inspectores.
+
 ## 0.4.2 — Publicado
 
 - Grupo único de selección con Directa, Rectangular, Lazo y Desplazar; paneo temporal siempre disponible mediante botón central o `Espacio`.
