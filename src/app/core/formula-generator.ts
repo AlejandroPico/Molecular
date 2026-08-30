@@ -35,16 +35,96 @@ export function generateStructure(source: string): FormulaGenerationResult {
   const forcedFormula = prefix === 'formula' || prefix === 'fórmula';
   const forcedSmiles = prefix === 'smiles' || prefix === 'smi';
   const compact = input.replace(/\s+/g, '');
-  const formula = parseMolecularFormula(compact);
+  const normalizedFormula = normalizeMolecularFormula(compact);
+  const formula = normalizedFormula ? parseMolecularFormula(normalizedFormula) : null;
   if (forcedFormula) {
     if (!formula)
       throw new Error('La fórmula molecular contiene un elemento o recuento no válido.');
-    return generateFromFormula(compact, formula);
+    return withNormalizationNotice(
+      generateFromFormula(normalizedFormula!, formula),
+      compact,
+      normalizedFormula!,
+    );
   }
   const smiles = input.split(/\s+/)[0];
-  return !forcedSmiles && formula && looksLikeMolecularFormula(compact)
-    ? generateFromFormula(compact, formula)
+  return !forcedSmiles && formula && looksLikeMolecularFormula(normalizedFormula!)
+    ? withNormalizationNotice(
+        generateFromFormula(normalizedFormula!, formula),
+        compact,
+        normalizedFormula!,
+      )
     : generateFromSmiles(smiles);
+}
+
+const SUBSCRIPT_DIGITS: Record<string, string> = {
+  '₀': '0',
+  '₁': '1',
+  '₂': '2',
+  '₃': '3',
+  '₄': '4',
+  '₅': '5',
+  '₆': '6',
+  '₇': '7',
+  '₈': '8',
+  '₉': '9',
+};
+
+function normalizeMolecularFormula(input: string): string | null {
+  const ascii = input.replace(/[₀-₉]/g, (digit) => SUBSCRIPT_DIGITS[digit]);
+  if (parseMolecularFormula(ascii)) return ascii;
+  if (!/^[a-z0-9]+$/i.test(ascii)) return null;
+
+  interface Candidate {
+    normalized: string;
+    score: number;
+  }
+
+  const memo = new Map<number, Candidate | null>();
+  const solve = (index: number): Candidate | null => {
+    if (index === ascii.length) return { normalized: '', score: 0 };
+    if (memo.has(index)) return memo.get(index)!;
+    if (/\d/.test(ascii[index])) return null;
+
+    let best: Candidate | null = null;
+    for (const [symbol, definition] of ELEMENT_BY_SYMBOL) {
+      if (ascii.slice(index, index + symbol.length).toLowerCase() !== symbol.toLowerCase()) continue;
+      let cursor = index + symbol.length;
+      while (cursor < ascii.length && /\d/.test(ascii[cursor])) cursor += 1;
+      const digits = ascii.slice(index + symbol.length, cursor);
+      const count = digits ? Number(digits) : 1;
+      if (!Number.isInteger(count) || count < 1 || count > 240) continue;
+      const tail = solve(cursor);
+      if (!tail) continue;
+      const candidate = {
+        normalized: symbol + digits + tail.normalized,
+        // En entradas totalmente minúsculas favorecemos la segmentación con elementos ligeros
+        // (co2 → C + O2) y conservamos las mayúsculas para desambiguar símbolos como Co o Sn.
+        score: (definition.atomicNumber || 1) + tail.score,
+      };
+      if (
+        !best ||
+        candidate.score < best.score ||
+        (candidate.score === best.score && candidate.normalized.length < best.normalized.length)
+      )
+        best = candidate;
+    }
+    memo.set(index, best);
+    return best;
+  };
+
+  return solve(0)?.normalized ?? null;
+}
+
+function withNormalizationNotice(
+  result: FormulaGenerationResult,
+  original: string,
+  normalized: string,
+): FormulaGenerationResult {
+  if (original === normalized) return result;
+  return {
+    ...result,
+    notice: `Se ha interpretado «${original}» como ${normalized}. ${result.notice}`,
+  };
 }
 
 function looksLikeMolecularFormula(input: string): boolean {
@@ -75,7 +155,8 @@ function generateFromFormula(
 ): FormulaGenerationResult {
   for (const preset of MOLECULE_PRESETS) {
     const document = documentFromPreset(preset);
-    if (calculateStats(document).formula === formula) {
+    const presetCounts = parseMolecularFormula(calculateStats(document).formula);
+    if (presetCounts && sameElementCounts(presetCounts, counts)) {
       return {
         document,
         inputKind: 'formula',
@@ -156,6 +237,14 @@ function generateFromFormula(
     notice:
       'Una fórmula molecular no determina un isómero único. Se ha creado un borrador coherente que puedes reorganizar; usa SMILES para fijar la conectividad.',
   };
+}
+
+function sameElementCounts(
+  first: Map<AtomSymbol, number>,
+  second: Map<AtomSymbol, number>,
+): boolean {
+  if (first.size !== second.size) return false;
+  return [...first].every(([symbol, count]) => second.get(symbol) === count);
 }
 
 function generateFromSmiles(smiles: string): FormulaGenerationResult {

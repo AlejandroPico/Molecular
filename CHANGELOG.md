@@ -1,5 +1,26 @@
 # Historial de versiones
 
+## 0.4.2 — 2026-08-30
+
+### Añadido
+
+- Interpretación local de fórmulas tradicionales en mayúsculas, minúsculas o con subíndices Unicode.
+- Plantilla estructural de ácido sulfúrico con dos enlaces S=O y dos grupos hidroxilo.
+
+### Cambiado
+
+- Selección directa, rectangular, por lazo y desplazamiento comparten un único grupo lateral.
+- Deshacer y rehacer comparten un control de historial desplegable.
+- Los inspectores contextuales y los controles de Lewis son más compactos.
+- La búsqueda móvil se abre hacia abajo a toda la anchura; Fórmulas y Enciclopedia ocupan el área útil completa.
+- En móvil horizontal, la barra lateral se reorganiza en dos columnas.
+
+### Corregido
+
+- Los desplegables laterales quedan confinados entre la navegación superior y el pie, con desplazamiento táctil independiente.
+- La tinta de nuevos enlaces permanece accesible en el borde inferior del menú de enlaces.
+- `h2o`, `H₂O` y `h2so4` dejan de caer por error en el analizador SMILES.
+
 ## 0.4.1 — 2026-08-30
 
 ### Corregido

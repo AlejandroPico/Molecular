@@ -1,6 +1,6 @@
 # Molecular
 
-**Versión 0.4.1**
+**Versión 0.4.2**
 
 Molecular es un estudio químico visual de Alejandro Pico para construir estructuras en dos dimensiones, comprobar reglas básicas de enlace y explorarlas como modelos tridimensionales. Toma como referencia conceptual el flujo 2D → 3D de herramientas educativas como [MolView](https://molview.org/), con interfaz, arquitectura y motor propios.
 
@@ -10,7 +10,16 @@ Molecular es un estudio químico visual de Alejandro Pico para construir estruct
 
 El despliegue se actualiza automáticamente con cada publicación en `main`.
 
-## Novedades de las versiones 0.4.0–0.4.1
+## Novedades de las versiones 0.4.0–0.4.2
+
+### Interfaz compacta y fórmulas tolerantes
+
+- Selección directa, rectangular, por lazo y desplazamiento viven en un único grupo; el botón central o `Espacio` desplazan temporalmente desde cualquier herramienta.
+- Deshacer y rehacer comparten un control de historial, y los menús laterales se mantienen dentro de la ventana con desplazamiento táctil propio.
+- Los controles de Lewis y los inspectores de átomos/enlaces ocupan menos anchura sin perder acciones.
+- En móvil, la búsqueda aparece como una segunda fila de anchura completa; Fórmulas y Enciclopedia usan toda el área útil, también en horizontal.
+- Las fórmulas tradicionales aceptan mayúsculas, minúsculas y subíndices (`H2O`, `h2o`, `H₂O`, `h2so4`) sin alterar la sensibilidad de SMILES aromáticos.
+- Se incorpora una plantilla estructural editable del ácido sulfúrico para `H2SO4`.
 
 ### Edición precisa y notación de Lewis
 
@@ -40,7 +49,7 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 1. Elige Átomo o Enlace en la barra lateral. Un enlace puede unir átomos existentes o dibujarse directamente sobre el vacío.
 2. Usa los puntos suspensivos de Átomo para abrir la tabla periódica completa y sustituir cualquier extremo.
 3. Añade carga, pares solitarios, radicales, grupos R, fragmentos o flechas desde sus paletas laterales.
-4. Cambia entre selección directa, rectangular y por lazo; usa Limpiar para ordenar el esquema localmente.
+4. Abre el único grupo de selección para elegir Directa, Rectangular, Lazo o Desplazar; usa Limpiar para ordenar el esquema localmente.
 5. Abre Fórmula en la barra superior y pega una fórmula molecular o SMILES para crear un borrador editable.
 6. Usa la rueda o la pinza táctil para ampliar bajo el puntero y abre el visor 3D para elegir una representación.
 7. Abre Exportar para obtener SVG, PNG, captura 3D o documento editable.
@@ -72,7 +81,7 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 
 ## Arquitectura sin servidor
 
-GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.4.1 funciona íntegramente en el navegador para mantener edición, validación, generación, consulta, guardado y 3D inmediatos.
+GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.4.2 funciona íntegramente en el navegador para mantener edición, validación, generación, consulta, guardado y 3D inmediatos.
 
 La evolución prevista conserva dos vías:
 
@@ -124,7 +133,7 @@ Molecular/
 
 ## Alcance científico
 
-La validación 0.4.1 es educativa. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Las marcas arriba/abajo y `@/@@` influyen en la profundidad inicial, pero no constituyen todavía una asignación CIP ni una conformación rigurosa.
+La validación 0.4.2 es educativa. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Las marcas arriba/abajo y `@/@@` influyen en la profundidad inicial, pero no constituyen todavía una asignación CIP ni una conformación rigurosa.
 
 Una fórmula molecular no contiene conectividad suficiente para identificar un isómero. El generador produce en ese caso un punto de partida editable; SMILES es la entrada apropiada cuando la conectividad debe ser inequívoca. La colocación 3D es una incrustación topológica relajada, no una optimización energética.
 

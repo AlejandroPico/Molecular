@@ -1,6 +1,6 @@
 # Arquitectura de Molecular
 
-## Decisión de la versión 0.4.1
+## Decisión de la versión 0.4.2
 
 Molecular se publica en GitHub Pages. Ese alojamiento sirve archivos estáticos y no ejecuta procesos Python, Java, Go ni un servidor SQLite. Por ello, el primer núcleo se ejecuta íntegramente en el navegador:
 
@@ -61,7 +61,9 @@ La retícula es una capa HTML independiente y absoluta que ocupa el escenario co
 
 ## Generación y geometría
 
-El generador distingue una fórmula molecular de una cadena SMILES. Para fórmulas conocidas puede usar una plantilla; en los demás casos distribuye la composición en un borrador que conserva el recuento pedido y deja clara la ambigüedad de isómeros. El analizador SMILES local cubre átomos alifáticos y aromáticos sensibles a caja, ramas, componentes, anillos simples y extendidos, cargas, isótopos, H explícitos, `@/@@` y enlaces simples, dobles, triples, aromáticos, indeterminados y direccionales básicos.
+El generador distingue una fórmula molecular de una cadena SMILES. Las fórmulas tradicionales se normalizan mediante segmentación contra los 118 símbolos: admite caja libre y subíndices Unicode, favorece la interpretación con elementos ligeros en entradas totalmente minúsculas y conserva las mayúsculas como vía de desambiguación. Para fórmulas conocidas puede usar una plantilla; en los demás casos distribuye la composición en un borrador que conserva el recuento pedido y deja clara la ambigüedad de isómeros. El analizador SMILES local sigue siendo sensible a caja y cubre átomos alifáticos y aromáticos, ramas, componentes, anillos simples y extendidos, cargas, isótopos, H explícitos, `@/@@` y enlaces simples, dobles, triples, aromáticos, indeterminados y direccionales básicos.
+
+La interfaz adaptable mantiene una única barra superior y una única barra lateral. Los flyouts laterales se posicionan respecto de la ventana y disponen de desplazamiento propio; en móvil, la búsqueda ocupa una fila inferior completa y los lectores complejos usan el área útil completa. En orientación horizontal corta, las herramientas se reorganizan en dos columnas para conservar objetivos táctiles legibles.
 
 El visor 3D recorre el grafo molecular, asigna direcciones espaciales semejantes a una distribución tetraédrica y aplica iteraciones de resorte y repulsión. Los hidrógenos implícitos se añaden después, escogiendo direcciones de una esfera de Fibonacci que minimizan la coincidencia con vecinos ocupados. El resultado mejora la legibilidad y aporta profundidad, pero no es un conformador físico ni una minimización de energía.
 
@@ -82,4 +84,4 @@ El modo de cálculo no será obligatorio para dibujar, guardar o visualizar. As�
 
 ## Límites científicos actuales
 
-La 0.4.1 aplica reglas de valencia y coordinación simplificadas y genera una geometría 3D didáctica a partir de la topología. No realiza minimización de energía, asignación CIP R/S, aromaticidad formal, orbitales ni dinámica molecular. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.
+La 0.4.2 aplica reglas de valencia y coordinación simplificadas y genera una geometría 3D didáctica a partir de la topología. No realiza minimización de energía, asignación CIP R/S, aromaticidad formal, orbitales ni dinámica molecular. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.

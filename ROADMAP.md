@@ -2,6 +2,15 @@
 
 Este documento separa lo publicado de lo previsto. Las fechas no son compromisos: el orden refleja dependencia técnica y valor para el editor.
 
+## 0.4.2 — Publicado
+
+- Grupo único de selección con Directa, Rectangular, Lazo y Desplazar; paneo temporal siempre disponible mediante botón central o `Espacio`.
+- Historial compacto con Deshacer/Rehacer en un solo control y flyouts confinados a la ventana con desplazamiento táctil.
+- Inspectores y controles de Lewis más estrechos; tinta de enlace fijada al borde accesible de su menú.
+- Búsqueda móvil en una segunda fila completa, paneles de Fórmulas/Enciclopedia a pantalla útil completa y barra de herramientas en dos columnas para móvil horizontal.
+- Fórmulas tradicionales tolerantes a caja y subíndices, conservando la semántica sensible a mayúsculas de SMILES.
+- Plantilla estructural de ácido sulfúrico y pruebas para `h2o`, `H₂O`, `h2so4` y SMILES aromáticos.
+
 ## 0.4.1 — Publicado
 
 - Inspector diferenciado para enlaces con extremos A/B editables y color propio.

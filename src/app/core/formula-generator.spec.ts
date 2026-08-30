@@ -9,6 +9,26 @@ describe('formula generator', () => {
     expect(result.notice).toContain('no determina un isómero único');
   });
 
+  it('normalizes lowercase formulas and typographic subscripts', () => {
+    const water = generateStructure('h2o');
+    expect(water.inputKind).toBe('formula');
+    expect(calculateStats(water.document).formula).toBe('H2O');
+    expect(water.notice).toContain('h2o');
+
+    const typographicWater = generateStructure('H₂O');
+    expect(typographicWater.inputKind).toBe('formula');
+    expect(calculateStats(typographicWater.document).formula).toBe('H2O');
+  });
+
+  it('recognizes lowercase sulfuric acid without confusing it with SMILES', () => {
+    const result = generateStructure('h2so4');
+    expect(result.inputKind).toBe('formula');
+    expect(result.document.name).toBe('Ácido sulfúrico');
+    expect(result.document.atoms.filter((atom) => atom.element === 'S').length).toBe(1);
+    expect(result.document.bonds.filter((bond) => bond.order === 2).length).toBe(2);
+    expect(calculateStats(result.document).formula).toBe('H2O4S');
+  });
+
   it('parses branches and double bonds from SMILES', () => {
     const result = generateStructure('CC(=O)O');
     expect(result.inputKind).toBe('smiles');

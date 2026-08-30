@@ -413,12 +413,22 @@
         <div class="rail-tool-group">
           <button
             type="button"
-            [class.active]="activeTool() === 'select'"
+            [class.active]="activeTool() === 'select' || activeTool() === 'pan'"
             title="Herramientas de selección (V)"
             aria-label="Seleccionar"
-            (click)="setTool('select')"
+            (click)="setSelectionMode('direct')"
           >
-            <app-icon [name]="selectionMode() === 'lasso' ? 'lasso' : 'box-select'" /><kbd>V</kbd>
+            <app-icon
+              [name]="
+                activeTool() === 'pan'
+                  ? 'hand'
+                  : selectionMode() === 'lasso'
+                    ? 'lasso'
+                    : selectionMode() === 'rectangle'
+                      ? 'box-select'
+                      : 'cursor'
+              "
+            /><kbd>V</kbd>
           </button>
           <div class="tool-flyout selection-flyout">
             <span class="flyout-title">Selección</span>
@@ -427,7 +437,7 @@
               [class.active]="selectionMode() === 'direct'"
               (click)="setSelectionMode('direct')"
             >
-              <app-icon name="hand" /><span
+              <app-icon name="cursor" /><span
                 ><strong>Directa</strong><small>Átomos y enlaces</small></span
               >
             </button>
@@ -449,17 +459,14 @@
                 ><strong>Lazo</strong><small>Contorno libre</small></span
               >
             </button>
+            <button type="button" [class.active]="activeTool() === 'pan'" (click)="setTool('pan')">
+              <app-icon name="hand" /><span
+                ><strong>Desplazar</strong><small>Solo mueve el lienzo · H</small></span
+              >
+            </button>
+            <p class="flyout-hint">Botón central o espacio: desplazamiento temporal.</p>
           </div>
         </div>
-        <button
-          type="button"
-          [class.active]="activeTool() === 'pan'"
-          title="Desplazar (H o espacio)"
-          aria-label="Desplazar lienzo"
-          (click)="setTool('pan')"
-        >
-          <app-icon name="hand" /><kbd>H</kbd>
-        </button>
         <button
           type="button"
           [class.active]="layers.skeletal()"
@@ -469,24 +476,30 @@
         >
           <app-icon name="skeletal" />
         </button>
-        <button
-          type="button"
-          [disabled]="!canUndo()"
-          title="Deshacer (Ctrl+Z)"
-          aria-label="Deshacer"
-          (click)="undo()"
-        >
-          <app-icon name="undo" />
-        </button>
-        <button
-          type="button"
-          [disabled]="!canRedo()"
-          title="Rehacer (Ctrl+Y)"
-          aria-label="Rehacer"
-          (click)="redo()"
-        >
-          <app-icon name="redo" />
-        </button>
+        <div class="rail-tool-group history-tool-group">
+          <button
+            type="button"
+            [disabled]="!canUndo() && !canRedo()"
+            title="Historial de edición"
+            aria-label="Historial: deshacer y rehacer"
+            (click)="canUndo() ? undo() : redo()"
+          >
+            <app-icon name="undo" />
+          </button>
+          <div class="tool-flyout history-flyout">
+            <span class="flyout-title">Historial</span>
+            <button type="button" [disabled]="!canUndo()" (click)="undo()">
+              <app-icon name="undo" /><span
+                ><strong>Deshacer</strong><small>Ctrl + Z</small></span
+              >
+            </button>
+            <button type="button" [disabled]="!canRedo()" (click)="redo()">
+              <app-icon name="redo" /><span
+                ><strong>Rehacer</strong><small>Ctrl + Y</small></span
+              >
+            </button>
+          </div>
+        </div>
         <button
           type="button"
           title="Ordenar estructura"
@@ -1152,6 +1165,8 @@
     <aside
       class="floating-panel"
       [class.wide]="panel === 'formula' || panel === 'encyclopedia' || panel === 'about'"
+      [class.formula-panel]="panel === 'formula'"
+      [class.encyclopedia-panel]="panel === 'encyclopedia'"
       (pointerdown)="$event.stopPropagation()"
     >
       @switch (panel) {
@@ -1253,7 +1268,8 @@
                 <p>
                   SMILES fija la conectividad. Una fórmula como C₆H₁₂O₆ puede corresponder a varios
                   isómeros, por lo que genera un borrador editable. En SMILES, C y c no son
-                  equivalentes: la minúscula marca aromaticidad.
+                  equivalentes: la minúscula marca aromaticidad. Las fórmulas tradicionales también
+                  admiten minúsculas y subíndices: h2o, H₂O o h2so4.
                 </p>
               </div>
             </div>
@@ -1267,6 +1283,8 @@
               ></textarea>
             </label>
             <div class="formula-examples">
+              <button type="button" (click)="formulaInput.set('h2o')">Agua · h₂o</button>
+              <button type="button" (click)="formulaInput.set('h2so4')">Ácido sulfúrico</button>
               <button type="button" (click)="formulaInput.set('C6H12O6')">C₆H₁₂O₆</button>
               <button type="button" (click)="formulaInput.set('CC(=O)O')">Ácido acético</button>
               <button type="button" (click)="formulaInput.set('c1ccccc1')">Benceno SMILES</button>

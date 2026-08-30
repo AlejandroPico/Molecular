@@ -15,7 +15,7 @@ describe('App', () => {
     aboutButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Acerca de Molecular');
-    expect(fixture.nativeElement.textContent).toContain('0.4.1');
+    expect(fixture.nativeElement.textContent).toContain('0.4.2');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {
@@ -28,6 +28,17 @@ describe('App', () => {
     expect(fixture.nativeElement.textContent).toContain('C₂H₆O');
     expect(fixture.nativeElement.textContent).toContain('Masa molar');
     expect(fixture.nativeElement.textContent).not.toContain('Motor local');
+  });
+
+  it('groups direct, area and pan modes under one selection control', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const selectionGroup = fixture.nativeElement.querySelector('.selection-flyout');
+    expect(selectionGroup.textContent).toContain('Directa');
+    expect(selectionGroup.textContent).toContain('Rectangular');
+    expect(selectionGroup.textContent).toContain('Lazo');
+    expect(selectionGroup.textContent).toContain('Desplazar');
+    expect(fixture.nativeElement.querySelectorAll('.history-flyout button').length).toBe(2);
   });
 
   it('keeps the molecular canvas proportional and exposes all 118 elements', () => {
