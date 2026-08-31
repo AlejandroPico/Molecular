@@ -15,7 +15,7 @@ describe('App', () => {
     aboutButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Acerca de Molecular');
-    expect(fixture.nativeElement.textContent).toContain('0.4.5');
+    expect(fixture.nativeElement.textContent).toContain('0.4.6');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {
@@ -84,6 +84,7 @@ describe('App', () => {
     let pinButton = [...fixture.nativeElement.querySelectorAll('.context-menu button')].find(
       (button: Element) => button.textContent?.includes('Fijar ficha informativa'),
     ) as HTMLButtonElement;
+    expect(fixture.nativeElement.querySelectorAll('.context-elements button').length).toBe(8);
     pinButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelectorAll('.pinned-atom-inspector').length).toBe(1);

@@ -2,6 +2,11 @@
 
 Este documento separa lo publicado de lo previsto. Las fechas no son compromisos: el orden refleja dependencia técnica y valor para el editor.
 
+## 0.4.6 — Publicado
+
+- Historial lateral simétrico, contenido íntegramente dentro de la anchura normal de la barra.
+- Selector contextual de elementos compactado en una sola fila de ocho accesos.
+
 ## 0.4.5 — Publicado
 
 - Lockfile reproducible y validado con el mismo flujo `npm ci` que utiliza GitHub Actions.

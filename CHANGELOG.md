@@ -1,5 +1,12 @@
 # Historial de versiones
 
+## 0.4.6 — 2026-08-31
+
+### Cambiado
+
+- Deshacer y Rehacer ocupan dos mitades idénticas dentro del ancho habitual de la barra lateral, con iconos del mismo tamaño.
+- Los seis elementos frecuentes, el grupo R y el acceso a la tabla periódica se distribuyen en una única fila del menú contextual.
+
 ## 0.4.5 — 2026-08-31
 
 ### Corregido

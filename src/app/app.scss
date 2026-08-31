@@ -1841,10 +1841,10 @@ select:focus-visible {
 }
 
 .history-split {
-  width: 64px;
+  width: 42px;
   height: 42px;
   display: grid;
-  grid-template-columns: 40px 24px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid var(--border);
   background: var(--surface-2);
@@ -1860,11 +1860,7 @@ select:focus-visible {
   border-left: 1px solid var(--border);
 }
 
-.history-split .history-undo app-icon {
-  width: 19px;
-  height: 19px;
-}
-
+.history-split .history-undo app-icon,
 .history-split .history-redo app-icon {
   width: 15px;
   height: 15px;
@@ -2112,7 +2108,7 @@ select:focus-visible {
 
 .context-elements {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 3px;
   padding: 7px;
   border-bottom: 1px solid var(--border);
@@ -3571,15 +3567,6 @@ select:focus-visible {
   }
 
   .history-split {
-    grid-column: 1 / -1;
-    width: 72px;
-    grid-template-columns: 44px 28px;
-  }
-}
-
-@media (pointer: coarse) {
-  .history-split {
-    width: 72px;
-    grid-template-columns: 44px 28px;
+    width: 34px;
   }
 }
