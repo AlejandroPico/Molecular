@@ -1,6 +1,6 @@
 # Arquitectura de Molecular
 
-## Decisión de la versión 0.7.1
+## Decisión de la versión 0.7.2
 
 Molecular se publica en GitHub Pages. Ese alojamiento sirve archivos estáticos y no ejecuta procesos Python, Java, Go ni un servidor SQLite. Por ello, el primer núcleo se ejecuta íntegramente en el navegador:
 
@@ -123,4 +123,4 @@ El modo de cálculo no será obligatorio para dibujar, guardar o visualizar. As�
 
 ## Límites científicos actuales
 
-La 0.7.1 aplica reglas de valencia y coordinación simplificadas y genera geometrías 3D didácticas a partir de la topología. La aromaticidad y los grupos funcionales son una percepción local, y la identificación se limita a referencias incluidas: ninguna equivale a un modelo electrónico exhaustivo o a una determinación experimental. TPSA, logP, similitud e índice conformacional son orientativos. No realiza minimización energética, asignación CIP automática, orbitales ni dinámica molecular. Los formatos se orientan al intercambio educativo local; para identificadores canónicos, V3000 o investigación se necesita un motor especializado. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.
+La 0.7.2 aplica reglas de valencia y coordinación simplificadas y genera geometrías 3D didácticas a partir de la topología. La aromaticidad y los grupos funcionales son una percepción local, y la identificación se limita a referencias incluidas: ninguna equivale a un modelo electrónico exhaustivo o a una determinación experimental. TPSA, logP, similitud e índice conformacional son orientativos. No realiza minimización energética, asignación CIP automática, orbitales ni dinámica molecular. Los formatos se orientan al intercambio educativo local; para identificadores canónicos, V3000 o investigación se necesita un motor especializado. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.

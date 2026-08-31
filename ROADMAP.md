@@ -66,7 +66,7 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 - Balanceador estequiométrico de coeficientes enteros mínimos, incluyendo conservación de carga neta.
 - Cobertura unitaria del análisis, balance, panel científico y controles 3D; 53 pruebas superadas.
 
-## 0.7.1 — Publicado
+## 0.7.2 — Publicado
 
 - Biblioteca de 36 estructuras editables repartidas entre aminoácidos, nucleótidos, azúcares, lípidos, grupos protectores y fármacos frecuentes.
 - Búsqueda y filtros de biblioteca con inserción no destructiva, fuente enlazada y conservación del historial.

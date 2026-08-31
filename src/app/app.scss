@@ -1128,7 +1128,7 @@ select:focus-visible {
   width: min(1180px, calc(100vw - 24px));
   height: min(820px, calc(100vh - 76px));
   max-height: calc(100vh - 76px);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .encyclopedia-header {

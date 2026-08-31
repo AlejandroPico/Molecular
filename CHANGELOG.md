@@ -1,5 +1,11 @@
 # Historial de versiones
 
+## 0.7.2 — 2026-08-31
+
+### Corregido
+
+- La regla heredada y más específica del lector reserva ahora tres filas; el selector Enciclopedia/Tutorial queda visible, separado del buscador y verificado en GitHub Pages.
+
 ## 0.7.1 — 2026-08-31
 
 ### Corregido
