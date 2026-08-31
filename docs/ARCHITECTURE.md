@@ -1,6 +1,6 @@
 # Arquitectura de Molecular
 
-## Decisión de la versión 0.5.0
+## Decisión de la versión 0.6.0
 
 Molecular se publica en GitHub Pages. Ese alojamiento sirve archivos estáticos y no ejecuta procesos Python, Java, Go ni un servidor SQLite. Por ello, el primer núcleo se ejecuta íntegramente en el navegador:
 
@@ -22,6 +22,8 @@ src/app/
 │   ├── chemical-formats.ts       # importación/exportación química local
 │   ├── formula-generator.ts      # fórmula molecular y subconjunto OpenSMILES
 │   ├── layout-engine.ts          # limpieza y empaquetado 2D
+│   ├── molecular-analysis.ts     # grupos, anillos, propiedades y validación
+│   ├── reaction-balancer.ts      # sistema lineal estequiométrico
 │   ├── encyclopedia.data.ts      # capítulos, secciones y fuentes
 │   └── solar-theme.ts            # ventana solar y tema automático
 ├── shared/
@@ -53,7 +55,7 @@ Es la primera frontera de interoperabilidad con Atlas Editor. `chemical-formats.
 
 ## Motor educativo de capacidad
 
-Los enlaces covalentes tienen orden 1, 2 o 3; aromáticos y deslocalizados contribuyen 1,5 en el modelo educativo, mientras que los puentes de hidrógeno y el enlace indeterminado se tratan como anotaciones sin consumo covalente. La validación suma esta contribución alrededor de cada átomo y la compara con las capacidades configuradas para el elemento y su carga formal. Una modificación incompatible se rechaza antes de mutar el documento.
+Los enlaces covalentes tienen orden 1, 2 o 3; aromáticos y deslocalizados contribuyen 1,5 en el modelo educativo, mientras que los puentes de hidrógeno y el enlace indeterminado se tratan como anotaciones sin consumo covalente. La validación suma esta contribución alrededor de cada átomo y la compara con las capacidades configuradas para el elemento y su carga formal. Una modificación incompatible se rechaza antes de mutar el documento en el perfil Estricto. El perfil Guiado informa y permite continuar; Libre omite las barreras de coherencia. Cada familia de comprobaciones se activa por separado y la configuración se conserva localmente fuera del documento químico.
 
 Los elementos representativos emplean valencias covalentes habituales. Los metales de transición, lantánidos y actínidos utilizan límites de coordinación simplificados: sirven para impedir estructuras arbitrarias, pero no modelan estados de oxidación, ligandos, geometrías de coordinación ni electrones de forma rigurosa.
 
@@ -75,6 +77,12 @@ Una reacción referencia componentes por papel, no duplica átomos. Sus condicio
 
 Deshacer/Rehacer conserva pilas de documentos completos. El historial visual mantiene en memoria hasta 48 copias con etiqueta y fecha; una restauración registra primero el estado vigente, evitando que recuperar una miniatura destruya el trabajo actual.
 
+## Análisis molecular y balance
+
+`molecular-analysis.ts` construye una lista de adyacencia inmutable a partir del documento. Sobre ella reconoce subgrafos funcionales, enumera ciclos simples pequeños, evalúa conjugación y la condición 4n+2, calcula propiedades derivadas y produce incidencias seleccionables. Masa, fórmula, carga y composición proceden directamente de los átomos e hidrógenos implícitos; TPSA y logP usan contribuciones locales deliberadamente etiquetadas como estimaciones.
+
+`reaction-balancer.ts` forma una matriz especies × elementos —con una fila adicional para carga cuando procede—, calcula un vector del espacio nulo mediante eliminación de Gauss con fracciones reducidas y normaliza la solución a los enteros positivos mínimos. El resultado solo modifica los coeficientes de componentes y queda integrado en Deshacer/Historial.
+
 ## Generación y geometría
 
 El generador distingue una fórmula molecular de una cadena SMILES. Las fórmulas tradicionales se normalizan mediante segmentación contra los 118 símbolos: admite caja libre y subíndices Unicode, favorece la interpretación con elementos ligeros en entradas totalmente minúsculas y conserva las mayúsculas como vía de desambiguación. Para fórmulas conocidas puede usar una plantilla; en los demás casos distribuye la composición en un borrador que conserva el recuento pedido y deja clara la ambigüedad de isómeros. El analizador SMILES local sigue siendo sensible a caja y cubre átomos alifáticos y aromáticos, ramas, componentes, anillos simples y extendidos, cargas, isótopos, H explícitos, `@/@@` y enlaces simples, dobles, triples, aromáticos, indeterminados y direccionales básicos.
@@ -83,7 +91,9 @@ La entrada múltiple separa comas, punto y coma y saltos de línea fuera de corc
 
 La interfaz adaptable mantiene una única barra superior y una única barra lateral. Cada flyout toma la coordenada vertical de su botón y la limita contra los bordes seguros de la ventana; únicamente los menús altos se elevan y todos disponen de desplazamiento propio. Las fichas informativas fijadas conservan estado independiente y coordenadas acotadas al escenario. En móvil, la búsqueda ocupa una fila inferior completa y los lectores complejos usan el área útil completa. En orientación horizontal corta, las herramientas se reorganizan en dos columnas para conservar objetivos táctiles legibles.
 
-El visor 3D recorre el grafo molecular, asigna direcciones espaciales semejantes a una distribución tetraédrica y aplica iteraciones de resorte y repulsión. Los hidrógenos implícitos se añaden después, escogiendo direcciones de una esfera de Fibonacci que minimizan la coincidencia con vecinos ocupados. El resultado mejora la legibilidad y aporta profundidad, pero no es un conformador físico ni una minimización de energía.
+El visor 3D recorre el grafo molecular, asigna direcciones espaciales semejantes a una distribución tetraédrica y aplica iteraciones de resorte y repulsión. Los hidrógenos implícitos se añaden después, escogiendo direcciones de una esfera de Fibonacci que minimizan la coincidencia con vecinos ocupados. Puede regenerar propuestas, recuperar el plano 2D o sesgar la distribución hacia estados extendidos y compactos.
+
+Las mediciones usan raycasting contra las esferas de Three.js y las mismas coordenadas visibles que el render. Dos selecciones producen una distancia euclídea en ångströms; tres, un ángulo; cuatro, un diedro mediante proyección sobre el enlace central. El resaltado es material y no muta el documento.
 
 ## Contenido didáctico y temas
 
@@ -102,4 +112,4 @@ El modo de cálculo no será obligatorio para dibujar, guardar o visualizar. As�
 
 ## Límites científicos actuales
 
-La 0.5.0 aplica reglas de valencia y coordinación simplificadas y genera una geometría 3D didáctica a partir de la topología. No realiza minimización de energía, asignación CIP automática, aromaticidad formal, orbitales ni dinámica molecular. Los formatos se orientan al intercambio educativo local; para identificadores canónicos, V3000, percepción química exhaustiva o investigación se necesita un motor especializado. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.
+La 0.6.0 aplica reglas de valencia y coordinación simplificadas y genera geometrías 3D didácticas a partir de la topología. La aromaticidad y los grupos funcionales son una percepción local, no un modelo electrónico exhaustivo; TPSA, logP e índice conformacional son orientativos. No realiza minimización energética, asignación CIP automática, orbitales ni dinámica molecular. Los formatos se orientan al intercambio educativo local; para identificadores canónicos, V3000 o investigación se necesita un motor especializado. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.

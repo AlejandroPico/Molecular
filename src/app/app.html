@@ -77,6 +77,15 @@
       </button>
       <button
         type="button"
+        [class.active]="activePanel() === 'analysis'"
+        title="Laboratorio científico"
+        aria-label="Laboratorio científico"
+        (click)="togglePanel('analysis')"
+      >
+        <app-icon name="sparkles" />
+      </button>
+      <button
+        type="button"
         [class.active]="activePanel() === 'encyclopedia'"
         title="Enciclopedia química"
         aria-label="Enciclopedia química"
@@ -1421,8 +1430,11 @@
     <div class="panel-backdrop" (pointerdown)="closePanels()"></div>
     <aside
       class="floating-panel"
-      [class.wide]="panel === 'formula' || panel === 'encyclopedia' || panel === 'about'"
+      [class.wide]="
+        panel === 'formula' || panel === 'analysis' || panel === 'encyclopedia' || panel === 'about'
+      "
       [class.formula-panel]="panel === 'formula'"
+      [class.science-panel-shell]="panel === 'analysis'"
       [class.encyclopedia-panel]="panel === 'encyclopedia'"
       (pointerdown)="$event.stopPropagation()"
     >
@@ -1674,6 +1686,365 @@
               <app-icon name="arrow" />
               {{ activeReaction() ? 'Reconstruir esquema' : 'Crear esquema de reacción' }}
             </button>
+          </div>
+        }
+        @case ('analysis') {
+          <header class="panel-header science-header">
+            <div>
+              <span class="eyebrow">Análisis estructural local</span>
+              <h2>Laboratorio científico</h2>
+            </div>
+            <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
+          </header>
+          <div class="science-tabs" role="tablist" aria-label="Herramientas científicas">
+            <button
+              type="button"
+              role="tab"
+              [class.active]="analysisTab() === 'groups'"
+              [attr.aria-selected]="analysisTab() === 'groups'"
+              (click)="setAnalysisTab('groups')"
+            >
+              Grupos <span>{{ functionalGroups().length }}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [class.active]="analysisTab() === 'aromaticity'"
+              [attr.aria-selected]="analysisTab() === 'aromaticity'"
+              (click)="setAnalysisTab('aromaticity')"
+            >
+              Aromaticidad <span>{{ ringAnalysis().length }}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [class.active]="analysisTab() === 'properties'"
+              [attr.aria-selected]="analysisTab() === 'properties'"
+              (click)="setAnalysisTab('properties')"
+            >
+              Propiedades
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [class.active]="analysisTab() === 'validation'"
+              [attr.aria-selected]="analysisTab() === 'validation'"
+              (click)="setAnalysisTab('validation')"
+            >
+              Validación <span>{{ validationIssues().length }}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [class.active]="analysisTab() === 'balance'"
+              [attr.aria-selected]="analysisTab() === 'balance'"
+              (click)="setAnalysisTab('balance')"
+            >
+              Balance
+            </button>
+          </div>
+          <div class="panel-content science-panel">
+            @switch (analysisTab()) {
+              @case ('groups') {
+                <div class="science-intro">
+                  <span class="science-mark">FG</span>
+                  <div>
+                    <strong>Reconocimiento de grupos funcionales</strong>
+                    <p>
+                      Molecular inspecciona conectividad, orden de enlace, hidrógenos implícitos y
+                      entorno aromático. Pulsa un resultado para localizarlo en el lienzo.
+                    </p>
+                  </div>
+                </div>
+                <div class="functional-group-list">
+                  @for (group of functionalGroups(); track group.id) {
+                    <button
+                      type="button"
+                      (click)="selectAnalysisAtoms(group.atomIds, group.bondIds)"
+                    >
+                      <span class="group-formula">{{ group.formula }}</span>
+                      <span>
+                        <strong>{{ group.name }}</strong>
+                        <small>{{ group.description }}</small>
+                      </span>
+                      <i>{{ group.atomIds.length }} átomos</i>
+                    </button>
+                  } @empty {
+                    <div class="science-empty">
+                      <app-icon name="atom" />
+                      <strong>No se reconocen grupos funcionales</strong>
+                      <span>Añade una estructura más completa o revisa sus órdenes de enlace.</span>
+                    </div>
+                  }
+                </div>
+              }
+              @case ('aromaticity') {
+                <div class="science-intro">
+                  <span class="science-mark">π</span>
+                  <div>
+                    <strong>Aromaticidad y resonancia formales</strong>
+                    <p>
+                      Se buscan ciclos pequeños conjugados y se comprueba la regla de Hückel 4n+2.
+                      La forma de Kekulé es una representación; no localiza realmente los
+                      electrones.
+                    </p>
+                  </div>
+                </div>
+                <div class="aromatic-actions">
+                  <button type="button" (click)="normalizeAromaticity()">
+                    <app-icon name="bond" /> Normalizar aromaticidad
+                  </button>
+                  <button type="button" (click)="generateResonanceForm()">
+                    <app-icon name="arrow" /> Siguiente forma de Kekulé
+                  </button>
+                </div>
+                <div class="ring-list">
+                  @for (ring of ringAnalysis(); track ring.id; let number = $index) {
+                    <button
+                      type="button"
+                      [class.aromatic]="ring.aromatic"
+                      (click)="selectAnalysisAtoms(ring.atomIds, ring.bondIds)"
+                    >
+                      <span class="ring-symbol">{{ ring.aromatic ? '⌬' : '⬡' }}</span>
+                      <span>
+                        <strong
+                          >Anillo {{ number + 1 }} · {{ ring.atomIds.length }} miembros</strong
+                        >
+                        <small>{{ ring.reason }}</small>
+                      </span>
+                      <i>{{ ring.electronCount }} e⁻ π · {{ ring.resonanceForms }} forma(s)</i>
+                    </button>
+                  } @empty {
+                    <div class="science-empty">
+                      <span class="empty-symbol">⬡</span>
+                      <strong>No se han detectado ciclos</strong>
+                      <span>Inserta benceno o un fragmento cíclico para analizarlo.</span>
+                    </div>
+                  }
+                </div>
+              }
+              @case ('properties') {
+                <div class="property-hero">
+                  <span>{{ formulaDisplay() }}</span>
+                  <div>
+                    <strong>{{ molecule().name }}</strong>
+                    <small
+                      >{{ molecularProperties().heavyAtomCount }} átomos pesados ·
+                      {{ molecularProperties().ringCount }} anillos</small
+                    >
+                  </div>
+                </div>
+                <div class="property-grid">
+                  <article>
+                    <span>Masa molar</span>
+                    <strong>{{ molecularProperties().molecularMass.toFixed(3) }}</strong>
+                    <small>g·mol⁻¹</small>
+                  </article>
+                  <article>
+                    <span>TPSA estimada</span>
+                    <strong>{{ molecularProperties().tpsa.toFixed(2) }}</strong>
+                    <small>Å²</small>
+                  </article>
+                  <article>
+                    <span>logP estimado</span>
+                    <strong>{{ molecularProperties().logP.toFixed(2) }}</strong>
+                    <small>heurística local</small>
+                  </article>
+                  <article>
+                    <span>Carga neta</span>
+                    <strong>{{
+                      molecularProperties().netCharge > 0
+                        ? '+' + molecularProperties().netCharge
+                        : molecularProperties().netCharge
+                    }}</strong>
+                    <small>unidades e</small>
+                  </article>
+                  <article>
+                    <span>Donantes H</span>
+                    <strong>{{ molecularProperties().hydrogenBondDonors }}</strong>
+                    <small>HBD</small>
+                  </article>
+                  <article>
+                    <span>Aceptores H</span>
+                    <strong>{{ molecularProperties().hydrogenBondAcceptors }}</strong>
+                    <small>HBA</small>
+                  </article>
+                  <article>
+                    <span>Enlaces rotables</span>
+                    <strong>{{ molecularProperties().rotatableBonds }}</strong>
+                    <small>no cíclicos</small>
+                  </article>
+                  <article>
+                    <span>Anillos aromáticos</span>
+                    <strong>{{ molecularProperties().aromaticRingCount }}</strong>
+                    <small>regla 4n+2</small>
+                  </article>
+                </div>
+                <section class="composition-section">
+                  <header><strong>Composición elemental en masa</strong><span>%</span></header>
+                  @for (item of molecularProperties().composition; track item.symbol) {
+                    <div class="composition-row">
+                      <b>{{ item.symbol }}</b>
+                      <span class="composition-track"
+                        ><i [style.width.%]="item.percentage"></i
+                      ></span>
+                      <strong>{{ item.percentage.toFixed(2) }}%</strong>
+                      <small>{{ item.atoms }} átomos</small>
+                    </div>
+                  }
+                </section>
+                <div class="panel-note science-note">
+                  <app-icon name="info" />
+                  <p>{{ molecularProperties().notes.join(' ') }}</p>
+                </div>
+              }
+              @case ('validation') {
+                <div
+                  class="validation-profiles"
+                  role="radiogroup"
+                  aria-label="Perfil de validación"
+                >
+                  <button
+                    type="button"
+                    [class.active]="validationSettings().profile === 'strict'"
+                    (click)="setValidationProfile('strict')"
+                  >
+                    <strong>Estricto</strong><small>Bloquea cambios incompatibles</small>
+                  </button>
+                  <button
+                    type="button"
+                    [class.active]="validationSettings().profile === 'guided'"
+                    (click)="setValidationProfile('guided')"
+                  >
+                    <strong>Guiado</strong><small>Avisa y permite explorar</small>
+                  </button>
+                  <button
+                    type="button"
+                    [class.active]="validationSettings().profile === 'free'"
+                    (click)="setValidationProfile('free')"
+                  >
+                    <strong>Libre</strong><small>No bloquea por coherencia</small>
+                  </button>
+                </div>
+                <section class="validation-settings">
+                  <header><strong>Comprobaciones activas</strong></header>
+                  <button type="button" (click)="toggleValidationCheck('checkValence')">
+                    <span
+                      ><strong>Valencia</strong
+                      ><small>Capacidad de enlace por elemento y carga</small></span
+                    >
+                    <b [class.on]="validationSettings().checkValence"></b>
+                  </button>
+                  <button type="button" (click)="toggleValidationCheck('checkCharge')">
+                    <span
+                      ><strong>Carga formal</strong
+                      ><small>Límite de carga absoluta configurable</small></span
+                    >
+                    <b [class.on]="validationSettings().checkCharge"></b>
+                  </button>
+                  <button type="button" (click)="toggleValidationCheck('checkIsolatedAtoms')">
+                    <span
+                      ><strong>Átomos aislados</strong
+                      ><small>Detecta especies sin conectividad</small></span
+                    >
+                    <b [class.on]="validationSettings().checkIsolatedAtoms"></b>
+                  </button>
+                  <button type="button" (click)="toggleValidationCheck('checkAromaticity')">
+                    <span
+                      ><strong>Aromaticidad</strong
+                      ><small>Coherencia de ciclos y electrones π</small></span
+                    >
+                    <b [class.on]="validationSettings().checkAromaticity"></b>
+                  </button>
+                  <button type="button" (click)="toggleValidationCheck('checkStereochemistry')">
+                    <span
+                      ><strong>Estereoquímica</strong
+                      ><small>Entorno suficiente para R/S y E/Z</small></span
+                    >
+                    <b [class.on]="validationSettings().checkStereochemistry"></b>
+                  </button>
+                  <label>
+                    <span><strong>Carga máxima absoluta</strong><small>De ±1 a ±8</small></span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="8"
+                      [value]="validationSettings().maximumAbsoluteCharge"
+                      (change)="setMaximumCharge($event)"
+                    />
+                  </label>
+                </section>
+                <div class="validation-results">
+                  @for (issue of validationIssues(); track issue.id) {
+                    <button
+                      type="button"
+                      [class.error]="issue.severity === 'error'"
+                      [class.warning]="issue.severity === 'warning'"
+                      [class.info]="issue.severity === 'info'"
+                      (click)="selectAnalysisAtoms(issue.atomIds, issue.bondIds)"
+                    >
+                      <app-icon [name]="issue.severity === 'info' ? 'check' : 'warning'" />
+                      <span
+                        ><strong>{{ issue.title }}</strong
+                        ><small>{{ issue.detail }}</small></span
+                      >
+                    </button>
+                  } @empty {
+                    <div class="science-empty">
+                      <app-icon name="info" />
+                      <strong>Validación desactivada</strong>
+                      <span>El perfil libre no ejecuta comprobaciones estructurales.</span>
+                    </div>
+                  }
+                </div>
+              }
+              @case ('balance') {
+                <div class="science-intro">
+                  <span class="science-mark">⇌</span>
+                  <div>
+                    <strong>Balanceador de ecuaciones</strong>
+                    <p>
+                      Resuelve los coeficientes enteros mínimos conservando cada elemento y la carga
+                      neta. Utiliza los papeles reactivo y producto de los componentes.
+                    </p>
+                  </div>
+                </div>
+                <div class="equation-preview" [class.balanced]="balanceStatus().balanced">
+                  <span>{{ balanceStatus().balanced ? 'Balanceada' : 'Pendiente' }}</span>
+                  <strong>{{ balanceStatus().equation }}</strong>
+                  <small>{{ balanceStatus().message }}</small>
+                </div>
+                <div class="balance-components">
+                  @for (component of components(); track component.id) {
+                    @if (component.role === 'reactant' || component.role === 'product') {
+                      <article>
+                        <b>{{ component.coefficient }}</b>
+                        <span
+                          ><strong>{{ componentFormula(component) }}</strong
+                          ><small>{{ component.name }}</small></span
+                        >
+                        <i>{{ component.role === 'reactant' ? 'Reactivo' : 'Producto' }}</i>
+                      </article>
+                    }
+                  } @empty {
+                    <p class="empty-panel-message">Todavía no hay componentes asignados.</p>
+                  }
+                </div>
+                <button class="formula-submit" type="button" (click)="balanceActiveReaction()">
+                  <app-icon name="sparkles" /> Calcular coeficientes mínimos
+                </button>
+                <button class="science-secondary" type="button" (click)="togglePanel('reaction')">
+                  Configurar reactivos, productos y condiciones
+                </button>
+                <div class="panel-note science-note">
+                  <app-icon name="info" />
+                  <p>
+                    El balance no inventa especies ausentes. Si una reacción redox requiere H₂O, H⁺,
+                    OH⁻ o electrones, añádelos como componentes antes de resolverla.
+                  </p>
+                </div>
+              }
+            }
           </div>
         }
         @case ('layers') {
@@ -2473,7 +2844,7 @@
                 <span class="eyebrow">Versión actual</span><strong>{{ version }}</strong>
                 <p>
                   Componentes independientes, formatos químicos, limpieza 2D, estereoquímica,
-                  reacciones, flechas electrónicas e historial visual.
+                  reacciones, historial visual y laboratorio científico.
                 </p>
               </section>
               <section>
@@ -2488,14 +2859,15 @@
               <span class="eyebrow">Qué ofrece</span>
               <p>
                 Un lienzo continuo para dibujar átomos, enlaces independientes, grupos R, cargas,
-                pares solitarios, radicales, flechas y fragmentos; gestionar componentes; componer
-                reacciones; limpiar la disposición; construir desde fórmula o SMILES; importar y
-                exportar formatos químicos; recuperar estados visuales y explorar en 3D.
+                pares solitarios, radicales, flechas y fragmentos; gestionar componentes; componer y
+                balancear reacciones; reconocer grupos; analizar aromaticidad y propiedades; limpiar
+                la disposición; construir desde fórmula o SMILES; importar y exportar formatos
+                químicos; recuperar estados visuales, medir y explorar conformaciones 3D.
               </p>
               <p>
                 La fórmula molecular no determina por sí sola un isómero y la geometría 3D es una
-                aproximación topológica educativa. La validación evita incompatibilidades básicas,
-                pero no sustituye un cálculo de química cuántica ni un análisis profesional.
+                aproximación topológica educativa. La validación configurable y los descriptores
+                estimados no sustituyen un cálculo de química cuántica ni un análisis profesional.
               </p>
             </section>
             <div class="about-links">

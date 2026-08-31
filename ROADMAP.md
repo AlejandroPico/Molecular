@@ -55,14 +55,25 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 - Historial visual con 48 miniaturas, puntos manuales y recuperación no destructiva.
 - Pruebas de ida y vuelta de formatos, migración del documento v2 y restricciones del motor de disposición.
 
-## 0.6 — Química estructural avanzada
+## 0.6.0 — Publicado
+
+- Reconocimiento seleccionable de quince familias de grupos funcionales sobre el grafo molecular.
+- Detección de ciclos, evaluación local 4n+2, normalización aromática y generación de formas de Kekulé.
+- Propiedades: masa, carga, composición, HBD/HBA, enlaces rotables, anillos, TPSA y logP estimados con límites visibles.
+- Mediciones 3D de distancia, ángulo y diedro mediante selección directa de átomos.
+- Conformaciones topológicas optimizada, plana, extendida, compacta y propuestas alternativas.
+- Perfiles de validación Estricto, Guiado y Libre con cinco comprobaciones y carga límite configurable.
+- Balanceador estequiométrico de coeficientes enteros mínimos, incluyendo conservación de carga neta.
+- Cobertura unitaria del análisis, balance, panel científico y controles 3D; 53 pruebas superadas.
+
+## 0.7 — Química estructural avanzada
 
 - Asignación CIP automática y comprobada para R/S y E/Z.
 - Grupos funcionales, abreviaturas químicas y plantillas ampliables.
 - Puntos de control editables, texto libre y reacciones multietapa.
 - Conformadores reales y propiedades verificadas mediante una fuente química externa opcional.
 
-## 0.7 — Datos locales y cálculo opcional
+## 0.8 — Datos locales y cálculo opcional
 
 - SQLite-WASM con OPFS/IndexedDB para catálogos, proyectos y búsqueda local.
 - Servicio opcional FastAPI con RDKit u Open Babel para conversión y optimización geométrica.
@@ -78,4 +89,4 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 
 ## Fuera del alcance actual
 
-Molecular 0.5 no realiza química cuántica, dinámica molecular, predicción de reacciones ni validación experimental. La geometría 3D actual es topológica y educativa; cualquier capacidad avanzada deberá indicar su método y procedencia. R/S y E/Z son descriptores introducidos por la persona editora, no resultados de un cálculo CIP.
+Molecular 0.6 no realiza química cuántica, dinámica molecular, predicción de reacciones ni validación experimental. Los grupos, propiedades y aromaticidad se obtienen con reglas locales; la geometría 3D y sus conformaciones son topológicas y educativas. R/S y E/Z son descriptores introducidos por la persona editora, no resultados de un cálculo CIP.

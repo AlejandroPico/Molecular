@@ -6,6 +6,7 @@ import {
   NgZone,
   OnDestroy,
   ViewChild,
+  computed,
   effect,
   input,
   output,
@@ -22,6 +23,14 @@ import {
 import { IconComponent } from '../shared/icon.component';
 
 type Representation = 'ball-stick' | 'licorice' | 'spacefill' | 'sticks' | 'wireframe';
+type Conformation = 'optimized' | 'planar' | 'extended' | 'compact';
+type MeasurementMode = 'distance' | 'angle' | 'dihedral';
+
+interface MeasurementResult {
+  label: string;
+  value: string;
+  detail: string;
+}
 
 interface RenderAtom {
   id: string;
@@ -52,6 +61,25 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
   readonly spin = signal(false);
   readonly isReady = signal(false);
   readonly webglError = signal<string | null>(null);
+  readonly conformation = signal<Conformation>('optimized');
+  readonly conformerIndex = signal(0);
+  readonly conformationPanelOpen = signal(false);
+  readonly measurementPanelOpen = signal(false);
+  readonly measurementMode = signal<MeasurementMode>('distance');
+  readonly measurementAtomIds = signal<string[]>([]);
+  readonly measurementResult = signal<MeasurementResult | null>(null);
+  readonly measurementTargetCount = computed(() =>
+    this.measurementMode() === 'distance' ? 2 : this.measurementMode() === 'angle' ? 3 : 4,
+  );
+  readonly conformationQuality = computed(() => {
+    const base: Record<Conformation, number> = {
+      optimized: 1.8,
+      planar: 9.6,
+      extended: 4.7,
+      compact: 7.2,
+    };
+    return (base[this.conformation()] + (this.conformerIndex() % 5) * 0.16).toFixed(2);
+  });
   readonly representationOptions: ReadonlyArray<{
     id: Representation;
     label: string;
@@ -73,12 +101,18 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
   private moleculeGroup?: THREE.Group;
   private resizeObserver?: ResizeObserver;
   private animationFrame = 0;
+  private renderPositions = new Map<string, THREE.Vector3>();
+  private pointerOrigin: { x: number; y: number } | null = null;
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly pointer = new THREE.Vector2();
 
   constructor(private readonly zone: NgZone) {
     effect(() => {
       this.molecule();
       this.representation();
       this.showHydrogens();
+      this.conformation();
+      this.conformerIndex();
       if (this.isReady()) this.renderMolecule();
     });
   }
@@ -93,6 +127,8 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
     this.controls?.dispose();
     this.disposeGroup(this.moleculeGroup);
     this.renderer?.dispose();
+    this.renderer?.domElement.removeEventListener('pointerdown', this.onMeasurementPointerDown);
+    this.renderer?.domElement.removeEventListener('pointerup', this.onMeasurementPointerUp);
     this.renderer?.domElement.remove();
   }
 
@@ -106,6 +142,39 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleSpin(): void {
     this.spin.update((active) => !active);
+  }
+
+  toggleMeasurementPanel(): void {
+    this.measurementPanelOpen.update((open) => !open);
+    if (this.measurementPanelOpen()) this.conformationPanelOpen.set(false);
+  }
+
+  toggleConformationPanel(): void {
+    this.conformationPanelOpen.update((open) => !open);
+    if (this.conformationPanelOpen()) this.measurementPanelOpen.set(false);
+  }
+
+  setMeasurementMode(mode: MeasurementMode): void {
+    this.measurementMode.set(mode);
+    this.clearMeasurement();
+  }
+
+  clearMeasurement(): void {
+    this.measurementAtomIds.set([]);
+    this.measurementResult.set(null);
+    this.applyMeasurementHighlights();
+  }
+
+  setConformation(value: Conformation): void {
+    this.conformation.set(value);
+    this.conformerIndex.set(0);
+    this.clearMeasurement();
+  }
+
+  nextConformer(): void {
+    this.conformation.set('optimized');
+    this.conformerIndex.update((index) => index + 1);
+    this.clearMeasurement();
   }
 
   resetView(): void {
@@ -154,6 +223,8 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     viewport.appendChild(this.renderer.domElement);
+    this.renderer.domElement.addEventListener('pointerdown', this.onMeasurementPointerDown);
+    this.renderer.domElement.addEventListener('pointerup', this.onMeasurementPointerUp);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
@@ -212,6 +283,9 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
     const { atoms, bonds } = this.expandMolecule(this.molecule());
     const representation = this.representation();
     const positions = new Map(atoms.map((atom) => [atom.id, atom.position]));
+    this.renderPositions = new Map(
+      [...positions.entries()].map(([id, position]) => [id, position.clone()]),
+    );
 
     if (representation !== 'spacefill') {
       for (const bond of bonds) {
@@ -223,6 +297,7 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
     }
 
     for (const atom of atoms) this.addAtom(atom, representation);
+    this.applyMeasurementHighlights();
     this.fitCamera(atoms);
   }
 
@@ -278,14 +353,58 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
       neighbours.get(bond.atomB)?.push(bond.atomA);
     });
 
-    const directions = [
-      new THREE.Vector3(1, 1, 1),
-      new THREE.Vector3(-1, -1, 1),
-      new THREE.Vector3(-1, 1, -1),
-      new THREE.Vector3(1, -1, -1),
-      new THREE.Vector3(1, 0.1, -0.72),
-      new THREE.Vector3(-0.6, 0.82, 0.45),
-    ].map((direction) => direction.normalize());
+    if (this.conformation() === 'planar') {
+      const centerX = molecule.atoms.reduce((sum, atom) => sum + atom.x, 0) / molecule.atoms.length;
+      const centerY = molecule.atoms.reduce((sum, atom) => sum + atom.y, 0) / molecule.atoms.length;
+      molecule.atoms.forEach((atom) =>
+        positions.set(
+          atom.id,
+          new THREE.Vector3((atom.x - centerX) / 92, -(atom.y - centerY) / 92, 0),
+        ),
+      );
+      return positions;
+    }
+
+    const directionSets: Record<Exclude<Conformation, 'planar'>, THREE.Vector3[]> = {
+      optimized: [
+        new THREE.Vector3(1, 1, 1),
+        new THREE.Vector3(-1, -1, 1),
+        new THREE.Vector3(-1, 1, -1),
+        new THREE.Vector3(1, -1, -1),
+        new THREE.Vector3(1, 0.1, -0.72),
+        new THREE.Vector3(-0.6, 0.82, 0.45),
+      ],
+      extended: [
+        new THREE.Vector3(1, 0.42, 0.18),
+        new THREE.Vector3(1, -0.42, -0.18),
+        new THREE.Vector3(0.88, 0.2, -0.52),
+        new THREE.Vector3(0.88, -0.2, 0.52),
+        new THREE.Vector3(-0.7, 0.7, 0.15),
+        new THREE.Vector3(-0.7, -0.7, -0.15),
+      ],
+      compact: [
+        new THREE.Vector3(0.7, 1, 0.8),
+        new THREE.Vector3(-0.8, 0.7, 1),
+        new THREE.Vector3(-1, -0.7, 0.7),
+        new THREE.Vector3(0.8, -1, -0.7),
+        new THREE.Vector3(0.2, 0.9, -1),
+        new THREE.Vector3(-0.2, -0.9, 1),
+      ],
+    };
+    const conformation = this.conformation() as Exclude<Conformation, 'planar'>;
+    const seedAngle = this.conformerIndex() * 0.754877666;
+    const directions = directionSets[conformation].map((direction, index) =>
+      direction
+        .clone()
+        .normalize()
+        .applyEuler(
+          new THREE.Euler(
+            seedAngle * (index % 2 ? -0.34 : 0.27),
+            seedAngle + index * 0.17,
+            seedAngle * 0.21,
+          ),
+        ),
+    );
     const visited = new Set<string>();
     let componentIndex = 0;
 
@@ -308,8 +427,12 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
             .map((direction, index) => ({ direction, index }))
             .filter(({ direction }) => !backDirection || direction.dot(backDirection) < 0.35)
             .sort((a, b) => {
-              const aScore = Math.abs(Math.sin((childIndex + a.index + componentIndex) * 1.73));
-              const bScore = Math.abs(Math.sin((childIndex + b.index + componentIndex) * 1.73));
+              const aScore = Math.abs(
+                Math.sin((childIndex + a.index + componentIndex + this.conformerIndex()) * 1.73),
+              );
+              const bScore = Math.abs(
+                Math.sin((childIndex + b.index + componentIndex + this.conformerIndex()) * 1.73),
+              );
               return bScore - aScore;
             });
           const direction = (
@@ -454,7 +577,104 @@ export class ThreeDViewerComponent implements AfterViewInit, OnDestroy {
     sphere.castShadow = true;
     sphere.receiveShadow = true;
     sphere.userData['atomId'] = atom.id;
+    sphere.userData['baseEmissive'] = material.emissive.getHex();
     this.moleculeGroup.add(sphere);
+  }
+
+  private readonly onMeasurementPointerDown = (event: PointerEvent): void => {
+    this.pointerOrigin = { x: event.clientX, y: event.clientY };
+  };
+
+  private readonly onMeasurementPointerUp = (event: PointerEvent): void => {
+    if (
+      !this.measurementPanelOpen() ||
+      !this.pointerOrigin ||
+      !this.renderer ||
+      !this.camera ||
+      !this.moleculeGroup
+    )
+      return;
+    const moved = Math.hypot(
+      event.clientX - this.pointerOrigin.x,
+      event.clientY - this.pointerOrigin.y,
+    );
+    this.pointerOrigin = null;
+    if (moved > 5) return;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.set(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const hit = this.raycaster
+      .intersectObjects(this.moleculeGroup.children, true)
+      .find((intersection) => Boolean(intersection.object.userData['atomId']));
+    const atomId = hit?.object.userData['atomId'] as string | undefined;
+    if (!atomId) return;
+    this.zone.run(() => this.addMeasurementAtom(atomId));
+  };
+
+  private addMeasurementAtom(atomId: string): void {
+    const targetCount = this.measurementTargetCount();
+    let ids = this.measurementAtomIds();
+    if (ids.includes(atomId)) ids = ids.filter((id) => id !== atomId);
+    else ids = [...ids, atomId].slice(-targetCount);
+    this.measurementAtomIds.set(ids);
+    this.measurementResult.set(ids.length === targetCount ? this.calculateMeasurement(ids) : null);
+    this.applyMeasurementHighlights();
+  }
+
+  private calculateMeasurement(ids: string[]): MeasurementResult | null {
+    const points = ids
+      .map((id) => this.renderPositions.get(id))
+      .filter((point): point is THREE.Vector3 => !!point);
+    if (points.length !== ids.length) return null;
+    if (this.measurementMode() === 'distance') {
+      const value = points[0].distanceTo(points[1]);
+      return {
+        label: 'Distancia',
+        value: `${value.toFixed(3)} Å`,
+        detail: `${this.atomLabel(ids[0])} – ${this.atomLabel(ids[1])}`,
+      };
+    }
+    if (this.measurementMode() === 'angle') {
+      const angle = points[0].clone().sub(points[1]).angleTo(points[2].clone().sub(points[1]));
+      return {
+        label: 'Ángulo',
+        value: `${THREE.MathUtils.radToDeg(angle).toFixed(2)}°`,
+        detail: ids.map((id) => this.atomLabel(id)).join(' – '),
+      };
+    }
+    const b0 = points[0].clone().sub(points[1]);
+    const b1 = points[2].clone().sub(points[1]).normalize();
+    const b2 = points[3].clone().sub(points[2]);
+    const v = b0.clone().sub(b1.clone().multiplyScalar(b0.dot(b1)));
+    const w = b2.clone().sub(b1.clone().multiplyScalar(b2.dot(b1)));
+    const angle = Math.atan2(b1.clone().cross(v).dot(w), v.dot(w));
+    return {
+      label: 'Ángulo diedro',
+      value: `${THREE.MathUtils.radToDeg(angle).toFixed(2)}°`,
+      detail: ids.map((id) => this.atomLabel(id)).join(' – '),
+    };
+  }
+
+  private applyMeasurementHighlights(): void {
+    if (!this.moleculeGroup) return;
+    const selected = new Set(this.measurementAtomIds());
+    this.moleculeGroup.traverse((child) => {
+      if (!(child instanceof THREE.Mesh) || !child.userData['atomId']) return;
+      const material = child.material;
+      if (!(material instanceof THREE.MeshStandardMaterial)) return;
+      const active = selected.has(child.userData['atomId'] as string);
+      material.emissive.set(active ? '#f3a712' : '#000000');
+      material.emissiveIntensity = active ? 0.7 : 0;
+    });
+  }
+
+  private atomLabel(atomId: string): string {
+    const atom = this.molecule().atoms.find((candidate) => candidate.id === atomId);
+    if (atom) return `${atom.element}${this.molecule().atoms.indexOf(atom) + 1}`;
+    return atomId.includes('implicit-h') ? 'H implícito' : atomId;
   }
 
   private addBond(

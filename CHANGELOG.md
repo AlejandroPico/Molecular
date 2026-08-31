@@ -1,5 +1,30 @@
 # Historial de versiones
 
+## 0.6.0 — 2026-08-31
+
+### Añadido
+
+- Laboratorio científico con cinco vistas compactas: grupos funcionales, aromaticidad/resonancia, propiedades, validación y balance estequiométrico.
+- Reconocimiento de alcoholes, fenoles, éteres, aldehídos, cetonas, ácidos carboxílicos, ésteres, amidas, aminas, nitrilos, alquenos, alquinos, halogenuros, tioles y anillos aromáticos.
+- Análisis de ciclos y electrones π con comprobación local 4n+2, normalización de enlace aromático y formas alternas de Kekulé.
+- Propiedades moleculares con masa, carga, composición porcentual, donantes/aceptores H, enlaces rotables, anillos, TPSA y logP estimados.
+- Mediciones interactivas sobre el modelo 3D para distancia, ángulo y diedro.
+- Conformaciones 3D optimizada, plana, extendida y compacta, además de propuestas topológicas sucesivas.
+- Validación Estricta, Guiada o Libre con comprobaciones y carga máxima configurables, persistidas localmente.
+- Balanceador exacto por eliminación racional para coeficientes enteros mínimos y conservación de carga.
+- Ocho pruebas nuevas del motor científico, balanceador, laboratorio y visor; total de 53 pruebas.
+
+### Cambiado
+
+- Las operaciones de enlace, sustitución y carga obedecen al perfil de validación: bloquean, avisan o permiten explorar.
+- El visor 3D incorpora paneles superpuestos adaptables, selección atómica resaltada y geometrías alternativas sin modificar el documento 2D.
+- La interfaz móvil ofrece el Laboratorio a pantalla útil completa y mantiene desplazables sus pestañas y resultados.
+
+### Límites documentados
+
+- TPSA, logP, percepción de grupos, aromaticidad y conformaciones son aproximaciones educativas locales.
+- El balanceador conserva las especies suministradas, pero no infiere mecanismos, productos ni auxiliares ausentes.
+
 ## 0.5.0 — 2026-08-31
 
 ### Añadido

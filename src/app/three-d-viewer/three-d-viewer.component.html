@@ -46,6 +46,28 @@
       <button
         type="button"
         class="icon-button"
+        [class.active]="measurementPanelOpen()"
+        title="Mediciones 3D"
+        aria-label="Mediciones 3D"
+        [disabled]="!!webglError()"
+        (click)="toggleMeasurementPanel()"
+      >
+        <app-icon name="formula" />
+      </button>
+      <button
+        type="button"
+        class="icon-button"
+        [class.active]="conformationPanelOpen()"
+        title="Conformaciones tridimensionales"
+        aria-label="Conformaciones tridimensionales"
+        [disabled]="!!webglError()"
+        (click)="toggleConformationPanel()"
+      >
+        <app-icon name="sparkles" />
+      </button>
+      <button
+        type="button"
+        class="icon-button"
         title="Restablecer cámara"
         aria-label="Restablecer cámara"
         [disabled]="!!webglError()"
@@ -76,6 +98,131 @@
   </div>
 
   <div class="viewport" #viewport>
+    @if (measurementPanelOpen() && !webglError()) {
+      <aside class="viewer-popover measurement-popover" aria-label="Panel de mediciones 3D">
+        <header>
+          <span
+            ><strong>Mediciones 3D</strong><small>Selecciona átomos sobre el modelo</small></span
+          >
+          <button type="button" aria-label="Cerrar mediciones" (click)="toggleMeasurementPanel()">
+            <app-icon name="close" />
+          </button>
+        </header>
+        <div class="measurement-modes" role="group" aria-label="Tipo de medición">
+          <button
+            type="button"
+            [class.active]="measurementMode() === 'distance'"
+            title="Distancia entre dos átomos"
+            (click)="setMeasurementMode('distance')"
+          >
+            <b>↔</b><span>Distancia</span><small>2 átomos</small>
+          </button>
+          <button
+            type="button"
+            [class.active]="measurementMode() === 'angle'"
+            title="Ángulo entre tres átomos"
+            (click)="setMeasurementMode('angle')"
+          >
+            <b>∠</b><span>Ángulo</span><small>3 átomos</small>
+          </button>
+          <button
+            type="button"
+            [class.active]="measurementMode() === 'dihedral'"
+            title="Ángulo diedro entre cuatro átomos"
+            (click)="setMeasurementMode('dihedral')"
+          >
+            <b>φ</b><span>Diedro</span><small>4 átomos</small>
+          </button>
+        </div>
+        <div class="measurement-progress">
+          @for (slot of [0, 1, 2, 3]; track slot) {
+            @if (slot < measurementTargetCount()) {
+              <i [class.filled]="slot < measurementAtomIds().length">{{ slot + 1 }}</i>
+            }
+          }
+          <span
+            >{{ measurementAtomIds().length }}/{{ measurementTargetCount() }} seleccionado(s)</span
+          >
+        </div>
+        @if (measurementResult(); as result) {
+          <div class="measurement-result">
+            <span>{{ result.label }}</span>
+            <strong>{{ result.value }}</strong>
+            <small>{{ result.detail }}</small>
+          </div>
+        } @else {
+          <p class="measurement-hint">
+            Pulsa {{ measurementTargetCount() }} átomos. Los seleccionados se iluminan en ámbar.
+          </p>
+        }
+        <button class="popover-reset" type="button" (click)="clearMeasurement()">
+          Limpiar selección
+        </button>
+      </aside>
+    }
+    @if (conformationPanelOpen() && !webglError()) {
+      <aside class="viewer-popover conformation-popover" aria-label="Panel de conformaciones">
+        <header>
+          <span
+            ><strong>Conformaciones</strong
+            ><small>Geometrías 3D sin alterar el esquema 2D</small></span
+          >
+          <button
+            type="button"
+            aria-label="Cerrar conformaciones"
+            (click)="toggleConformationPanel()"
+          >
+            <app-icon name="close" />
+          </button>
+        </header>
+        <div class="conformation-list">
+          <button
+            type="button"
+            [class.active]="conformation() === 'optimized'"
+            (click)="setConformation('optimized')"
+          >
+            <span class="conformation-glyph">✦</span
+            ><span><strong>Optimizada</strong><small>Relajación topológica 3D</small></span>
+          </button>
+          <button
+            type="button"
+            [class.active]="conformation() === 'planar'"
+            (click)="setConformation('planar')"
+          >
+            <span class="conformation-glyph">▱</span
+            ><span><strong>Plana</strong><small>Respeta las coordenadas 2D</small></span>
+          </button>
+          <button
+            type="button"
+            [class.active]="conformation() === 'extended'"
+            (click)="setConformation('extended')"
+          >
+            <span class="conformation-glyph">⌁</span
+            ><span><strong>Extendida</strong><small>Reduce el plegamiento de cadenas</small></span>
+          </button>
+          <button
+            type="button"
+            [class.active]="conformation() === 'compact'"
+            (click)="setConformation('compact')"
+          >
+            <span class="conformation-glyph">◉</span
+            ><span><strong>Compacta</strong><small>Explora un plegamiento cerrado</small></span>
+          </button>
+        </div>
+        <div class="conformer-score">
+          <span>Índice geométrico relativo</span>
+          <strong>{{ conformationQuality() }}</strong>
+          <small>menor indica menos tensión en esta aproximación</small>
+        </div>
+        <button class="generate-conformer" type="button" (click)="nextConformer()">
+          <app-icon name="sparkles" /> Generar otra propuesta
+        </button>
+        <p class="conformer-note">
+          Las propuestas son educativas y deterministas; no sustituyen una optimización
+          cuántico-química ni un campo de fuerzas validado.
+        </p>
+      </aside>
+    }
     @if (webglError()) {
       <div class="webgl-unavailable" role="status">
         <app-icon name="warning" />

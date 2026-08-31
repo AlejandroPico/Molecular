@@ -203,7 +203,7 @@ function pad(value: string | number, length: number): string {
 function molBlock(document: MoleculeDocument): string {
   const lines = [
     document.name.slice(0, 80),
-    '  Molecular 0.5.0',
+    '  Molecular 0.6.0',
     '',
     `${pad(document.atoms.length, 3)}${pad(document.bonds.length, 3)}  0  0  0  0            999 V2000`,
   ];

@@ -15,7 +15,7 @@ describe('App', () => {
     aboutButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Acerca de Molecular');
-    expect(fixture.nativeElement.textContent).toContain('0.5.0');
+    expect(fixture.nativeElement.textContent).toContain('0.6.0');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {
@@ -68,6 +68,36 @@ describe('App', () => {
     fixture.detectChanges();
     expect(root.textContent).toContain('MDL Molfile V2000');
     expect(root.textContent).toContain('Chemical Markup Language');
+  });
+
+  it('exposes the scientific analysis suite for suggestions 8 through 14', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+
+    (root.querySelector('[aria-label="Laboratorio científico"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Reconocimiento de grupos funcionales');
+    expect(root.textContent).toContain('Alcohol');
+
+    const tabs = root.querySelectorAll<HTMLButtonElement>('.science-tabs button');
+    tabs[1].click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Aromaticidad y resonancia formales');
+
+    tabs[2].click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('TPSA estimada');
+    expect(root.textContent).toContain('Composición elemental en masa');
+
+    tabs[3].click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Comprobaciones activas');
+    expect(root.textContent).toContain('Estricto');
+
+    tabs[4].click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Balanceador de ecuaciones');
   });
 
   it('appends several formulas without replacing the document and undoes the whole batch', () => {

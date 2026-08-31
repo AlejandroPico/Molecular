@@ -1,6 +1,6 @@
 # Molecular
 
-**Versión 0.5.0**
+**Versión 0.6.0**
 
 Molecular es un estudio químico visual de Alejandro Pico para construir estructuras en dos dimensiones, comprobar reglas básicas de enlace y explorarlas como modelos tridimensionales. Toma como referencia conceptual el flujo 2D → 3D de herramientas educativas como [MolView](https://molview.org/), con interfaz, arquitectura y motor propios.
 
@@ -9,6 +9,18 @@ Molecular es un estudio químico visual de Alejandro Pico para construir estruct
 **GitHub Pages:** https://alejandropico.github.io/Molecular/
 
 El despliegue se actualiza automáticamente con cada publicación en `main`.
+
+## Novedades de la versión 0.6.0
+
+### Laboratorio científico: sugerencias 8–14
+
+- **Reconocimiento de grupos funcionales** sobre el grafo editable: alcohol, fenol, éter, aldehído, cetona, ácido carboxílico, éster, amida, amina, nitrilo, alqueno, alquino, halogenuro, tiol y anillo aromático. Cada coincidencia puede localizarse directamente en el lienzo.
+- **Aromaticidad y resonancia formales** mediante detección de ciclos, conjugación y comprobación local de la regla de Hückel 4n+2. Permite normalizar enlaces aromáticos y alternar formas de Kekulé sin confundirlas con especies distintas.
+- Panel de **propiedades moleculares** con masa, fórmula, carga neta, TPSA y logP estimados, donantes/aceptores de hidrógeno, enlaces rotables, anillos y composición elemental porcentual.
+- **Mediciones 3D interactivas**: selección directa sobre el modelo para medir distancias entre dos átomos, ángulos entre tres y diedros entre cuatro.
+- Explorador de **conformaciones tridimensionales** optimizada, plana, extendida y compacta, además de propuestas topológicas sucesivas que no alteran el esquema 2D.
+- **Validación configurable** con perfiles Estricto, Guiado y Libre; comprobaciones independientes de valencia, carga, átomos aislados, aromaticidad y estereoquímica, y límite de carga ajustable.
+- **Balanceador de ecuaciones** que calcula coeficientes enteros mínimos para los componentes marcados como reactivos y productos, conservando elementos y carga neta.
 
 ## Novedades de la versión 0.5.0
 
@@ -72,10 +84,11 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 3. Añade carga, pares solitarios, radicales, grupos R, fragmentos o flechas desde sus paletas laterales.
 4. Abre el único grupo de selección para elegir Directa, Rectangular, Lazo o Desplazar; usa Limpiar para ordenar el esquema localmente.
 5. Abre Fórmula en la barra superior y pega una o varias entradas separadas por coma, punto y coma o línea; se añadirán como borradores editables sin sustituir el lienzo.
-6. Usa la rueda o la pinza táctil para ampliar bajo el puntero y abre el visor 3D para elegir una representación.
-7. Abre Reacciones para asignar papeles y condiciones; usa la paleta de flechas para mecanismos electrónicos.
-8. Abre Exportar para obtener SVG, PNG, MOL, SDF, SMILES, CML, capa de fórmula InChI o documento editable.
-9. En Archivo abre el Historial visual para guardar o restaurar puntos con miniatura.
+6. Abre Laboratorio para reconocer grupos, estudiar aromaticidad, consultar propiedades, configurar la validación o balancear una reacción.
+7. Usa la rueda o la pinza táctil para ampliar bajo el puntero y abre el visor 3D. Sus controles permiten medir 2/3/4 átomos y explorar conformaciones.
+8. Abre Reacciones para asignar papeles y condiciones; el balanceador usará esos componentes.
+9. Abre Exportar para obtener SVG, PNG, MOL, SDF, SMILES, CML, capa de fórmula InChI o documento editable.
+10. En Archivo abre el Historial visual para guardar o restaurar puntos con miniatura.
 
 ### Atajos
 
@@ -104,7 +117,7 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 
 ## Arquitectura sin servidor
 
-GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.5.0 funciona íntegramente en el navegador para mantener edición, validación, conversión, generación, consulta, guardado y 3D inmediatos.
+GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.6.0 funciona íntegramente en el navegador para mantener edición, análisis, validación, balance, conversión, generación, consulta, guardado y 3D inmediatos.
 
 La evolución prevista conserva dos vías:
 
@@ -147,6 +160,8 @@ Molecular/
 │   ├── chemical-formats.ts        # MOL/SDF/SMILES/InChI/CML
 │   ├── formula-generator.ts       # fórmula molecular y subconjunto OpenSMILES
 │   ├── layout-engine.ts           # limpieza y empaquetado 2D
+│   ├── molecular-analysis.ts      # grupos, anillos, propiedades y validación
+│   ├── reaction-balancer.ts       # conservación elemental y coeficientes mínimos
 │   ├── encyclopedia.data.ts       # lector químico de 15 capítulos y fuentes
 │   └── solar-theme.ts             # amanecer, ocaso y tema ambiental
 ├── src/app/shared/                # iconografía SVG local
@@ -158,15 +173,17 @@ Molecular/
 
 ## Alcance científico
 
-La validación 0.5.0 es educativa. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Los descriptores R/S y E/Z son asignaciones declaradas por la persona editora: Molecular no calcula todavía prioridades CIP ni demuestra que el descriptor elegido sea correcto.
+La validación 0.6.0 es educativa y configurable. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Los descriptores R/S y E/Z son asignaciones declaradas por la persona editora: Molecular no calcula todavía prioridades CIP ni demuestra que el descriptor elegido sea correcto.
 
 Una fórmula molecular no contiene conectividad suficiente para identificar un isómero. El generador produce en ese caso un punto de partida editable; SMILES es la entrada apropiada cuando la conectividad debe ser inequívoca. La colocación 3D es una incrustación topológica relajada, no una optimización energética.
 
-Molecular no calcula resonancia electrónica, aromaticidad formal, cargas parciales, energía, espectros, orbitales ni dinámica molecular. No sustituye software de química computacional ni debe emplearse para validar resultados de investigación.
+El reconocimiento de grupos y la aromaticidad utilizan patrones locales y ciclos pequeños: son útiles para aprendizaje y edición, pero no equivalen a una percepción química exhaustiva. TPSA y logP se identifican expresamente como estimaciones locales; las conformaciones y su índice relativo son propuestas topológicas, no mínimos energéticos. Las mediciones sí se calculan sobre las coordenadas visibles del modelo generado.
+
+El balanceador resuelve conservación elemental y de carga para las especies presentes; no deduce productos, mecanismos ni especies auxiliares. Molecular no calcula cargas parciales, energía cuántica, espectros, orbitales ni dinámica molecular. No sustituye software de química computacional ni debe emplearse para validar resultados de investigación.
 
 ## Roadmap
 
-El plan versionado se mantiene en [ROADMAP.md](ROADMAP.md). Los siguientes hitos se centran en edición avanzada de puntos de control, formatos completos mediante un motor químico opcional, conformadores reales, cálculos con procedencia y compatibilidad con Atlas Editor.
+El plan versionado se mantiene en [ROADMAP.md](ROADMAP.md). Los siguientes hitos se centran en abreviaturas químicas, edición avanzada, percepción química mediante un motor opcional, conformadores físicos, cálculos con procedencia y compatibilidad con Atlas Editor.
 
 ## Autor
 

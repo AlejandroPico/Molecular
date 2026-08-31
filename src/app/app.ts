@@ -48,6 +48,15 @@ import {
 import { ChemicalFormat, exportChemicalText, importChemicalText } from './core/chemical-formats';
 import { generateStructures } from './core/formula-generator';
 import { cleanMolecularLayout } from './core/layout-engine';
+import {
+  DEFAULT_VALIDATION_SETTINGS,
+  ValidationSettings,
+  analyzeFunctionalGroups,
+  analyzeRings,
+  calculateMolecularProperties,
+  validateMolecularDocument,
+} from './core/molecular-analysis';
+import { balanceReaction, reactionBalanceStatus } from './core/reaction-balancer';
 import { ENCYCLOPEDIA_CHAPTERS } from './core/encyclopedia.data';
 import { resolveSolarTheme, SolarTheme } from './core/solar-theme';
 import { IconComponent } from './shared/icon.component';
@@ -59,6 +68,7 @@ type PanelName =
   | 'file'
   | 'formula'
   | 'reaction'
+  | 'analysis'
   | 'layers'
   | 'history'
   | 'encyclopedia'
@@ -69,6 +79,7 @@ type PanelName =
 type ThemeMode = 'auto' | SolarTheme;
 type SelectionMode = 'direct' | 'rectangle' | 'lasso';
 type GridStyle = 'triangular' | 'dots';
+type AnalysisTab = 'groups' | 'aromaticity' | 'properties' | 'validation' | 'balance';
 
 interface CanvasPoint {
   x: number;
@@ -181,7 +192,7 @@ interface LineDraft {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  protected readonly version = '0.5.0';
+  protected readonly version = '0.6.0';
   protected readonly elements = ELEMENTS;
   protected readonly quickElements = QUICK_ELEMENTS;
   protected readonly presets = MOLECULE_PRESETS;
@@ -231,6 +242,10 @@ export class App {
   protected readonly canRedo = signal(false);
   protected readonly gridStyle = signal<GridStyle>('triangular');
   protected readonly historyEntries = signal<HistoryEntry[]>([]);
+  protected readonly analysisTab = signal<AnalysisTab>('groups');
+  protected readonly validationSettings = signal<ValidationSettings>(
+    this.initialValidationSettings(),
+  );
 
   protected readonly fragmentTemplates: ReadonlyArray<FragmentTemplate> = [
     { id: 'benzene', label: 'Benceno', sides: 6, aromatic: true },
@@ -289,6 +304,17 @@ export class App {
   protected readonly components = computed(() => this.molecule().components ?? []);
   protected readonly reactions = computed(() => this.molecule().reactions ?? []);
   protected readonly activeReaction = computed(() => this.reactions()[0] ?? null);
+  protected readonly functionalGroups = computed(() => analyzeFunctionalGroups(this.molecule()));
+  protected readonly ringAnalysis = computed(() => analyzeRings(this.molecule()));
+  protected readonly molecularProperties = computed(() =>
+    calculateMolecularProperties(this.molecule()),
+  );
+  protected readonly validationIssues = computed(() =>
+    validateMolecularDocument(this.molecule(), this.validationSettings()),
+  );
+  protected readonly balanceStatus = computed(() =>
+    reactionBalanceStatus(this.molecule(), this.components()),
+  );
   protected readonly transform = computed(() => {
     const pan = this.pan();
     return 'translate(' + pan.x + ' ' + pan.y + ') scale(' + this.zoom() + ')';
@@ -365,6 +391,7 @@ export class App {
   private readonly libraryKey = 'molecular.library.v1';
   private readonly themeKey = 'molecular.theme.v1';
   private readonly themeLocationKey = 'molecular.theme.location.v1';
+  private readonly validationKey = 'molecular.validation.v1';
   private undoStack: MoleculeDocument[] = [];
   private redoStack: MoleculeDocument[] = [];
   private pointerState: PointerState | null = null;
@@ -805,10 +832,7 @@ export class App {
       .atoms.filter((atom) => ids.has(atom.id))
       .map((atom) => validateElementChange(this.molecule(), atom, symbol))
       .find((result) => !result.valid);
-    if (invalid) {
-      this.notify(invalid.message);
-      return false;
-    }
+    if (invalid && !this.acceptValidationResult(invalid.message)) return false;
     this.mutate((document) => {
       document.atoms.forEach((atom) => {
         if (ids.has(atom.id)) {
@@ -829,10 +853,7 @@ export class App {
     const atom = this.molecule().atoms.find((candidate) => candidate.id === atomId);
     if (!atom) return false;
     const validation = validateElementChange(this.molecule(), atom, symbol);
-    if (!validation.valid) {
-      this.notify(validation.message);
-      return false;
-    }
+    if (!validation.valid && !this.acceptValidationResult(validation.message)) return false;
     this.mutate((document) => {
       const target = document.atoms.find((candidate) => candidate.id === atomId)!;
       target.element = symbol;
@@ -849,18 +870,24 @@ export class App {
     }
     const changes = this.molecule()
       .atoms.filter((atom) => ids.has(atom.id))
-      .map((atom) => ({ atom, charge: Math.max(-4, Math.min(4, atom.charge + delta)) }));
+      .map((atom) => ({
+        atom,
+        charge: Math.max(
+          -this.validationSettings().maximumAbsoluteCharge,
+          Math.min(this.validationSettings().maximumAbsoluteCharge, atom.charge + delta),
+        ),
+      }));
     const invalid = changes
       .map(({ atom, charge }) => validateChargeChange(this.molecule(), atom, charge))
       .find((result) => !result.valid);
-    if (invalid) {
-      this.notify(invalid.message);
-      return;
-    }
+    if (invalid && !this.acceptValidationResult(invalid.message)) return;
     this.mutate((document) => {
       document.atoms.forEach((atom) => {
         if (ids.has(atom.id)) {
-          atom.charge = Math.max(-4, Math.min(4, atom.charge + delta));
+          atom.charge = Math.max(
+            -this.validationSettings().maximumAbsoluteCharge,
+            Math.min(this.validationSettings().maximumAbsoluteCharge, atom.charge + delta),
+          );
           atom.implicitHydrogenOverride = undefined;
         }
       });
@@ -904,16 +931,14 @@ export class App {
     }
     const atom = this.molecule().atoms.find((candidate) => candidate.id === atomId);
     if (!atom) return;
-    const charge = Math.max(-4, Math.min(4, atom.charge + delta));
+    const limit = this.validationSettings().maximumAbsoluteCharge;
+    const charge = Math.max(-limit, Math.min(limit, atom.charge + delta));
     if (charge === atom.charge) {
-      this.notify('La carga formal del editor está limitada entre −4 y +4');
+      this.notify(`La carga formal está limitada entre −${limit} y +${limit}`);
       return;
     }
     const validation = validateChargeChange(this.molecule(), atom, charge);
-    if (!validation.valid) {
-      this.notify(validation.message);
-      return;
-    }
+    if (!validation.valid && !this.acceptValidationResult(validation.message)) return;
     this.mutate((document) => {
       const target = document.atoms.find((candidate) => candidate.id === atomId)!;
       target.charge = charge;
@@ -1113,6 +1138,94 @@ export class App {
       document.reactions = [createReactionScheme(document.components ?? [], arrow.id)];
     }, 'Crear esquema de reacción');
     this.notify('Esquema de reacción creado y enlazado a sus componentes');
+  }
+
+  protected setAnalysisTab(tab: AnalysisTab): void {
+    this.analysisTab.set(tab);
+  }
+
+  protected selectAnalysisAtoms(atomIds: string[], bondIds: string[] = []): void {
+    this.selectedAtomIds.set(new Set(atomIds));
+    this.selectedBondId.set(bondIds.length === 1 ? bondIds[0] : null);
+    this.contextMenu.set(null);
+    this.activePanel.set(null);
+    if (atomIds.length) this.frameSelection(new Set(atomIds));
+  }
+
+  protected normalizeAromaticity(): void {
+    const aromaticRings = this.ringAnalysis().filter((ring) => ring.aromatic);
+    if (!aromaticRings.length) {
+      this.notify('No se ha detectado ningún sistema aromático normalizable');
+      return;
+    }
+    const bondIds = new Set(aromaticRings.flatMap((ring) => ring.bondIds));
+    this.mutate((document) => {
+      document.bonds.forEach((bond) => {
+        if (bondIds.has(bond.id)) {
+          bond.kind = 'aromatic';
+          bond.order = 1;
+        }
+      });
+    }, 'Normalizar aromaticidad');
+    this.notify(`${aromaticRings.length} sistema(s) aromático(s) normalizado(s)`);
+  }
+
+  protected generateResonanceForm(): void {
+    const aromaticRings = this.ringAnalysis().filter((ring) => ring.aromatic);
+    if (!aromaticRings.length) {
+      this.notify('No hay un ciclo aromático para generar una forma de resonancia');
+      return;
+    }
+    this.mutate((document) => {
+      for (const ring of aromaticRings) {
+        const currentDoubleIndex = ring.bondIds.findIndex(
+          (id) => document.bonds.find((bond) => bond.id === id)?.order === 2,
+        );
+        const phase = currentDoubleIndex === 0 ? 1 : 0;
+        ring.bondIds.forEach((id, index) => {
+          const bond = document.bonds.find((candidate) => candidate.id === id);
+          if (!bond) return;
+          bond.order = (index + phase) % 2 === 0 ? 2 : 1;
+          bond.kind = bond.order === 2 ? 'double' : 'single';
+        });
+      }
+    }, 'Generar forma de resonancia');
+    this.notify('Forma de Kekulé alterna generada; la aromaticidad electrónica se conserva');
+  }
+
+  protected setValidationProfile(profile: ValidationSettings['profile']): void {
+    this.updateValidationSettings({ profile });
+  }
+
+  protected toggleValidationCheck(
+    key:
+      | 'checkValence'
+      | 'checkCharge'
+      | 'checkIsolatedAtoms'
+      | 'checkAromaticity'
+      | 'checkStereochemistry',
+  ): void {
+    this.updateValidationSettings({ [key]: !this.validationSettings()[key] });
+  }
+
+  protected setMaximumCharge(event: Event): void {
+    const value = Math.max(1, Math.min(8, Number((event.target as HTMLInputElement).value) || 4));
+    this.updateValidationSettings({ maximumAbsoluteCharge: value });
+  }
+
+  protected balanceActiveReaction(): void {
+    const result = balanceReaction(this.molecule(), this.components());
+    if (!result.balanced) {
+      this.notify(result.message);
+      return;
+    }
+    this.mutate((document) => {
+      document.components?.forEach((component) => {
+        const coefficient = result.coefficients.get(component.id);
+        if (coefficient) component.coefficient = coefficient;
+      });
+    }, 'Balancear ecuación química');
+    this.notify(result.message);
   }
 
   protected updateReactionField(
@@ -1548,8 +1661,7 @@ export class App {
           this.bondOrder(),
           this.bondKind(),
         );
-        if (!validation.valid) {
-          this.notify(validation.message);
+        if (!validation.valid && !this.acceptValidationResult(validation.message)) {
           this.bondStartId.set(null);
           return;
         }
@@ -1629,10 +1741,7 @@ export class App {
       const symbol = this.activeElement();
       if (atom.element !== symbol) {
         const validation = validateElementChange(this.molecule(), atom, symbol);
-        if (!validation.valid) {
-          this.notify(validation.message);
-          return;
-        }
+        if (!validation.valid && !this.acceptValidationResult(validation.message)) return;
         this.mutate((document) => {
           const target = document.atoms.find((candidate) => candidate.id === atom.id)!;
           target.element = symbol;
@@ -1690,10 +1799,7 @@ export class App {
         order,
         this.bondKind(),
       );
-      if (!validation.valid) {
-        this.notify(validation.message);
-        return;
-      }
+      if (!validation.valid && !this.acceptValidationResult(validation.message)) return;
       this.mutate((document) => {
         this.clearHydrogenOverrides(document, [bond.atomA, bond.atomB]);
         const target = document.bonds.find((candidate) => candidate.id === bond.id)!;
@@ -2000,10 +2106,7 @@ export class App {
     }
     const order = bondKindOrder(kind);
     const validation = validateBondChange(this.molecule(), bond.atomA, bond.atomB, order, kind);
-    if (!validation.valid) {
-      this.notify(validation.message);
-      return;
-    }
+    if (!validation.valid && !this.acceptValidationResult(validation.message)) return;
     this.mutate((document) => {
       this.clearHydrogenOverrides(document, [bond.atomA, bond.atomB]);
       const target = document.bonds.find((candidate) => candidate.id === bondId)!;
@@ -2238,6 +2341,41 @@ export class App {
     return 'auto';
   }
 
+  private initialValidationSettings(): ValidationSettings {
+    try {
+      const parsed = JSON.parse(
+        localStorage.getItem('molecular.validation.v1') ?? 'null',
+      ) as Partial<ValidationSettings> | null;
+      if (parsed && ['strict', 'guided', 'free'].includes(parsed.profile ?? '')) {
+        return { ...DEFAULT_VALIDATION_SETTINGS, ...parsed };
+      }
+    } catch {
+      /* use strict defaults */
+    }
+    return { ...DEFAULT_VALIDATION_SETTINGS };
+  }
+
+  private updateValidationSettings(change: Partial<ValidationSettings>): void {
+    const settings = { ...this.validationSettings(), ...change };
+    this.validationSettings.set(settings);
+    try {
+      localStorage.setItem(this.validationKey, JSON.stringify(settings));
+    } catch {
+      /* localStorage unavailable */
+    }
+  }
+
+  private acceptValidationResult(message: string): boolean {
+    const settings = this.validationSettings();
+    if (settings.profile === 'free' || !settings.checkValence) return true;
+    if (settings.profile === 'guided') {
+      this.notify(`Aviso de validación: ${message}`);
+      return true;
+    }
+    this.notify(message);
+    return false;
+  }
+
   private loadStoredDocuments(): StoredDocument[] {
     try {
       const parsed = JSON.parse(localStorage.getItem('molecular.library.v1') ?? '[]');
@@ -2390,6 +2528,27 @@ export class App {
     const zoom = Math.max(
       0.35,
       Math.min(1, (this.viewWidth - 120) / width, (this.viewHeight - 100) / height),
+    );
+    this.zoom.set(Number(zoom.toFixed(3)));
+    this.pan.set({
+      x: this.viewWidth / 2 - ((bounds.minX + bounds.maxX) / 2) * zoom,
+      y: this.viewHeight / 2 - ((bounds.minY + bounds.maxY) / 2) * zoom,
+    });
+  }
+
+  private frameSelection(atomIds: Set<string>): void {
+    const source = this.molecule();
+    const bounds = this.documentBounds({
+      ...source,
+      atoms: source.atoms.filter((atom) => atomIds.has(atom.id)),
+      bonds: source.bonds.filter((bond) => atomIds.has(bond.atomA) && atomIds.has(bond.atomB)),
+    });
+    if (!bounds) return;
+    const width = Math.max(160, bounds.maxX - bounds.minX + 150);
+    const height = Math.max(140, bounds.maxY - bounds.minY + 140);
+    const zoom = Math.max(
+      0.45,
+      Math.min(1.8, (this.viewWidth - 160) / width, (this.viewHeight - 140) / height),
     );
     this.zoom.set(Number(zoom.toFixed(3)));
     this.pan.set({
@@ -2643,9 +2802,8 @@ export class App {
       this.bondOrder(),
       this.bondKind(),
     );
-    if (!validation.valid) {
+    if (!validation.valid && !this.acceptValidationResult(validation.message)) {
       this.bondStartId.set(null);
-      this.notify(validation.message);
       return;
     }
     const existing = this.molecule().bonds.find(
