@@ -15,7 +15,7 @@ describe('App', () => {
     aboutButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Acerca de Molecular');
-    expect(fixture.nativeElement.textContent).toContain('0.4.4');
+    expect(fixture.nativeElement.textContent).toContain('0.4.5');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {

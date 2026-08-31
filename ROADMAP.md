@@ -2,6 +2,11 @@
 
 Este documento separa lo publicado de lo previsto. Las fechas no son compromisos: el orden refleja dependencia técnica y valor para el editor.
 
+## 0.4.5 — Publicado
+
+- Lockfile reproducible y validado con el mismo flujo `npm ci` que utiliza GitHub Actions.
+- Restablecimiento del despliegue automático de la versión con composición no destructiva y fichas informativas.
+
 ## 0.4.4 — Publicado
 
 - Flyouts laterales anclados a cada herramienta, limitados dinámicamente por el espacio real de la ventana y desplazables cuando no caben.

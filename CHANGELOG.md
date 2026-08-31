@@ -1,5 +1,11 @@
 # Historial de versiones
 
+## 0.4.5 — 2026-08-31
+
+### Corregido
+
+- Se regenera y valida íntegramente `package-lock.json` para que `npm ci` funcione en GitHub Actions y el despliegue no quede bloqueado antes de las pruebas.
+
 ## 0.4.4 — 2026-08-30
 
 ### Añadido
