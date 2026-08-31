@@ -13,6 +13,9 @@ export type EncyclopediaDiagram =
   | 'geometry'
   | 'validation'
   | 'workflow'
+  | 'functional-groups'
+  | 'biomolecules'
+  | 'identification'
   | 'glossary';
 
 export interface EncyclopediaSource {
@@ -643,8 +646,139 @@ export const ENCYCLOPEDIA_CHAPTERS: ReadonlyArray<EncyclopediaChapter> = [
     ],
   },
   {
-    id: 'glosario-fuentes',
+    id: 'grupos-funcionales',
     number: '15',
+    title: 'Grupos funcionales y reactividad local',
+    eyebrow: 'Patrones dentro de una molécula',
+    summary:
+      'Un grupo funcional es un patrón de átomos y enlaces que permite comparar familias químicas y anticipar parte de su comportamiento sin reducir toda la molécula a una etiqueta.',
+    readTime: 14,
+    diagram: 'functional-groups',
+    sections: [
+      {
+        title: 'Qué reconoce el laboratorio',
+        paragraphs: [
+          'Molecular busca patrones explícitos de conectividad. Alcohol y fenol contienen O–H, pero en el fenol el oxígeno está unido a un sistema aromático. Aldehído y cetona contienen carbonilo; el aldehído conserva al menos un H en el carbono carbonílico. Ácido carboxílico, éster y amida comparten un carbonilo unido a O u N, pero sus propiedades y reactividad no son intercambiables.',
+          'Amina, nitrilo, alqueno, alquino, haluro, tiol y anillo aromático completan el repertorio local inicial. Una molécula puede contener varios grupos, grupos solapados o motivos cuya clasificación depende del contexto. El resultado es una ayuda de lectura, no un nombre IUPAC automático.',
+        ],
+        points: [
+          'Alcohol R–OH; fenol Ar–OH; éter R–O–R.',
+          'Aldehído R–CHO; cetona R–CO–R; ácido R–CO₂H.',
+          'Éster R–CO₂R; amida R–CONR₂; amina deriva formalmente de NH₃.',
+          'C=C es alqueno; C≡C es alquino; C≡N es nitrilo.',
+        ],
+      },
+      {
+        title: 'Cómo interpretar un resultado',
+        paragraphs: [
+          'Selecciona el resultado para iluminar exactamente los átomos y enlaces que forman el patrón. El botón de libro abre este capítulo sin perder la estructura. Si un grupo esperado no aparece, revisa el orden de enlace, la carga y si el hidrógeno es explícito o puede inferirse con la valencia actual.',
+          'Los grupos funcionales orientan sobre polaridad, acidez, basicidad e interacciones, pero el entorno modifica esas tendencias. Resonancia, efectos inductivos, impedimento estérico, disolvente y protonación pueden cambiar profundamente el comportamiento.',
+        ],
+        example:
+          'La aspirina contiene un ácido carboxílico y un éster. El paracetamol contiene un fenol y una amida. La biblioteca permite añadir ambos y comparar el reconocimiento.',
+      },
+      {
+        title: 'Límites del reconocimiento local',
+        paragraphs: [
+          'La tautomería, los complejos metálicos, grupos organoborados u organofosforados, estados de protonación alternativos y patrones de consulta tipo SMARTS requieren motores más amplios. Molecular declara sus coincidencias sobre el grafo dibujado y evita presentar una heurística como identificación experimental.',
+        ],
+      },
+    ],
+    sources: [
+      { label: 'IUPAC Gold Book — functional group', url: iupac('F02555') },
+      { label: 'IUPAC Blue Book', url: 'https://iupac.org/what-we-do/books/color-books/bluebook/' },
+    ],
+  },
+  {
+    id: 'biomoleculas-biblioteca',
+    number: '16',
+    title: 'Biomoléculas, protectores y biblioteca estructural',
+    eyebrow: 'Fragmentos reutilizables',
+    summary:
+      'La biblioteca reúne estructuras editables para comparar familias biológicas, fragmentos de síntesis y principios activos sin convertir el catálogo en una colección de imágenes cerradas.',
+    readTime: 13,
+    diagram: 'biomolecules',
+    sections: [
+      {
+        title: 'Aminoácidos, azúcares y nucleótidos',
+        paragraphs: [
+          'Los α-aminoácidos proteinogénicos comparten un carbono unido a grupo amino, carboxilo, H y cadena lateral. La cadena lateral diferencia glicina, alanina, valina, leucina, serina o fenilalanina. A pH fisiológico suelen representarse como zwitteriones, mientras que la biblioteca usa inicialmente una forma neutra editable para que carga y protonación puedan estudiarse de manera explícita.',
+          'Los azúcares combinan varios alcoholes y un carbonilo o un enlace hemiacetal/acetal al ciclar. Dos moléculas con fórmula C₆H₁₂O₆ pueden ser glucosa o fructosa y presentar conectividad o estereoquímica diferentes. Los nucleótidos incorporan base nitrogenada, pentosa y uno o más fosfatos; ATP no es simplemente una molécula grande de adenina, sino un nucleósido trifosfato.',
+        ],
+      },
+      {
+        title: 'Lípidos y grado de insaturación',
+        paragraphs: [
+          'Un ácido graso posee una cadena hidrocarbonada y un ácido carboxílico. C16:0 indica dieciséis carbonos y ninguna insaturación; C18:1, dieciocho carbonos y un doble enlace. La posición y geometría cis/trans no quedan determinadas por esa abreviatura, por lo que deben conservarse en la estructura o en un identificador inequívoco.',
+          'Triacetina ofrece un ejemplo compacto del motivo triéster de un triacilglicérido. Los lípidos reales abarcan además fosfolípidos, esfingolípidos, esteroles y muchas otras clases que podrán añadirse sin cambiar el formato del catálogo.',
+        ],
+      },
+      {
+        title: 'Grupos protectores y punto R',
+        paragraphs: [
+          'Un grupo protector modifica temporalmente una función para controlar selectividad. Boc, Cbz y Fmoc se asocian especialmente con aminas; bencilo, acetilo y TBDMS se usan en contextos de alcoholes y otras funciones. La R violeta de Molecular es un punto de conexión genérico: debe sustituirse o enlazarse al sustrato correspondiente.',
+          'La presencia de un fragmento en la biblioteca no constituye una recomendación de síntesis ni instrucciones de laboratorio. Condiciones, compatibilidad, seguridad y retirada del protector requieren fuentes especializadas.',
+        ],
+        points: [
+          'Pulsa + para añadir una estructura junto a lo que ya existe.',
+          'Usa el buscador por nombre, abreviatura, fórmula o familia.',
+          'Cada ficha enlaza una referencia externa y conserva un SMILES editable.',
+        ],
+      },
+    ],
+    sources: [
+      { label: 'IUPAC Gold Book — nucleotide', url: iupac('N04259') },
+      { label: 'PubChem documentation', url: 'https://pubchem.ncbi.nlm.nih.gov/docs/' },
+      { label: 'IUPAC Blue Book', url: 'https://iupac.org/what-we-do/books/color-books/bluebook/' },
+    ],
+  },
+  {
+    id: 'identificacion-estructural',
+    number: '17',
+    title: 'Identificación estructural y similitud',
+    eyebrow: 'De un grafo a un posible nombre',
+    summary:
+      'Reconocer una estructura significa comparar grafos, cargas y estereoquímica; sugerir una molécula parecida es una operación distinta y debe expresarse con incertidumbre.',
+    readTime: 12,
+    diagram: 'identification',
+    sections: [
+      {
+        title: 'Coincidencia exacta de conectividad',
+        paragraphs: [
+          'El identificador local toma el componente conectado que contiene el átomo seleccionado. Si hay varios átomos seleccionados, utiliza exactamente ese subgrafo. Compara número y tipo de átomos, carga, hidrógenos implícitos, vecinos y clases de enlace mediante una búsqueda de isomorfismo: la posición en el lienzo y los identificadores internos no afectan al resultado.',
+          'La etiqueta “exacta” de Molecular significa exacta respecto a la representación almacenada en su biblioteca. No demuestra pureza, concentración, conformación experimental ni identidad de una muestra material.',
+        ],
+      },
+      {
+        title: 'Similitud y falsos amigos',
+        paragraphs: [
+          'Cuando no existe isomorfismo, se comparan rasgos del grafo: recuentos de elementos, pares de átomos enlazados, órdenes, grupos funcionales, anillos y carga. La proporción de rasgos compartidos produce una clasificación orientativa. Un porcentaje alto puede reflejar un esqueleto común sin que ambos compuestos tengan la misma actividad o seguridad.',
+          'Isómeros constitucionales pueden compartir fórmula; estereoisómeros pueden compartir conectividad; tautómeros y estados de protonación pueden variar con el medio. Por eso el panel distingue coincidencia de conectividad y posible coincidencia, y enlaza la fuente para continuar la comprobación.',
+        ],
+        example:
+          'Etanol y dimetil éter comparten C₂H₆O, pero no el mismo grafo. L-alanina y D-alanina comparten conectividad, pero difieren en configuración espacial.',
+      },
+      {
+        title: 'Cómo usar el identificador',
+        paragraphs: [
+          'Selecciona un átomo del componente que quieras analizar y abre Laboratorio científico → Identificar. Usa Localizar para comprobar el ámbito real. Una coincidencia puede añadirse como copia editable para compararla sin reemplazar el original.',
+        ],
+        points: [
+          'Nombre sugerido no equivale a identificación experimental.',
+          'La estereoquímica ausente debe constar como no especificada.',
+          'Espectroscopía, cromatografía y datos de referencia resuelven preguntas que un dibujo no puede.',
+        ],
+      },
+    ],
+    sources: [
+      { label: 'IUPAC Gold Book — molecular structure', url: iupac('M04007') },
+      { label: 'PubChem structure search', url: 'https://pubchem.ncbi.nlm.nih.gov/search/' },
+      { label: 'PubChem PUG REST', url: 'https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest' },
+    ],
+  },
+  {
+    id: 'glosario-fuentes',
+    number: '18',
     title: 'Glosario y rutas para seguir aprendiendo',
     eyebrow: 'Mapa de consulta',
     summary:

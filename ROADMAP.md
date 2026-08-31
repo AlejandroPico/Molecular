@@ -66,14 +66,25 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 - Balanceador estequiométrico de coeficientes enteros mínimos, incluyendo conservación de carga neta.
 - Cobertura unitaria del análisis, balance, panel científico y controles 3D; 53 pruebas superadas.
 
-## 0.7 — Química estructural avanzada
+## 0.7.0 — Publicado
+
+- Biblioteca de 36 estructuras editables repartidas entre aminoácidos, nucleótidos, azúcares, lípidos, grupos protectores y fármacos frecuentes.
+- Búsqueda y filtros de biblioteca con inserción no destructiva, fuente enlazada y conservación del historial.
+- Tutorial interactivo persistente con cinco ejercicios verificables sobre enlaces, Lewis, cargas, aromaticidad y SMILES.
+- Identificador local con isomorfismo sobre 43 referencias y clasificación de similitud por huellas topológicas.
+- Ámbito de identificación guiado por componente conectado o multiselección explícita.
+- Enciclopedia ampliada a 18 capítulos y navegación contextual desde enlaces, carga/electrones y grupos funcionales.
+- Batería de 59 pruebas automatizadas para preservar estas capacidades y las anteriores.
+- Diseño adaptable de biblioteca, tutorial e identificación para escritorio, móvil y orientación horizontal.
+
+## 0.8 — Química estructural avanzada
 
 - Asignación CIP automática y comprobada para R/S y E/Z.
 - Grupos funcionales, abreviaturas químicas y plantillas ampliables.
 - Puntos de control editables, texto libre y reacciones multietapa.
 - Conformadores reales y propiedades verificadas mediante una fuente química externa opcional.
 
-## 0.8 — Datos locales y cálculo opcional
+## 0.9 — Datos locales y cálculo opcional
 
 - SQLite-WASM con OPFS/IndexedDB para catálogos, proyectos y búsqueda local.
 - Servicio opcional FastAPI con RDKit u Open Babel para conversión y optimización geométrica.

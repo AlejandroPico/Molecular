@@ -898,6 +898,12 @@
             <small class="lewis-limits"
               >Límites visuales: 4 pares y 2 electrones radicalarios por átomo.</small
             >
+            <button class="flyout-context-help" type="button" (click)="openContextualHelp('lewis')">
+              <app-icon name="book" /><span
+                ><strong>Entender estos símbolos</strong
+                ><small>Abrir Lewis en la enciclopedia</small></span
+              >
+            </button>
           </div>
         </div>
         <div class="rail-tool-group erase-tool-group">
@@ -994,6 +1000,13 @@
               Las líneas de un enlace doble o triple forman una sola entidad química. Los extremos A
               y B sí se editan por separado.
             </p>
+            <button
+              class="inspector-context-help"
+              type="button"
+              (click)="openBondContextualHelp(bond.id)"
+            >
+              <app-icon name="book" /> Explicar {{ bondKindLabel(bondVisualKind(bond)) }}
+            </button>
             <div class="bond-endpoints">
               @for (
                 endpoint of [endpoints.atomA, endpoints.atomB];
@@ -1164,6 +1177,9 @@
             </div>
           </div>
           <div class="inspector-footer-actions">
+            <button type="button" (click)="openContextualHelp('lewis')">
+              <app-icon name="book" /> Carga y Lewis
+            </button>
             <button type="button" (click)="openSelectedInModel()">
               <app-icon name="view3d" /> Ver selección
             </button>
@@ -1313,6 +1329,12 @@
                   ><strong>Añadir par solitario</strong><small>Estructura de Lewis</small></span
                 >
               </button>
+              <button type="button" (click)="openContextualHelp('lewis')">
+                <app-icon name="book" /><span
+                  ><strong>Explicar carga y electrones</strong
+                  ><small>Ir al capítulo contextual de Lewis</small></span
+                >
+              </button>
               @if (menu.id) {
                 <button type="button" (click)="pinAtomInspector(menu.id)">
                   <app-icon name="info" /><span
@@ -1352,6 +1374,12 @@
                   </button>
                 }
               </div>
+              <button type="button" (click)="openBondContextualHelp(menu.id)">
+                <app-icon name="book" /><span
+                  ><strong>Explicar este tipo de enlace</strong
+                  ><small>Abrir el capítulo químico relacionado</small></span
+                >
+              </button>
               <button type="button" (click)="deleteBond(menu.id)">
                 <app-icon name="trash" /><span
                   ><strong>Eliminar enlace</strong
@@ -1481,9 +1509,71 @@
                 >
               </button>
             </div>
+            <section class="panel-section curated-library">
+              <div class="section-heading">
+                <h3>Biblioteca estructural</h3>
+                <span>{{ filteredStructureLibrary().length }} / {{ structureLibrary.length }}</span>
+              </div>
+              <p class="section-description">
+                36 estructuras editables. Se añaden junto a tu trabajo actual, nunca lo sustituyen.
+              </p>
+              <label class="library-search">
+                <app-icon name="search" />
+                <input
+                  type="search"
+                  placeholder="Buscar glicina, ATP, analgésico…"
+                  [value]="libraryQuery()"
+                  (input)="libraryQuery.set($any($event.target).value)"
+                />
+              </label>
+              <div class="library-categories" aria-label="Familias de la biblioteca">
+                <button
+                  type="button"
+                  [class.active]="libraryCategory() === 'all'"
+                  (click)="setLibraryCategory('all')"
+                >
+                  Todas
+                </button>
+                @for (category of structureLibraryCategories; track category.id) {
+                  <button
+                    type="button"
+                    [class.active]="libraryCategory() === category.id"
+                    [title]="category.description"
+                    (click)="setLibraryCategory(category.id)"
+                  >
+                    {{ category.shortLabel }}
+                  </button>
+                }
+              </div>
+              <div class="structure-library-list">
+                @for (entry of filteredStructureLibrary(); track entry.id) {
+                  <article>
+                    <button type="button" (click)="insertLibraryEntry(entry.id)">
+                      <span class="library-formula">{{ entry.formula }}</span>
+                      <span>
+                        <strong>{{ entry.name }}</strong>
+                        <small>{{ entry.description }}</small>
+                        <i>{{ entry.aliases.slice(0, 2).join(' · ') }}</i>
+                      </span>
+                      <app-icon name="plus" />
+                    </button>
+                    <a
+                      [href]="entry.sourceUrl"
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Consultar ficha de referencia"
+                      aria-label="Consultar fuente de {{ entry.name }}"
+                      >↗</a
+                    >
+                  </article>
+                } @empty {
+                  <p class="empty-panel-message">No hay estructuras que coincidan con el filtro.</p>
+                }
+              </div>
+            </section>
             <section class="panel-section">
               <div class="section-heading">
-                <h3>Moléculas iniciales</h3>
+                <h3>Ejemplos esenciales</h3>
                 <span>{{ presets.length }}</span>
               </div>
               <div class="preset-list">
@@ -1727,6 +1817,15 @@
             <button
               type="button"
               role="tab"
+              [class.active]="analysisTab() === 'identification'"
+              [attr.aria-selected]="analysisTab() === 'identification'"
+              (click)="setAnalysisTab('identification')"
+            >
+              Identificar
+            </button>
+            <button
+              type="button"
+              role="tab"
               [class.active]="analysisTab() === 'validation'"
               [attr.aria-selected]="analysisTab() === 'validation'"
               (click)="setAnalysisTab('validation')"
@@ -1758,17 +1857,28 @@
                 </div>
                 <div class="functional-group-list">
                   @for (group of functionalGroups(); track group.id) {
-                    <button
-                      type="button"
-                      (click)="selectAnalysisAtoms(group.atomIds, group.bondIds)"
-                    >
-                      <span class="group-formula">{{ group.formula }}</span>
-                      <span>
-                        <strong>{{ group.name }}</strong>
-                        <small>{{ group.description }}</small>
-                      </span>
-                      <i>{{ group.atomIds.length }} átomos</i>
-                    </button>
+                    <article>
+                      <button
+                        type="button"
+                        (click)="selectAnalysisAtoms(group.atomIds, group.bondIds)"
+                      >
+                        <span class="group-formula">{{ group.formula }}</span>
+                        <span>
+                          <strong>{{ group.name }}</strong>
+                          <small>{{ group.description }}</small>
+                        </span>
+                        <i>{{ group.atomIds.length }} átomos</i>
+                      </button>
+                      <button
+                        class="group-help"
+                        type="button"
+                        title="Explicar este grupo funcional"
+                        aria-label="Explicar {{ group.name }}"
+                        (click)="openContextualHelp('grupos-funcionales')"
+                      >
+                        <app-icon name="book" />
+                      </button>
+                    </article>
                   } @empty {
                     <div class="science-empty">
                       <app-icon name="atom" />
@@ -1897,6 +2007,79 @@
                   <app-icon name="info" />
                   <p>{{ molecularProperties().notes.join(' ') }}</p>
                 </div>
+              }
+              @case ('identification') {
+                <div class="science-intro">
+                  <span class="science-mark">ID</span>
+                  <div>
+                    <strong>Identificación local de estructuras</strong>
+                    <p>
+                      Compara el componente seleccionado con 43 referencias conocidas. Una
+                      coincidencia exacta exige la misma conectividad; las demás son sugerencias por
+                      similitud topológica y grupos funcionales.
+                    </p>
+                  </div>
+                </div>
+                @if (structureIdentification().atomCount) {
+                  <div class="identification-scope">
+                    <span>
+                      <small>Ámbito analizado</small>
+                      <strong>{{ structureIdentification().formula }}</strong>
+                      <i>{{ structureIdentification().atomCount }} átomos explícitos</i>
+                    </span>
+                    <button type="button" (click)="selectIdentificationTarget()">Localizar</button>
+                  </div>
+                  <div class="identification-list">
+                    @for (match of structureIdentification().matches; track match.entry.id) {
+                      <article [class.exact]="match.exact">
+                        <header>
+                          <span>{{
+                            match.exact ? 'Coincidencia exacta' : 'Posible coincidencia'
+                          }}</span>
+                          <b>{{ (match.similarity * 100).toFixed(0) }}%</b>
+                        </header>
+                        <div>
+                          <span class="library-formula">{{ match.entry.formula }}</span>
+                          <span>
+                            <strong>{{ match.entry.name }}</strong>
+                            <small>{{ match.explanation }}</small>
+                            <i>{{ libraryCategoryLabel(match.entry.category) }}</i>
+                          </span>
+                        </div>
+                        <footer>
+                          <a [href]="match.entry.sourceUrl" target="_blank" rel="noreferrer"
+                            >Fuente ↗</a
+                          >
+                          <button
+                            type="button"
+                            (click)="insertIdentificationReference(match.entry.id)"
+                          >
+                            <app-icon name="plus" /> Añadir copia editable
+                          </button>
+                        </footer>
+                      </article>
+                    } @empty {
+                      <div class="science-empty">
+                        <app-icon name="search" />
+                        <strong>Sin coincidencias suficientes</strong>
+                        <span>Prueba con una selección completa o amplía la biblioteca.</span>
+                      </div>
+                    }
+                  </div>
+                  <div class="panel-note science-note">
+                    <app-icon name="info" />
+                    <p>
+                      La similitud ayuda a orientar una búsqueda, pero no asigna identidad química
+                      definitiva ni sustituye espectros, estereoquímica o una base externa.
+                    </p>
+                  </div>
+                } @else {
+                  <div class="science-empty">
+                    <app-icon name="atom" />
+                    <strong>No hay una estructura que identificar</strong>
+                    <span>Añade una molécula o selecciona uno de sus componentes.</span>
+                  </div>
+                }
               }
               @case ('validation') {
                 <div
@@ -2310,366 +2493,505 @@
               <span class="eyebrow">Aprender · consultar · construir</span>
               <h2>Enciclopedia química</h2>
             </div>
-            <span class="encyclopedia-count">15 capítulos · fuentes primarias</span>
+            <span class="encyclopedia-count"
+              >{{ encyclopediaChapters.length }} capítulos · fuentes primarias</span
+            >
             <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
           </header>
-          <div class="encyclopedia-reader">
-            <nav class="encyclopedia-index" aria-label="Índice de la enciclopedia">
-              <label class="encyclopedia-search">
-                <app-icon name="search" />
-                <input
-                  type="search"
-                  placeholder="Buscar enlace, SMILES, carga…"
-                  [value]="encyclopediaQuery()"
-                  (input)="encyclopediaQuery.set($any($event.target).value)"
-                />
-              </label>
-              <div class="encyclopedia-chapters">
-                @for (chapter of filteredEncyclopediaChapters(); track chapter.id) {
-                  <button
-                    type="button"
-                    [class.active]="encyclopediaChapterId() === chapter.id"
-                    (click)="openEncyclopediaChapter(chapter.id)"
-                  >
-                    <span>{{ chapter.number }}</span>
-                    <i
-                      ><strong>{{ chapter.title }}</strong
-                      ><small>{{ chapter.readTime }} min</small></i
+          <div class="learning-tabs" role="tablist" aria-label="Aprendizaje químico">
+            <button
+              type="button"
+              role="tab"
+              [class.active]="learningView() === 'encyclopedia'"
+              [attr.aria-selected]="learningView() === 'encyclopedia'"
+              (click)="setLearningView('encyclopedia')"
+            >
+              <app-icon name="book" /> Enciclopedia
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [class.active]="learningView() === 'tutorial'"
+              [attr.aria-selected]="learningView() === 'tutorial'"
+              (click)="setLearningView('tutorial')"
+            >
+              <app-icon name="sparkles" /> Tutorial interactivo
+              <span>{{ tutorialProgress().completed }}/{{ tutorialProgress().total }}</span>
+            </button>
+          </div>
+          @if (learningView() === 'encyclopedia') {
+            <div class="encyclopedia-reader">
+              <nav class="encyclopedia-index" aria-label="Índice de la enciclopedia">
+                <label class="encyclopedia-search">
+                  <app-icon name="search" />
+                  <input
+                    type="search"
+                    placeholder="Buscar enlace, SMILES, carga…"
+                    [value]="encyclopediaQuery()"
+                    (input)="encyclopediaQuery.set($any($event.target).value)"
+                  />
+                </label>
+                <div class="encyclopedia-chapters">
+                  @for (chapter of filteredEncyclopediaChapters(); track chapter.id) {
+                    <button
+                      type="button"
+                      [class.active]="encyclopediaChapterId() === chapter.id"
+                      (click)="openEncyclopediaChapter(chapter.id)"
                     >
-                  </button>
-                } @empty {
-                  <p>No hay capítulos que coincidan. Prueba con “valencia”, “aromático” o “3D”.</p>
-                }
-              </div>
-            </nav>
-
-            @if (activeEncyclopediaChapter(); as chapter) {
-              <article class="encyclopedia-article">
-                <div class="article-heading">
-                  <span>{{ chapter.number }} · {{ chapter.eyebrow }}</span>
-                  <h3>{{ chapter.title }}</h3>
-                  <p>{{ chapter.summary }}</p>
-                  <small>Lectura estimada: {{ chapter.readTime }} minutos</small>
-                </div>
-
-                <figure class="chemistry-diagram" [attr.data-diagram]="chapter.diagram">
-                  @switch (chapter.diagram) {
-                    @case ('lewis') {
-                      <svg
-                        viewBox="0 0 620 190"
-                        role="img"
-                        aria-label="Agua, amonio y radical metilo en notación de Lewis"
+                      <span>{{ chapter.number }}</span>
+                      <i
+                        ><strong>{{ chapter.title }}</strong
+                        ><small>{{ chapter.readTime }} min</small></i
                       >
-                        <g class="diagram-bond"><path d="M82 96h72M202 96h72" /></g>
-                        <g class="diagram-atom">
-                          <circle cx="178" cy="96" r="31" />
-                          <text x="178" y="104">O</text>
-                          <text class="electron" x="170" y="53">••</text>
-                          <text class="electron" x="170" y="151">••</text>
-                          <text x="67" y="104">H</text>
-                          <text x="287" y="104">H</text>
-                        </g>
-                        <g class="diagram-atom">
-                          <circle cx="420" cy="96" r="31" />
-                          <text x="420" y="104">N</text>
-                          <text class="charge" x="451" y="64">+</text>
-                          <text x="350" y="104">H₄</text>
-                        </g>
-                        <g class="diagram-atom">
-                          <circle cx="548" cy="96" r="31" />
-                          <text x="548" y="104">C</text>
-                          <text class="radical" x="580" y="67">•</text>
-                          <text x="548" y="157">CH₃•</text>
-                        </g>
-                      </svg>
-                      <figcaption>
-                        Dos puntos forman un par libre; un punto aislado es un electrón desapareado;
-                        + indica carga formal.
-                      </figcaption>
-                    }
-                    @case ('bonds') {
-                      <svg
-                        viewBox="0 0 620 190"
-                        role="img"
-                        aria-label="Comparación entre enlaces simple, doble y triple"
-                      >
-                        <g class="diagram-bond">
-                          <path
-                            d="M70 82h110M255 76h110M255 88h110M440 70h110M440 82h110M440 94h110"
-                          />
-                        </g>
-                        <g class="diagram-label">
-                          <text x="125" y="130">simple · 1 σ</text>
-                          <text x="310" y="130">doble · 1 σ + 1 π</text>
-                          <text x="495" y="130">triple · 1 σ + 2 π</text>
-                        </g>
-                      </svg>
-                      <figcaption>
-                        Las líneas paralelas son partes visuales de un único enlace químico
-                        seleccionable.
-                      </figcaption>
-                    }
-                    @case ('stereo') {
-                      <svg
-                        viewBox="0 0 620 190"
-                        role="img"
-                        aria-label="Enlaces en el plano, hacia delante y hacia atrás"
-                      >
-                        <g class="diagram-atom">
-                          <circle cx="310" cy="94" r="28" />
-                          <text x="310" y="102">C*</text>
-                        </g>
-                        <g class="diagram-bond">
-                          <path d="M282 94H150" />
-                          <path d="M338 94H470" />
-                        </g>
-                        <path class="solid-wedge" d="M302 71 258 20 320 65Z" />
-                        <g class="hash-wedge">
-                          <path d="m320 119 12 4M327 126l20 7M334 133l29 10M341 140l38 13" />
-                        </g>
-                        <g class="diagram-label">
-                          <text x="114" y="129">plano</text>
-                          <text x="214" y="28">hacia ti</text>
-                          <text x="390" y="164">detrás</text>
-                        </g>
-                      </svg>
-                      <figcaption>
-                        La cuña sólida sale del plano; la rayada se aleja. La configuración depende
-                        también del orden de sustituyentes.
-                      </figcaption>
-                    }
-                    @case ('resonance') {
-                      <svg
-                        viewBox="0 0 620 190"
-                        role="img"
-                        aria-label="Formas de resonancia de un carboxilato"
-                      >
-                        <g class="diagram-bond">
-                          <path
-                            d="M90 72h95M90 84h95M185 78l58 48M382 126l58-48M440 72h95M440 84h95"
-                          />
-                          <path class="dashed" d="M259 95h104" />
-                        </g>
-                        <g class="diagram-label">
-                          <text x="55" y="84">O</text>
-                          <text x="190" y="84">C</text>
-                          <text x="248" y="147">O⁻</text>
-                          <text x="279" y="86">↔</text>
-                          <text x="368" y="147">O⁻</text>
-                          <text x="430" y="84">C</text>
-                          <text x="549" y="84">O</text>
-                        </g>
-                      </svg>
-                      <figcaption>
-                        Son contribuyentes de una estructura deslocalizada, no especies que
-                        reaccionan entre sí.
-                      </figcaption>
-                    }
-                    @case ('interactions') {
-                      <svg
-                        viewBox="0 0 620 190"
-                        role="img"
-                        aria-label="Enlace dativo y puente de hidrógeno"
-                      >
-                        <g class="diagram-bond">
-                          <path d="M95 70h148" />
-                          <path d="m243 70-15-8M243 70l-15 8" />
-                          <path class="dotted" d="M370 122h150" />
-                        </g>
-                        <g class="diagram-label">
-                          <text x="45" y="77">NH₃:</text>
-                          <text x="260" y="77">BF₃</text>
-                          <text x="316" y="129">O–H</text>
-                          <text x="536" y="129">:O</text>
-                          <text x="130" y="107">dativo</text>
-                          <text x="410" y="157">puente H</text>
-                        </g>
-                      </svg>
-                      <figcaption>
-                        La flecha dativa va del donante al aceptor; el puente H es una interacción y
-                        no consume orden covalente ordinario.
-                      </figcaption>
-                    }
-                    @case ('rings') {
-                      <svg
-                        viewBox="0 0 620 190"
-                        role="img"
-                        aria-label="Anillos de tres, cuatro, cinco y seis miembros"
-                      >
-                        <g class="ring-shapes">
-                          <path d="m50 130 55-90 55 90Z" />
-                          <path d="m195 45 85 0 0 85-85 0Z" />
-                          <path d="m365 38 62 45-24 73h-76l-24-73Z" />
-                          <path d="m482 46 56-32 56 32v65l-56 32-56-32Z" />
-                        </g>
-                        <g class="diagram-label">
-                          <text x="77" y="176">C₃</text>
-                          <text x="223" y="176">C₄</text>
-                          <text x="350" y="176">C₅</text>
-                          <text x="516" y="176">C₆</text>
-                        </g>
-                      </svg>
-                      <figcaption>
-                        El polígono comunica conectividad; la conformación 3D real puede plegarse
-                        para reducir tensión.
-                      </figcaption>
-                    }
-                    @case ('smiles') {
-                      <svg
-                        viewBox="0 0 620 190"
-                        role="img"
-                        aria-label="Anatomía de la cadena SMILES CC paréntesis igual O paréntesis O"
-                      >
-                        <g class="smiles-code"><text x="74" y="96">C C ( = O ) O</text></g>
-                        <g class="diagram-label">
-                          <text x="69" y="137">inicio</text>
-                          <text x="174" y="137">rama</text>
-                          <text x="272" y="137">doble</text>
-                          <text x="405" y="137">retorno</text>
-                        </g>
-                        <g class="guide-lines">
-                          <path d="M96 107v16M222 107v16M316 107v16M455 107v16" />
-                        </g>
-                      </svg>
-                      <figcaption>
-                        CC(=O)O: los paréntesis abren una rama desde el átomo actual; “=” especifica
-                        enlace doble.
-                      </figcaption>
-                    }
-                    @case ('reaction') {
-                      <svg
-                        viewBox="0 0 620 190"
-                        role="img"
-                        aria-label="Flechas de reacción, resonancia y equilibrio"
-                      >
-                        <g class="diagram-label">
-                          <text x="55" y="60">A + B</text>
-                          <text x="288" y="60">→</text>
-                          <text x="480" y="60">C</text>
-                          <text x="55" y="110">forma 1</text>
-                          <text x="288" y="110">↔</text>
-                          <text x="465" y="110">forma 2</text>
-                          <text x="55" y="160">ácido + base</text>
-                          <text x="288" y="160">⇌</text>
-                          <text x="440" y="160">productos</text>
-                        </g>
-                      </svg>
-                      <figcaption>
-                        → transformación; ↔ contribuyentes de resonancia; ⇌ equilibrio entre
-                        especies.
-                      </figcaption>
-                    }
-                    @case ('geometry') {
-                      <svg
-                        viewBox="0 0 620 190"
-                        role="img"
-                        aria-label="Geometrías lineal, trigonal y tetraédrica"
-                      >
-                        <g class="geometry-shapes">
-                          <path d="M38 94h134M254 42l56 98 56-98M450 126l66-84 66 84M516 42v120" />
-                        </g>
-                        <g class="diagram-label">
-                          <text x="85" y="155">lineal</text>
-                          <text x="270" y="171">trigonal</text>
-                          <text x="481" y="177">tetraédrica</text>
-                        </g>
-                      </svg>
-                      <figcaption>
-                        Dos, tres y cuatro dominios electrónicos conducen a disposiciones ideales
-                        distintas; pares libres deforman los ángulos.
-                      </figcaption>
-                    }
-                    @case ('formula') {
-                      <div class="formula-diagram">
-                        <strong>C₂H₆O</strong><span>misma fórmula</span>
-                        <div><b>CH₃CH₂OH</b><i>etanol</i></div>
-                        <em>≠</em>
-                        <div><b>CH₃OCH₃</b><i>dimetil éter</i></div>
-                      </div>
-                      <figcaption>
-                        La fórmula cuenta elementos, pero no determina por sí sola la conectividad.
-                      </figcaption>
-                    }
-                    @case ('workflow') {
-                      <div class="workflow-diagram">
-                        <span>Átomos</span><b>→</b><span>Enlaces</span><b>→</b><span>Lewis</span
-                        ><b>→</b><span>3D</span><b>→</b><span>SVG</span>
-                      </div>
-                      <figcaption>
-                        El JSON conserva la editabilidad; el SVG conserva la calidad gráfica.
-                      </figcaption>
-                    }
-                    @case ('validation') {
-                      <div class="validation-diagram">
-                        <span><b>✓</b>Sintaxis</span><span><b>✓</b>Grafo</span
-                        ><span><b>✓</b>Valencia habitual</span
-                        ><span class="limit"><b>!</b>Estabilidad real</span>
-                      </div>
-                      <figcaption>
-                        El editor verifica el documento y heurísticas químicas; no sustituye
-                        evidencia experimental o cálculo electrónico.
-                      </figcaption>
-                    }
-                    @default {
-                      <svg
-                        viewBox="0 0 620 190"
-                        role="img"
-                        aria-label="Del símbolo químico a la molécula"
-                      >
-                        <g class="diagram-atom">
-                          <circle cx="110" cy="95" r="32" />
-                          <text x="110" y="103">C</text>
-                          <circle cx="310" cy="95" r="32" />
-                          <text x="310" y="103">O</text>
-                          <circle cx="510" cy="95" r="32" />
-                          <text x="510" y="103">H</text>
-                        </g>
-                        <g class="diagram-bond"><path d="M142 89h136M342 89h136" /></g>
-                      </svg>
-                      <figcaption>
-                        Una estructura combina entidades atómicas, relaciones de enlace y
-                        anotaciones electrónicas.
-                      </figcaption>
-                    }
-                  }
-                </figure>
-
-                <div class="article-body">
-                  @for (section of chapter.sections; track section.title) {
-                    <section>
-                      <h4>{{ section.title }}</h4>
-                      @for (paragraph of section.paragraphs; track paragraph) {
-                        <p>{{ paragraph }}</p>
-                      }
-                      @if (section.points?.length) {
-                        <ul>
-                          @for (point of section.points; track point) {
-                            <li>{{ point }}</li>
-                          }
-                        </ul>
-                      }
-                      @if (section.example) {
-                        <aside>
-                          <strong>Ejemplo</strong><span>{{ section.example }}</span>
-                        </aside>
-                      }
-                    </section>
+                    </button>
+                  } @empty {
+                    <p>
+                      No hay capítulos que coincidan. Prueba con “valencia”, “aromático” o “3D”.
+                    </p>
                   }
                 </div>
+              </nav>
 
-                <footer class="article-sources">
-                  <strong>Fuentes y ampliación</strong>
-                  <div>
-                    @for (source of chapter.sources; track source.url) {
-                      <a [href]="source.url" target="_blank" rel="noreferrer"
-                        >{{ source.label }} ↗</a
-                      >
+              @if (activeEncyclopediaChapter(); as chapter) {
+                <article class="encyclopedia-article">
+                  <div class="article-heading">
+                    <span>{{ chapter.number }} · {{ chapter.eyebrow }}</span>
+                    <h3>{{ chapter.title }}</h3>
+                    <p>{{ chapter.summary }}</p>
+                    <small>Lectura estimada: {{ chapter.readTime }} minutos</small>
+                  </div>
+
+                  <figure class="chemistry-diagram" [attr.data-diagram]="chapter.diagram">
+                    @switch (chapter.diagram) {
+                      @case ('lewis') {
+                        <svg
+                          viewBox="0 0 620 190"
+                          role="img"
+                          aria-label="Agua, amonio y radical metilo en notación de Lewis"
+                        >
+                          <g class="diagram-bond"><path d="M82 96h72M202 96h72" /></g>
+                          <g class="diagram-atom">
+                            <circle cx="178" cy="96" r="31" />
+                            <text x="178" y="104">O</text>
+                            <text class="electron" x="170" y="53">••</text>
+                            <text class="electron" x="170" y="151">••</text>
+                            <text x="67" y="104">H</text>
+                            <text x="287" y="104">H</text>
+                          </g>
+                          <g class="diagram-atom">
+                            <circle cx="420" cy="96" r="31" />
+                            <text x="420" y="104">N</text>
+                            <text class="charge" x="451" y="64">+</text>
+                            <text x="350" y="104">H₄</text>
+                          </g>
+                          <g class="diagram-atom">
+                            <circle cx="548" cy="96" r="31" />
+                            <text x="548" y="104">C</text>
+                            <text class="radical" x="580" y="67">•</text>
+                            <text x="548" y="157">CH₃•</text>
+                          </g>
+                        </svg>
+                        <figcaption>
+                          Dos puntos forman un par libre; un punto aislado es un electrón
+                          desapareado; + indica carga formal.
+                        </figcaption>
+                      }
+                      @case ('bonds') {
+                        <svg
+                          viewBox="0 0 620 190"
+                          role="img"
+                          aria-label="Comparación entre enlaces simple, doble y triple"
+                        >
+                          <g class="diagram-bond">
+                            <path
+                              d="M70 82h110M255 76h110M255 88h110M440 70h110M440 82h110M440 94h110"
+                            />
+                          </g>
+                          <g class="diagram-label">
+                            <text x="125" y="130">simple · 1 σ</text>
+                            <text x="310" y="130">doble · 1 σ + 1 π</text>
+                            <text x="495" y="130">triple · 1 σ + 2 π</text>
+                          </g>
+                        </svg>
+                        <figcaption>
+                          Las líneas paralelas son partes visuales de un único enlace químico
+                          seleccionable.
+                        </figcaption>
+                      }
+                      @case ('stereo') {
+                        <svg
+                          viewBox="0 0 620 190"
+                          role="img"
+                          aria-label="Enlaces en el plano, hacia delante y hacia atrás"
+                        >
+                          <g class="diagram-atom">
+                            <circle cx="310" cy="94" r="28" />
+                            <text x="310" y="102">C*</text>
+                          </g>
+                          <g class="diagram-bond">
+                            <path d="M282 94H150" />
+                            <path d="M338 94H470" />
+                          </g>
+                          <path class="solid-wedge" d="M302 71 258 20 320 65Z" />
+                          <g class="hash-wedge">
+                            <path d="m320 119 12 4M327 126l20 7M334 133l29 10M341 140l38 13" />
+                          </g>
+                          <g class="diagram-label">
+                            <text x="114" y="129">plano</text>
+                            <text x="214" y="28">hacia ti</text>
+                            <text x="390" y="164">detrás</text>
+                          </g>
+                        </svg>
+                        <figcaption>
+                          La cuña sólida sale del plano; la rayada se aleja. La configuración
+                          depende también del orden de sustituyentes.
+                        </figcaption>
+                      }
+                      @case ('resonance') {
+                        <svg
+                          viewBox="0 0 620 190"
+                          role="img"
+                          aria-label="Formas de resonancia de un carboxilato"
+                        >
+                          <g class="diagram-bond">
+                            <path
+                              d="M90 72h95M90 84h95M185 78l58 48M382 126l58-48M440 72h95M440 84h95"
+                            />
+                            <path class="dashed" d="M259 95h104" />
+                          </g>
+                          <g class="diagram-label">
+                            <text x="55" y="84">O</text>
+                            <text x="190" y="84">C</text>
+                            <text x="248" y="147">O⁻</text>
+                            <text x="279" y="86">↔</text>
+                            <text x="368" y="147">O⁻</text>
+                            <text x="430" y="84">C</text>
+                            <text x="549" y="84">O</text>
+                          </g>
+                        </svg>
+                        <figcaption>
+                          Son contribuyentes de una estructura deslocalizada, no especies que
+                          reaccionan entre sí.
+                        </figcaption>
+                      }
+                      @case ('interactions') {
+                        <svg
+                          viewBox="0 0 620 190"
+                          role="img"
+                          aria-label="Enlace dativo y puente de hidrógeno"
+                        >
+                          <g class="diagram-bond">
+                            <path d="M95 70h148" />
+                            <path d="m243 70-15-8M243 70l-15 8" />
+                            <path class="dotted" d="M370 122h150" />
+                          </g>
+                          <g class="diagram-label">
+                            <text x="45" y="77">NH₃:</text>
+                            <text x="260" y="77">BF₃</text>
+                            <text x="316" y="129">O–H</text>
+                            <text x="536" y="129">:O</text>
+                            <text x="130" y="107">dativo</text>
+                            <text x="410" y="157">puente H</text>
+                          </g>
+                        </svg>
+                        <figcaption>
+                          La flecha dativa va del donante al aceptor; el puente H es una interacción
+                          y no consume orden covalente ordinario.
+                        </figcaption>
+                      }
+                      @case ('rings') {
+                        <svg
+                          viewBox="0 0 620 190"
+                          role="img"
+                          aria-label="Anillos de tres, cuatro, cinco y seis miembros"
+                        >
+                          <g class="ring-shapes">
+                            <path d="m50 130 55-90 55 90Z" />
+                            <path d="m195 45 85 0 0 85-85 0Z" />
+                            <path d="m365 38 62 45-24 73h-76l-24-73Z" />
+                            <path d="m482 46 56-32 56 32v65l-56 32-56-32Z" />
+                          </g>
+                          <g class="diagram-label">
+                            <text x="77" y="176">C₃</text>
+                            <text x="223" y="176">C₄</text>
+                            <text x="350" y="176">C₅</text>
+                            <text x="516" y="176">C₆</text>
+                          </g>
+                        </svg>
+                        <figcaption>
+                          El polígono comunica conectividad; la conformación 3D real puede plegarse
+                          para reducir tensión.
+                        </figcaption>
+                      }
+                      @case ('smiles') {
+                        <svg
+                          viewBox="0 0 620 190"
+                          role="img"
+                          aria-label="Anatomía de la cadena SMILES CC paréntesis igual O paréntesis O"
+                        >
+                          <g class="smiles-code"><text x="74" y="96">C C ( = O ) O</text></g>
+                          <g class="diagram-label">
+                            <text x="69" y="137">inicio</text>
+                            <text x="174" y="137">rama</text>
+                            <text x="272" y="137">doble</text>
+                            <text x="405" y="137">retorno</text>
+                          </g>
+                          <g class="guide-lines">
+                            <path d="M96 107v16M222 107v16M316 107v16M455 107v16" />
+                          </g>
+                        </svg>
+                        <figcaption>
+                          CC(=O)O: los paréntesis abren una rama desde el átomo actual; “=”
+                          especifica enlace doble.
+                        </figcaption>
+                      }
+                      @case ('reaction') {
+                        <svg
+                          viewBox="0 0 620 190"
+                          role="img"
+                          aria-label="Flechas de reacción, resonancia y equilibrio"
+                        >
+                          <g class="diagram-label">
+                            <text x="55" y="60">A + B</text>
+                            <text x="288" y="60">→</text>
+                            <text x="480" y="60">C</text>
+                            <text x="55" y="110">forma 1</text>
+                            <text x="288" y="110">↔</text>
+                            <text x="465" y="110">forma 2</text>
+                            <text x="55" y="160">ácido + base</text>
+                            <text x="288" y="160">⇌</text>
+                            <text x="440" y="160">productos</text>
+                          </g>
+                        </svg>
+                        <figcaption>
+                          → transformación; ↔ contribuyentes de resonancia; ⇌ equilibrio entre
+                          especies.
+                        </figcaption>
+                      }
+                      @case ('geometry') {
+                        <svg
+                          viewBox="0 0 620 190"
+                          role="img"
+                          aria-label="Geometrías lineal, trigonal y tetraédrica"
+                        >
+                          <g class="geometry-shapes">
+                            <path
+                              d="M38 94h134M254 42l56 98 56-98M450 126l66-84 66 84M516 42v120"
+                            />
+                          </g>
+                          <g class="diagram-label">
+                            <text x="85" y="155">lineal</text>
+                            <text x="270" y="171">trigonal</text>
+                            <text x="481" y="177">tetraédrica</text>
+                          </g>
+                        </svg>
+                        <figcaption>
+                          Dos, tres y cuatro dominios electrónicos conducen a disposiciones ideales
+                          distintas; pares libres deforman los ángulos.
+                        </figcaption>
+                      }
+                      @case ('formula') {
+                        <div class="formula-diagram">
+                          <strong>C₂H₆O</strong><span>misma fórmula</span>
+                          <div><b>CH₃CH₂OH</b><i>etanol</i></div>
+                          <em>≠</em>
+                          <div><b>CH₃OCH₃</b><i>dimetil éter</i></div>
+                        </div>
+                        <figcaption>
+                          La fórmula cuenta elementos, pero no determina por sí sola la
+                          conectividad.
+                        </figcaption>
+                      }
+                      @case ('workflow') {
+                        <div class="workflow-diagram">
+                          <span>Átomos</span><b>→</b><span>Enlaces</span><b>→</b><span>Lewis</span
+                          ><b>→</b><span>3D</span><b>→</b><span>SVG</span>
+                        </div>
+                        <figcaption>
+                          El JSON conserva la editabilidad; el SVG conserva la calidad gráfica.
+                        </figcaption>
+                      }
+                      @case ('validation') {
+                        <div class="validation-diagram">
+                          <span><b>✓</b>Sintaxis</span><span><b>✓</b>Grafo</span
+                          ><span><b>✓</b>Valencia habitual</span
+                          ><span class="limit"><b>!</b>Estabilidad real</span>
+                        </div>
+                        <figcaption>
+                          El editor verifica el documento y heurísticas químicas; no sustituye
+                          evidencia experimental o cálculo electrónico.
+                        </figcaption>
+                      }
+                      @default {
+                        <svg
+                          viewBox="0 0 620 190"
+                          role="img"
+                          aria-label="Del símbolo químico a la molécula"
+                        >
+                          <g class="diagram-atom">
+                            <circle cx="110" cy="95" r="32" />
+                            <text x="110" y="103">C</text>
+                            <circle cx="310" cy="95" r="32" />
+                            <text x="310" y="103">O</text>
+                            <circle cx="510" cy="95" r="32" />
+                            <text x="510" y="103">H</text>
+                          </g>
+                          <g class="diagram-bond"><path d="M142 89h136M342 89h136" /></g>
+                        </svg>
+                        <figcaption>
+                          Una estructura combina entidades atómicas, relaciones de enlace y
+                          anotaciones electrónicas.
+                        </figcaption>
+                      }
+                    }
+                  </figure>
+
+                  <div class="article-body">
+                    @for (section of chapter.sections; track section.title) {
+                      <section>
+                        <h4>{{ section.title }}</h4>
+                        @for (paragraph of section.paragraphs; track paragraph) {
+                          <p>{{ paragraph }}</p>
+                        }
+                        @if (section.points?.length) {
+                          <ul>
+                            @for (point of section.points; track point) {
+                              <li>{{ point }}</li>
+                            }
+                          </ul>
+                        }
+                        @if (section.example) {
+                          <aside>
+                            <strong>Ejemplo</strong><span>{{ section.example }}</span>
+                          </aside>
+                        }
+                      </section>
                     }
                   </div>
-                </footer>
-              </article>
-            }
-          </div>
+
+                  <footer class="article-sources">
+                    <strong>Fuentes y ampliación</strong>
+                    <div>
+                      @for (source of chapter.sources; track source.url) {
+                        <a [href]="source.url" target="_blank" rel="noreferrer"
+                          >{{ source.label }} ↗</a
+                        >
+                      }
+                    </div>
+                  </footer>
+                </article>
+              }
+            </div>
+          } @else {
+            <div class="tutorial-reader">
+              <header class="tutorial-hero">
+                <span class="science-mark">LAB</span>
+                <div>
+                  <span>Aprender construyendo</span>
+                  <h3>Tutorial interactivo de química molecular</h3>
+                  <p>
+                    Cinco ejercicios guiados actúan sobre el lienzo real. Cada preparación se añade
+                    sin borrar tu trabajo y puede deshacerse desde la barra de herramientas.
+                  </p>
+                </div>
+                <div class="tutorial-progress" aria-label="Progreso del tutorial">
+                  <span><i [style.width.%]="tutorialProgress().percentage"></i></span>
+                  <strong>{{ tutorialProgress().percentage }}%</strong>
+                </div>
+              </header>
+
+              @if (activeTutorialLesson(); as lesson) {
+                <article class="tutorial-exercise">
+                  <header>
+                    <button type="button" (click)="closeTutorialLesson()">
+                      <app-icon name="chevron" /> Todos los ejercicios
+                    </button>
+                    @if (completedTutorialLessons().has(lesson.id)) {
+                      <span><app-icon name="check" /> Completado</span>
+                    }
+                  </header>
+                  <div class="tutorial-title">
+                    <span>{{ lesson.number }}</span>
+                    <div>
+                      <small>{{ lesson.eyebrow }}</small>
+                      <h3>{{ lesson.title }}</h3>
+                      <p>{{ lesson.summary }}</p>
+                    </div>
+                  </div>
+                  <ol>
+                    @for (step of lesson.steps; track step; let number = $index) {
+                      <li>
+                        <span>{{ number + 1 }}</span>
+                        <p>{{ step }}</p>
+                      </li>
+                    }
+                  </ol>
+                  <div class="tutorial-objective">
+                    <app-icon name="check" />
+                    <span
+                      ><small>Objetivo verificable</small
+                      ><strong>{{ lesson.objective }}</strong></span
+                    >
+                  </div>
+                  @if (lesson.check === 'benzene-smiles') {
+                    <label class="tutorial-smiles">
+                      <span>Tu cadena SMILES</span>
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="Escribe c1ccccc1"
+                          [value]="tutorialSmilesInput()"
+                          (input)="tutorialSmilesInput.set($any($event.target).value)"
+                        />
+                        <button type="button" (click)="generateTutorialSmiles(lesson)">
+                          Generar y comprobar
+                        </button>
+                      </div>
+                    </label>
+                  } @else {
+                    <button
+                      class="tutorial-prepare"
+                      type="button"
+                      (click)="prepareTutorialLesson(lesson)"
+                    >
+                      <app-icon name="plus" /> Preparar ejercicio en el lienzo
+                    </button>
+                  }
+                  <footer>
+                    <button type="button" (click)="openContextualHelp(lesson.chapterId)">
+                      <app-icon name="book" /> Consultar teoría
+                    </button>
+                    <button class="verify" type="button" (click)="verifyTutorialLesson(lesson)">
+                      <app-icon name="check" /> Comprobar ejercicio
+                    </button>
+                  </footer>
+                </article>
+              } @else {
+                <div class="tutorial-grid">
+                  @for (lesson of tutorialLessons; track lesson.id) {
+                    <button type="button" (click)="beginTutorialLesson(lesson.id)">
+                      <span class="tutorial-number">{{ lesson.number }}</span>
+                      <span>
+                        <small>{{ lesson.eyebrow }}</small>
+                        <strong>{{ lesson.title }}</strong>
+                        <p>{{ lesson.summary }}</p>
+                      </span>
+                      @if (completedTutorialLessons().has(lesson.id)) {
+                        <i class="completed"><app-icon name="check" /></i>
+                      } @else {
+                        <app-icon name="chevron" />
+                      }
+                    </button>
+                  }
+                </div>
+                @if (tutorialProgress().completed) {
+                  <button class="tutorial-reset" type="button" (click)="resetTutorialProgress()">
+                    Reiniciar progreso del tutorial
+                  </button>
+                }
+              }
+            </div>
+          }
         }
         @case ('theme') {
           <header class="panel-header">
@@ -2843,8 +3165,8 @@
               <section>
                 <span class="eyebrow">Versión actual</span><strong>{{ version }}</strong>
                 <p>
-                  Componentes independientes, formatos químicos, limpieza 2D, estereoquímica,
-                  reacciones, historial visual y laboratorio científico.
+                  Biblioteca estructural, tutorial interactivo, identificación local, enciclopedia
+                  contextual y laboratorio científico.
                 </p>
               </section>
               <section>
@@ -2862,7 +3184,8 @@
                 pares solitarios, radicales, flechas y fragmentos; gestionar componentes; componer y
                 balancear reacciones; reconocer grupos; analizar aromaticidad y propiedades; limpiar
                 la disposición; construir desde fórmula o SMILES; importar y exportar formatos
-                químicos; recuperar estados visuales, medir y explorar conformaciones 3D.
+                químicos; recuperar estados visuales, medir y explorar conformaciones 3D; aprender
+                con ejercicios y comparar el grafo con estructuras conocidas.
               </p>
               <p>
                 La fórmula molecular no determina por sí sola un isómero y la geometría 3D es una

@@ -1,6 +1,6 @@
 # Molecular
 
-**Versión 0.6.0**
+**Versión 0.7.0**
 
 Molecular es un estudio químico visual de Alejandro Pico para construir estructuras en dos dimensiones, comprobar reglas básicas de enlace y explorarlas como modelos tridimensionales. Toma como referencia conceptual el flujo 2D → 3D de herramientas educativas como [MolView](https://molview.org/), con interfaz, arquitectura y motor propios.
 
@@ -9,6 +9,16 @@ Molecular es un estudio químico visual de Alejandro Pico para construir estruct
 **GitHub Pages:** https://alejandropico.github.io/Molecular/
 
 El despliegue se actualiza automáticamente con cada publicación en `main`.
+
+## Novedades de la versión 0.7.0
+
+### Biblioteca y aprendizaje: sugerencias 15–18
+
+- **Biblioteca estructural ampliada** con 36 plantillas editables: seis aminoácidos, seis nucleótidos, seis azúcares, seis lípidos/ácidos grasos, seis grupos protectores con punto R y seis fármacos frecuentes. Dispone de buscador, filtros por familia, enlaces de referencia e inserción no destructiva.
+- **Tutorial interactivo** de cinco ejercicios verificables sobre órdenes de enlace, Lewis, carga formal, aromaticidad y SMILES. Cada ejercicio prepara un fragmento junto al trabajo actual, conserva Deshacer y guarda localmente el progreso.
+- **Identificación de estructuras** en el Laboratorio: toma el componente del átomo seleccionado o el subgrafo multiseleccionado, busca isomorfismo contra 43 referencias conocidas y propone similitudes mediante elementos, enlaces, grupos funcionales, anillos y carga.
+- **Enciclopedia contextual** desde los menús e inspectores de enlaces, carga/Lewis y resultados de grupos funcionales. La enciclopedia crece a 18 capítulos e incorpora grupos funcionales, biblioteca de biomoléculas e identificación estructural.
+- **Cobertura automatizada ampliada** a 59 pruebas sobre formatos, edición, biblioteca, tutorial, identificación, navegación contextual y regresiones de interfaz.
 
 ## Novedades de la versión 0.6.0
 
@@ -72,7 +82,7 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 
 ### Enciclopedia y temas ambientales
 
-- Nueva enciclopedia narrativa de 15 capítulos con buscador, índice, diagramas SVG, tutorial completo, glosario y fuentes primarias enlazadas.
+- Enciclopedia narrativa, ampliada ahora a 18 capítulos, con buscador, índice, diagramas SVG, tutorial completo, glosario y fuentes primarias enlazadas.
 - Explica lectura estructural, valencia, Lewis, enlaces, estereoquímica, resonancia, aromaticidad, interacciones, anillos, isomería, SMILES, flechas, 3D y límites de validación.
 - Temas Mañana, Tarde y Noche, más Automático. El modo automático estima amanecer y ocaso según fecha, zona horaria y ubicación opcional autorizada.
 - El modo Tarde añade una paleta cálida propia; la preferencia y la última ubicación aproximada se guardan solo en el dispositivo.
@@ -84,11 +94,12 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 3. Añade carga, pares solitarios, radicales, grupos R, fragmentos o flechas desde sus paletas laterales.
 4. Abre el único grupo de selección para elegir Directa, Rectangular, Lazo o Desplazar; usa Limpiar para ordenar el esquema localmente.
 5. Abre Fórmula en la barra superior y pega una o varias entradas separadas por coma, punto y coma o línea; se añadirán como borradores editables sin sustituir el lienzo.
-6. Abre Laboratorio para reconocer grupos, estudiar aromaticidad, consultar propiedades, configurar la validación o balancear una reacción.
+6. Abre Laboratorio para reconocer grupos, estudiar aromaticidad, consultar propiedades, identificar una estructura, configurar la validación o balancear una reacción.
 7. Usa la rueda o la pinza táctil para ampliar bajo el puntero y abre el visor 3D. Sus controles permiten medir 2/3/4 átomos y explorar conformaciones.
 8. Abre Reacciones para asignar papeles y condiciones; el balanceador usará esos componentes.
 9. Abre Exportar para obtener SVG, PNG, MOL, SDF, SMILES, CML, capa de fórmula InChI o documento editable.
-10. En Archivo abre el Historial visual para guardar o restaurar puntos con miniatura.
+10. En Archivo explora la biblioteca de 36 estructuras o abre el Historial visual para guardar y restaurar puntos con miniatura.
+11. En Enciclopedia alterna entre el lector de 18 capítulos y los cinco ejercicios interactivos.
 
 ### Atajos
 
@@ -111,13 +122,13 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 - **Angular 22** y **TypeScript** para aplicación, estado y motor educativo.
 - **SVG** como superficie de edición 2D y formato vectorial.
 - **Three.js/WebGL** para la visualización 3D.
-- **localStorage** para autoguardado y biblioteca local.
+- **localStorage** para autoguardado, biblioteca privada, configuración y progreso didáctico.
 - **Vitest** para pruebas del motor y de la interfaz.
 - **GitHub Actions + GitHub Pages** para integración y despliegue continuos.
 
 ## Arquitectura sin servidor
 
-GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.6.0 funciona íntegramente en el navegador para mantener edición, análisis, validación, balance, conversión, generación, consulta, guardado y 3D inmediatos.
+GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.7.0 funciona íntegramente en el navegador para mantener edición, análisis, identificación local, aprendizaje, validación, balance, conversión, generación, consulta, guardado y 3D inmediatos.
 
 La evolución prevista conserva dos vías:
 
@@ -162,7 +173,10 @@ Molecular/
 │   ├── layout-engine.ts           # limpieza y empaquetado 2D
 │   ├── molecular-analysis.ts      # grupos, anillos, propiedades y validación
 │   ├── reaction-balancer.ts       # conservación elemental y coeficientes mínimos
-│   ├── encyclopedia.data.ts       # lector químico de 15 capítulos y fuentes
+│   ├── encyclopedia.data.ts       # lector químico de 18 capítulos y fuentes
+│   ├── structure-library.data.ts  # 36 plantillas y 43 referencias identificables
+│   ├── structure-identifier.ts    # isomorfismo y similitud estructural local
+│   ├── tutorial.data.ts           # cinco ejercicios guiados y verificables
 │   └── solar-theme.ts             # amanecer, ocaso y tema ambiental
 ├── src/app/shared/                # iconografía SVG local
 ├── src/app/three-d-viewer/        # motor y panel 3D
@@ -173,17 +187,19 @@ Molecular/
 
 ## Alcance científico
 
-La validación 0.6.0 es educativa y configurable. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Los descriptores R/S y E/Z son asignaciones declaradas por la persona editora: Molecular no calcula todavía prioridades CIP ni demuestra que el descriptor elegido sea correcto.
+La validación 0.7.0 es educativa y configurable. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Los descriptores R/S y E/Z son asignaciones declaradas por la persona editora: Molecular no calcula todavía prioridades CIP ni demuestra que el descriptor elegido sea correcto.
 
 Una fórmula molecular no contiene conectividad suficiente para identificar un isómero. El generador produce en ese caso un punto de partida editable; SMILES es la entrada apropiada cuando la conectividad debe ser inequívoca. La colocación 3D es una incrustación topológica relajada, no una optimización energética.
 
 El reconocimiento de grupos y la aromaticidad utilizan patrones locales y ciclos pequeños: son útiles para aprendizaje y edición, pero no equivalen a una percepción química exhaustiva. TPSA y logP se identifican expresamente como estimaciones locales; las conformaciones y su índice relativo son propuestas topológicas, no mínimos energéticos. Las mediciones sí se calculan sobre las coordenadas visibles del modelo generado.
 
+La identificación exacta significa isomorfismo contra una referencia local concreta, no identificación experimental de una muestra. La similitud es una puntuación orientativa de rasgos compartidos; no demuestra nombre, actividad, pureza, seguridad ni estereoquímica completa.
+
 El balanceador resuelve conservación elemental y de carga para las especies presentes; no deduce productos, mecanismos ni especies auxiliares. Molecular no calcula cargas parciales, energía cuántica, espectros, orbitales ni dinámica molecular. No sustituye software de química computacional ni debe emplearse para validar resultados de investigación.
 
 ## Roadmap
 
-El plan versionado se mantiene en [ROADMAP.md](ROADMAP.md). Los siguientes hitos se centran en abreviaturas químicas, edición avanzada, percepción química mediante un motor opcional, conformadores físicos, cálculos con procedencia y compatibilidad con Atlas Editor.
+El plan versionado se mantiene en [ROADMAP.md](ROADMAP.md). Los siguientes hitos se centran en asignación CIP, reacciones multietapa, percepción química mediante un motor opcional, conformadores físicos, cálculos con procedencia y compatibilidad con Atlas Editor.
 
 ## Autor
 

@@ -15,7 +15,7 @@ describe('App', () => {
     aboutButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Acerca de Molecular');
-    expect(fixture.nativeElement.textContent).toContain('0.6.0');
+    expect(fixture.nativeElement.textContent).toContain('0.7.0');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {
@@ -90,12 +90,12 @@ describe('App', () => {
     expect(root.textContent).toContain('TPSA estimada');
     expect(root.textContent).toContain('Composición elemental en masa');
 
-    tabs[3].click();
+    tabs[4].click();
     fixture.detectChanges();
     expect(root.textContent).toContain('Comprobaciones activas');
     expect(root.textContent).toContain('Estricto');
 
-    tabs[4].click();
+    tabs[5].click();
     fixture.detectChanges();
     expect(root.textContent).toContain('Balanceador de ecuaciones');
   });
@@ -209,9 +209,75 @@ describe('App', () => {
     fixture.detectChanges();
     fixture.nativeElement.querySelector('[aria-label="Enciclopedia química"]').click();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelectorAll('.encyclopedia-chapters button').length).toBe(15);
+    expect(fixture.nativeElement.querySelectorAll('.encyclopedia-chapters button').length).toBe(18);
     expect(fixture.nativeElement.textContent).toContain('Cómo leer una estructura química');
     expect(fixture.nativeElement.textContent).toContain('Fuentes y ampliación');
     expect(fixture.nativeElement.querySelector('.element-cards')).toBeNull();
+  });
+
+  it('adds the curated library and identifies a known structure without replacing the canvas', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    const initialAtoms = root.querySelectorAll('.atom-node').length;
+
+    (root.querySelector('[aria-label="Archivo y biblioteca"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.querySelectorAll('.structure-library-list article').length).toBe(36);
+    const aspirin = [...root.querySelectorAll<HTMLElement>('.structure-library-list article')].find(
+      (entry) => entry.textContent?.includes('Ácido acetilsalicílico'),
+    )!;
+    (aspirin.querySelector('button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.querySelectorAll('.atom-node').length).toBeGreaterThan(initialAtoms);
+
+    (root.querySelector('[aria-label="Laboratorio científico"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const tabs = root.querySelectorAll<HTMLButtonElement>('.science-tabs button');
+    tabs[3].click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Coincidencia exacta');
+    expect(root.textContent).toContain('Ácido acetilsalicílico');
+  });
+
+  it('provides a five-exercise tutorial with an executable SMILES lesson', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    (root.querySelector('[aria-label="Enciclopedia química"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const learningTabs = root.querySelectorAll<HTMLButtonElement>('.learning-tabs button');
+    learningTabs[1].click();
+    fixture.detectChanges();
+    expect(root.querySelectorAll('.tutorial-grid > button').length).toBe(5);
+
+    const smilesLesson = [
+      ...root.querySelectorAll<HTMLButtonElement>('.tutorial-grid > button'),
+    ].find((button) => button.textContent?.includes('SMILES desde cero'))!;
+    smilesLesson.click();
+    fixture.detectChanges();
+    const input: HTMLInputElement = root.querySelector('.tutorial-smiles input')!;
+    input.value = 'c1ccccc1';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    (root.querySelector('.tutorial-smiles button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Completado');
+  });
+
+  it('opens contextual theory from a selected bond', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    const bond = root.querySelector('.bond-hit-area') ?? root.querySelector('.bond-group');
+    bond!.dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, clientX: 360, clientY: 240 }),
+    );
+    fixture.detectChanges();
+    const help = [...root.querySelectorAll<HTMLButtonElement>('.context-menu button')].find(
+      (button) => button.textContent?.includes('Explicar este tipo de enlace'),
+    )!;
+    help.click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Enlaces simple, doble y triple');
   });
 });

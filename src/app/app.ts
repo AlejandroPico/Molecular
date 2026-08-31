@@ -46,7 +46,7 @@ import {
   validateElementChange,
 } from './core/chemistry.models';
 import { ChemicalFormat, exportChemicalText, importChemicalText } from './core/chemical-formats';
-import { generateStructures } from './core/formula-generator';
+import { generateStructure, generateStructures } from './core/formula-generator';
 import { cleanMolecularLayout } from './core/layout-engine';
 import {
   DEFAULT_VALIDATION_SETTINGS,
@@ -58,6 +58,19 @@ import {
 } from './core/molecular-analysis';
 import { balanceReaction, reactionBalanceStatus } from './core/reaction-balancer';
 import { ENCYCLOPEDIA_CHAPTERS } from './core/encyclopedia.data';
+import {
+  STRUCTURE_LIBRARY,
+  STRUCTURE_LIBRARY_BY_ID,
+  STRUCTURE_LIBRARY_CATEGORIES,
+  IDENTIFICATION_REFERENCE_BY_ID,
+  StructureLibraryCategory,
+} from './core/structure-library.data';
+import {
+  extractIdentificationTarget,
+  identifyStructure,
+  libraryTemplateDocument,
+} from './core/structure-identifier';
+import { TUTORIAL_LESSONS, TutorialLesson } from './core/tutorial.data';
 import { resolveSolarTheme, SolarTheme } from './core/solar-theme';
 import { IconComponent } from './shared/icon.component';
 import { ThreeDViewerComponent } from './three-d-viewer/three-d-viewer.component';
@@ -79,7 +92,9 @@ type PanelName =
 type ThemeMode = 'auto' | SolarTheme;
 type SelectionMode = 'direct' | 'rectangle' | 'lasso';
 type GridStyle = 'triangular' | 'dots';
-type AnalysisTab = 'groups' | 'aromaticity' | 'properties' | 'validation' | 'balance';
+type AnalysisTab =
+  'groups' | 'aromaticity' | 'properties' | 'identification' | 'validation' | 'balance';
+type LearningView = 'encyclopedia' | 'tutorial';
 
 interface CanvasPoint {
   x: number;
@@ -192,7 +207,7 @@ interface LineDraft {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  protected readonly version = '0.6.0';
+  protected readonly version = '0.7.0';
   protected readonly elements = ELEMENTS;
   protected readonly quickElements = QUICK_ELEMENTS;
   protected readonly presets = MOLECULE_PRESETS;
@@ -228,6 +243,16 @@ export class App {
   protected readonly encyclopediaQuery = signal('');
   protected readonly encyclopediaChapterId = signal(ENCYCLOPEDIA_CHAPTERS[0].id);
   protected readonly encyclopediaChapters = ENCYCLOPEDIA_CHAPTERS;
+  protected readonly learningView = signal<LearningView>('encyclopedia');
+  protected readonly tutorialLessons = TUTORIAL_LESSONS;
+  protected readonly activeTutorialLessonId = signal<string | null>(null);
+  protected readonly completedTutorialLessons = signal<Set<string>>(this.loadTutorialProgress());
+  protected readonly tutorialSmilesInput = signal('');
+  protected readonly tutorialAtomIds = signal<Set<string>>(new Set());
+  protected readonly structureLibrary = STRUCTURE_LIBRARY;
+  protected readonly structureLibraryCategories = STRUCTURE_LIBRARY_CATEGORIES;
+  protected readonly libraryQuery = signal('');
+  protected readonly libraryCategory = signal<StructureLibraryCategory | 'all'>('all');
   protected readonly periodicQuery = signal('');
   protected readonly periodicPickerOpen = signal(false);
   protected readonly periodicTargetAtomId = signal<string | null>(null);
@@ -315,6 +340,38 @@ export class App {
   protected readonly balanceStatus = computed(() =>
     reactionBalanceStatus(this.molecule(), this.components()),
   );
+  protected readonly structureIdentification = computed(() =>
+    identifyStructure(this.molecule(), this.selectedAtomIds()),
+  );
+  protected readonly filteredStructureLibrary = computed(() => {
+    const query = this.normalize(this.libraryQuery());
+    const category = this.libraryCategory();
+    return this.structureLibrary.filter((entry) => {
+      if (category !== 'all' && entry.category !== category) return false;
+      if (!query) return true;
+      return this.normalize(
+        [
+          entry.name,
+          entry.formula,
+          entry.category,
+          entry.description,
+          ...entry.aliases,
+          ...entry.tags,
+        ].join(' '),
+      ).includes(query);
+    });
+  });
+  protected readonly activeTutorialLesson = computed(
+    () =>
+      this.tutorialLessons.find((lesson) => lesson.id === this.activeTutorialLessonId()) ?? null,
+  );
+  protected readonly tutorialProgress = computed(() => ({
+    completed: this.completedTutorialLessons().size,
+    total: this.tutorialLessons.length,
+    percentage: Math.round(
+      (this.completedTutorialLessons().size / Math.max(1, this.tutorialLessons.length)) * 100,
+    ),
+  }));
   protected readonly transform = computed(() => {
     const pan = this.pan();
     return 'translate(' + pan.x + ' ' + pan.y + ') scale(' + this.zoom() + ')';
@@ -392,6 +449,7 @@ export class App {
   private readonly themeKey = 'molecular.theme.v1';
   private readonly themeLocationKey = 'molecular.theme.location.v1';
   private readonly validationKey = 'molecular.validation.v1';
+  private readonly tutorialProgressKey = 'molecular.tutorial.v1';
   private undoStack: MoleculeDocument[] = [];
   private redoStack: MoleculeDocument[] = [];
   private pointerState: PointerState | null = null;
@@ -548,6 +606,47 @@ export class App {
     this.searchOpen.set(false);
     this.activePanel.set(null);
     this.notify(preset.name + ' cargado en el lienzo');
+  }
+
+  protected setLibraryCategory(category: StructureLibraryCategory | 'all'): void {
+    this.libraryCategory.set(category);
+  }
+
+  protected libraryCategoryLabel(category: StructureLibraryCategory): string {
+    if (category === 'essentials') return 'Ejemplos esenciales';
+    return (
+      this.structureLibraryCategories.find((definition) => definition.id === category)?.label ??
+      category
+    );
+  }
+
+  protected insertLibraryEntry(id: string): void {
+    const entry = STRUCTURE_LIBRARY_BY_ID.get(id);
+    if (!entry) return;
+    try {
+      const document = libraryTemplateDocument(entry);
+      this.appendGeneratedDocuments([document]);
+      this.activePanel.set(null);
+      this.notify(`${entry.name} añadido sin sustituir el contenido del lienzo`);
+    } catch (error) {
+      this.notify(
+        error instanceof Error
+          ? `No se ha podido construir ${entry.name}: ${error.message}`
+          : `No se ha podido construir ${entry.name}`,
+      );
+    }
+  }
+
+  protected insertIdentificationReference(id: string): void {
+    const entry = IDENTIFICATION_REFERENCE_BY_ID.get(id);
+    if (!entry) return;
+    try {
+      this.appendGeneratedDocuments([libraryTemplateDocument(entry)]);
+      this.activePanel.set(null);
+      this.notify(`${entry.name} añadido como referencia editable`);
+    } catch (error) {
+      this.notify(error instanceof Error ? error.message : 'No se ha podido añadir la referencia');
+    }
   }
 
   protected newMolecule(): void {
@@ -1144,6 +1243,11 @@ export class App {
     this.analysisTab.set(tab);
   }
 
+  protected selectIdentificationTarget(): void {
+    const atomIds = this.structureIdentification().atomIds;
+    if (atomIds.length) this.selectAnalysisAtoms(atomIds);
+  }
+
   protected selectAnalysisAtoms(atomIds: string[], bondIds: string[] = []): void {
     this.selectedAtomIds.set(new Set(atomIds));
     this.selectedBondId.set(bondIds.length === 1 ? bondIds[0] : null);
@@ -1306,6 +1410,98 @@ export class App {
 
   protected openEncyclopediaChapter(id: string): void {
     this.encyclopediaChapterId.set(id);
+  }
+
+  protected setLearningView(view: LearningView): void {
+    this.learningView.set(view);
+  }
+
+  protected openContextualHelp(chapterId: string): void {
+    this.learningView.set('encyclopedia');
+    this.encyclopediaQuery.set('');
+    this.encyclopediaChapterId.set(chapterId);
+    this.activePanel.set('encyclopedia');
+    this.contextMenu.set(null);
+  }
+
+  protected openBondContextualHelp(bondId?: string): void {
+    const bond = this.molecule().bonds.find((candidate) => candidate.id === bondId);
+    const kind =
+      bond?.kind ?? (bond?.order === 2 ? 'double' : bond?.order === 3 ? 'triple' : 'single');
+    const chapter =
+      kind === 'up' || kind === 'down' || kind === 'wedge' || kind === 'hash'
+        ? 'estereoquimica'
+        : kind === 'aromatic' || kind === 'delocalized'
+          ? 'resonancia-aromaticidad'
+          : kind === 'hydrogen' || kind === 'dative'
+            ? 'enlaces-especiales'
+            : 'enlaces-covalentes';
+    this.openContextualHelp(chapter);
+  }
+
+  protected beginTutorialLesson(id: string): void {
+    this.activeTutorialLessonId.set(id);
+    this.tutorialSmilesInput.set('');
+  }
+
+  protected closeTutorialLesson(): void {
+    this.activeTutorialLessonId.set(null);
+    this.tutorialSmilesInput.set('');
+  }
+
+  protected prepareTutorialLesson(lesson: TutorialLesson): void {
+    if (!lesson.starterSmiles) return;
+    try {
+      const document = generateStructure(`smiles:${lesson.starterSmiles}`).document;
+      document.name = lesson.starterName ?? `Tutorial · ${lesson.title}`;
+      this.appendGeneratedDocuments([document]);
+      this.tutorialAtomIds.set(new Set(this.selectedAtomIds()));
+      this.activePanel.set(null);
+      this.notify(`Ejercicio «${lesson.title}» preparado; tu estructura anterior se conserva`);
+    } catch (error) {
+      this.notify(error instanceof Error ? error.message : 'No se ha podido preparar el ejercicio');
+    }
+  }
+
+  protected generateTutorialSmiles(lesson: TutorialLesson): void {
+    const source = this.tutorialSmilesInput().trim();
+    if (!source) {
+      this.notify('Escribe una cadena SMILES para continuar');
+      return;
+    }
+    try {
+      const document = generateStructure(`smiles:${source}`).document;
+      document.name = `Tutorial SMILES · ${source}`;
+      this.appendGeneratedDocuments([document]);
+      this.tutorialAtomIds.set(new Set(this.selectedAtomIds()));
+      if (this.tutorialConditionSatisfied(lesson)) {
+        this.completeTutorialLesson(lesson.id);
+        this.notify('SMILES reconocido: conectividad de benceno correcta');
+      } else {
+        this.notify(lesson.failureMessage);
+      }
+    } catch (error) {
+      this.notify(error instanceof Error ? error.message : 'La cadena SMILES no es válida');
+    }
+  }
+
+  protected verifyTutorialLesson(lesson: TutorialLesson): void {
+    if (this.tutorialConditionSatisfied(lesson)) {
+      this.completeTutorialLesson(lesson.id);
+      this.notify(`Ejercicio «${lesson.title}» completado`);
+      return;
+    }
+    this.notify(lesson.failureMessage);
+  }
+
+  protected resetTutorialProgress(): void {
+    this.completedTutorialLessons.set(new Set());
+    try {
+      localStorage.removeItem(this.tutorialProgressKey);
+    } catch {
+      /* localStorage unavailable */
+    }
+    this.notify('Progreso del tutorial reiniciado');
   }
 
   protected locateForTheme(): void {
@@ -2053,7 +2249,7 @@ export class App {
     if (!this.selectedAtomIds().size) return;
     this.contextMenu.set({
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - 274)),
-      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 438)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 506)),
       target: 'atoms',
       id: atom?.id ?? this.selectedAtoms()[0]?.id,
     });
@@ -2066,7 +2262,7 @@ export class App {
     this.selectedBondId.set(bond.id);
     this.contextMenu.set({
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - 306)),
-      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 472)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 538)),
       target: 'bond',
       id: bond.id,
     });
@@ -2353,6 +2549,52 @@ export class App {
       /* use strict defaults */
     }
     return { ...DEFAULT_VALIDATION_SETTINGS };
+  }
+
+  private loadTutorialProgress(): Set<string> {
+    try {
+      const parsed = JSON.parse(localStorage.getItem('molecular.tutorial.v1') ?? '[]');
+      return new Set(
+        Array.isArray(parsed)
+          ? parsed.filter((id): id is string =>
+              this.tutorialLessons.some((lesson) => lesson.id === id),
+            )
+          : [],
+      );
+    } catch {
+      return new Set();
+    }
+  }
+
+  private tutorialConditionSatisfied(lesson: TutorialLesson): boolean {
+    const ids = new Set(
+      [...this.tutorialAtomIds()].filter((id) =>
+        this.molecule().atoms.some((atom) => atom.id === id),
+      ),
+    );
+    if (!ids.size) return false;
+    const target = extractIdentificationTarget(this.molecule(), ids);
+    if (lesson.check === 'triple-bond') return target.bonds.some((bond) => bond.order === 3);
+    if (lesson.check === 'two-lone-pairs')
+      return target.atoms.some((atom) => atom.element === 'O' && atom.lonePairs >= 2);
+    if (lesson.check === 'positive-charge')
+      return target.atoms.some((atom) => atom.element === 'N' && atom.charge === 1);
+    if (lesson.check === 'aromatic-ring')
+      return analyzeRings(target).some((ring) => ring.aromatic && ring.atomIds.length === 6);
+    return identifyStructure(target).matches.some(
+      (match) => match.exact && match.entry.id === 'benzene',
+    );
+  }
+
+  private completeTutorialLesson(id: string): void {
+    const completed = new Set(this.completedTutorialLessons());
+    completed.add(id);
+    this.completedTutorialLessons.set(completed);
+    try {
+      localStorage.setItem(this.tutorialProgressKey, JSON.stringify([...completed]));
+    } catch {
+      /* localStorage unavailable */
+    }
   }
 
   private updateValidationSettings(change: Partial<ValidationSettings>): void {

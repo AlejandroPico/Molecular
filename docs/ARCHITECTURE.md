@@ -1,6 +1,6 @@
 # Arquitectura de Molecular
 
-## Decisión de la versión 0.6.0
+## Decisión de la versión 0.7.0
 
 Molecular se publica en GitHub Pages. Ese alojamiento sirve archivos estáticos y no ejecuta procesos Python, Java, Go ni un servidor SQLite. Por ello, el primer núcleo se ejecuta íntegramente en el navegador:
 
@@ -25,6 +25,9 @@ src/app/
 │   ├── molecular-analysis.ts     # grupos, anillos, propiedades y validación
 │   ├── reaction-balancer.ts      # sistema lineal estequiométrico
 │   ├── encyclopedia.data.ts      # capítulos, secciones y fuentes
+│   ├── structure-library.data.ts # catálogo químico versionado
+│   ├── structure-identifier.ts   # isomorfismo y huella de similitud
+│   ├── tutorial.data.ts          # ejercicios didácticos verificables
 │   └── solar-theme.ts            # ventana solar y tema automático
 ├── shared/
 │   └── icon.component.ts         # iconografía SVG local
@@ -83,6 +86,14 @@ Deshacer/Rehacer conserva pilas de documentos completos. El historial visual man
 
 `reaction-balancer.ts` forma una matriz especies × elementos —con una fila adicional para carga cuando procede—, calcula un vector del espacio nulo mediante eliminación de Gauss con fracciones reducidas y normaliza la solución a los enteros positivos mínimos. El resultado solo modifica los coeficientes de componentes y queda integrado en Deshacer/Historial.
 
+## Biblioteca, tutorial e identificación
+
+`structure-library.data.ts` conserva 36 entradas curadas como datos TypeScript: nombre, alias, familia, fórmula de presentación, SMILES, descripción, etiquetas y fuente. Los siete ejemplos esenciales se suman como referencias de identificación sin duplicarse en la lista ampliada. Insertar una entrada reutiliza el generador SMILES, remapea todos los identificadores y la coloca junto al documento vigente mediante una única mutación reversible.
+
+`structure-identifier.ts` recorta el ámbito al componente conectado del átomo elegido o al subgrafo multiseleccionado. Para una coincidencia exacta compara fórmula, carga y firmas atómicas y resuelve el isomorfismo mediante retroceso con candidatos previamente filtrados. Las formas de Kekulé y los enlaces aromáticos se normalizan contra los ciclos aromáticos percibidos. Cuando no hay isomorfismo, una huella local compara recuentos de elementos, clases de enlace, grupos funcionales, ciclos y carga mediante similitud de Jaccard.
+
+El tutorial es una máquina de progreso ligera definida por datos. Cada ejercicio prepara una estructura mediante la misma ruta no destructiva del editor y conserva sus identificadores para verificar únicamente ese fragmento. El progreso guarda solo los identificadores de lecciones completadas en `localStorage`; no altera el documento químico ni se transmite.
+
 ## Generación y geometría
 
 El generador distingue una fórmula molecular de una cadena SMILES. Las fórmulas tradicionales se normalizan mediante segmentación contra los 118 símbolos: admite caja libre y subíndices Unicode, favorece la interpretación con elementos ligeros en entradas totalmente minúsculas y conserva las mayúsculas como vía de desambiguación. Para fórmulas conocidas puede usar una plantilla; en los demás casos distribuye la composición en un borrador que conserva el recuento pedido y deja clara la ambigüedad de isómeros. El analizador SMILES local sigue siendo sensible a caja y cubre átomos alifáticos y aromáticos, ramas, componentes, anillos simples y extendidos, cargas, isótopos, H explícitos, `@/@@` y enlaces simples, dobles, triples, aromáticos, indeterminados y direccionales básicos.
@@ -97,7 +108,7 @@ Las mediciones usan raycasting contra las esferas de Three.js y las mismas coord
 
 ## Contenido didáctico y temas
 
-La enciclopedia es un conjunto TypeScript versionado de capítulos narrativos, secciones, ejemplos y fuentes. Los diagramas se dibujan como SVG semántico dentro de la interfaz, de modo que mantienen nitidez, contraste temático y adaptación móvil sin depender de recursos de terceros.
+La enciclopedia es un conjunto TypeScript versionado de 18 capítulos narrativos, secciones, ejemplos y fuentes. Los diagramas se dibujan como SVG semántico dentro de la interfaz, de modo que mantienen nitidez, contraste temático y adaptación móvil sin depender de recursos de terceros. Los inspectores traducen cada contexto a un identificador de capítulo estable; por ello un enlace o grupo abre directamente su explicación sin duplicar contenido en el componente visual.
 
 El modo Automático calcula una ventana solar aproximada con fecha, zona horaria y, si el usuario lo autoriza expresamente, latitud y longitud. La ubicación queda en `localStorage`; no se transmite. Sin permiso se aplican franjas locales predecibles.
 
@@ -112,4 +123,4 @@ El modo de cálculo no será obligatorio para dibujar, guardar o visualizar. As�
 
 ## Límites científicos actuales
 
-La 0.6.0 aplica reglas de valencia y coordinación simplificadas y genera geometrías 3D didácticas a partir de la topología. La aromaticidad y los grupos funcionales son una percepción local, no un modelo electrónico exhaustivo; TPSA, logP e índice conformacional son orientativos. No realiza minimización energética, asignación CIP automática, orbitales ni dinámica molecular. Los formatos se orientan al intercambio educativo local; para identificadores canónicos, V3000 o investigación se necesita un motor especializado. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.
+La 0.7.0 aplica reglas de valencia y coordinación simplificadas y genera geometrías 3D didácticas a partir de la topología. La aromaticidad y los grupos funcionales son una percepción local, y la identificación se limita a referencias incluidas: ninguna equivale a un modelo electrónico exhaustivo o a una determinación experimental. TPSA, logP, similitud e índice conformacional son orientativos. No realiza minimización energética, asignación CIP automática, orbitales ni dinámica molecular. Los formatos se orientan al intercambio educativo local; para identificadores canónicos, V3000 o investigación se necesita un motor especializado. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.

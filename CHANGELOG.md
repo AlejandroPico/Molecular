@@ -1,5 +1,29 @@
 # Historial de versiones
 
+## 0.7.0 — 2026-08-31
+
+### Añadido
+
+- Biblioteca estructural de 36 plantillas editables: aminoácidos, nucleótidos, azúcares, lípidos y ácidos grasos, grupos protectores con punto R y fármacos frecuentes.
+- Buscador y filtros de familia con inserción no destructiva, alias, fórmula, descripción y enlace de referencia.
+- Tutorial interactivo de cinco ejercicios verificables para enlaces, Lewis, carga formal, aromaticidad y SMILES, con progreso persistente local.
+- Identificación del componente conectado o subgrafo seleccionado contra 43 referencias mediante isomorfismo independiente de coordenadas e identificadores.
+- Clasificación de posibles coincidencias mediante una huella de elementos, enlaces, grupos funcionales, ciclos y carga.
+- Accesos contextuales a la enciclopedia desde enlaces, controles de carga/Lewis y grupos funcionales.
+- Tres capítulos nuevos sobre grupos funcionales, biblioteca de biomoléculas e identificación estructural.
+- Batería de 59 pruebas para las 36 plantillas, identificación exacta, selección por componente, biblioteca, tutorial, ayuda contextual y regresiones previas.
+
+### Cambiado
+
+- La enciclopedia pasa de 15 a 18 capítulos y comparte panel con el tutorial sin añadir otro icono a la barra superior.
+- El Laboratorio científico incorpora una pestaña Identificar y mantiene sus resultados seleccionables.
+- La comparación aromática normaliza formas de Kekulé y enlaces aromáticos para reconocer el mismo sistema deslocalizado.
+
+### Límites documentados
+
+- Una coincidencia exacta es exacta respecto al grafo de una referencia local; no identifica una muestra experimental.
+- La similitud topológica es orientativa y no demuestra identidad, actividad, seguridad, pureza ni estereoquímica completa.
+
 ## 0.6.0 — 2026-08-31
 
 ### Añadido
