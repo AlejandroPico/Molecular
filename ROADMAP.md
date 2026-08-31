@@ -66,7 +66,7 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 - Balanceador estequiométrico de coeficientes enteros mínimos, incluyendo conservación de carga neta.
 - Cobertura unitaria del análisis, balance, panel científico y controles 3D; 53 pruebas superadas.
 
-## 0.7.0 — Publicado
+## 0.7.1 — Publicado
 
 - Biblioteca de 36 estructuras editables repartidas entre aminoácidos, nucleótidos, azúcares, lípidos, grupos protectores y fármacos frecuentes.
 - Búsqueda y filtros de biblioteca con inserción no destructiva, fuente enlazada y conservación del historial.
@@ -75,6 +75,7 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 - Ámbito de identificación guiado por componente conectado o multiselección explícita.
 - Enciclopedia ampliada a 18 capítulos y navegación contextual desde enlaces, carga/electrones y grupos funcionales.
 - Batería de 59 pruebas automatizadas para preservar estas capacidades y las anteriores.
+- Parche de composición para que las pestañas Enciclopedia/Tutorial conserven una fila propia y permanezcan pulsables en cualquier anchura.
 - Diseño adaptable de biblioteca, tutorial e identificación para escritorio, móvil y orientación horizontal.
 
 ## 0.8 — Química estructural avanzada

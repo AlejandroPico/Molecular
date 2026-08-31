@@ -1,5 +1,11 @@
 # Historial de versiones
 
+## 0.7.1 — 2026-08-31
+
+### Corregido
+
+- La fila de navegación Enciclopedia/Tutorial ya no comparte la fila CSS del lector, por lo que el buscador no la solapa y ambas pestañas vuelven a ser completamente pulsables.
+
 ## 0.7.0 — 2026-08-31
 
 ### Añadido

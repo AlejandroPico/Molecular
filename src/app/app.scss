@@ -4924,6 +4924,10 @@ select:focus-visible {
   height: 13px;
 }
 
+.floating-panel.encyclopedia-panel {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
 .learning-tabs {
   min-height: 42px;
   display: flex;

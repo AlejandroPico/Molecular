@@ -1,6 +1,6 @@
 # Molecular
 
-**Versión 0.7.0**
+**Versión 0.7.1**
 
 Molecular es un estudio químico visual de Alejandro Pico para construir estructuras en dos dimensiones, comprobar reglas básicas de enlace y explorarlas como modelos tridimensionales. Toma como referencia conceptual el flujo 2D → 3D de herramientas educativas como [MolView](https://molview.org/), con interfaz, arquitectura y motor propios.
 
@@ -10,7 +10,7 @@ Molecular es un estudio químico visual de Alejandro Pico para construir estruct
 
 El despliegue se actualiza automáticamente con cada publicación en `main`.
 
-## Novedades de la versión 0.7.0
+## Novedades de la versión 0.7.1
 
 ### Biblioteca y aprendizaje: sugerencias 15–18
 
@@ -19,6 +19,7 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 - **Identificación de estructuras** en el Laboratorio: toma el componente del átomo seleccionado o el subgrafo multiseleccionado, busca isomorfismo contra 43 referencias conocidas y propone similitudes mediante elementos, enlaces, grupos funcionales, anillos y carga.
 - **Enciclopedia contextual** desde los menús e inspectores de enlaces, carga/Lewis y resultados de grupos funcionales. La enciclopedia crece a 18 capítulos e incorpora grupos funcionales, biblioteca de biomoléculas e identificación estructural.
 - **Cobertura automatizada ampliada** a 59 pruebas sobre formatos, edición, biblioteca, tutorial, identificación, navegación contextual y regresiones de interfaz.
+- **Parche visual 0.7.1**: la navegación entre enciclopedia y tutorial reserva su propia fila en escritorio y móvil, sin quedar solapada por el buscador ni el lector.
 
 ## Novedades de la versión 0.6.0
 
@@ -128,7 +129,7 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 
 ## Arquitectura sin servidor
 
-GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.7.0 funciona íntegramente en el navegador para mantener edición, análisis, identificación local, aprendizaje, validación, balance, conversión, generación, consulta, guardado y 3D inmediatos.
+GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.7.1 funciona íntegramente en el navegador para mantener edición, análisis, identificación local, aprendizaje, validación, balance, conversión, generación, consulta, guardado y 3D inmediatos.
 
 La evolución prevista conserva dos vías:
 
@@ -187,7 +188,7 @@ Molecular/
 
 ## Alcance científico
 
-La validación 0.7.0 es educativa y configurable. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Los descriptores R/S y E/Z son asignaciones declaradas por la persona editora: Molecular no calcula todavía prioridades CIP ni demuestra que el descriptor elegido sea correcto.
+La validación 0.7.1 es educativa y configurable. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Los descriptores R/S y E/Z son asignaciones declaradas por la persona editora: Molecular no calcula todavía prioridades CIP ni demuestra que el descriptor elegido sea correcto.
 
 Una fórmula molecular no contiene conectividad suficiente para identificar un isómero. El generador produce en ese caso un punto de partida editable; SMILES es la entrada apropiada cuando la conectividad debe ser inequívoca. La colocación 3D es una incrustación topológica relajada, no una optimización energética.
 
