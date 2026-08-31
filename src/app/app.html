@@ -59,6 +59,15 @@
       </button>
       <button
         type="button"
+        [class.active]="activePanel() === 'reaction'"
+        title="Editor de reacciones"
+        aria-label="Editor de reacciones"
+        (click)="togglePanel('reaction')"
+      >
+        <app-icon name="arrow" />
+      </button>
+      <button
+        type="button"
         [class.active]="activePanel() === 'layers'"
         title="Capas"
         aria-label="Capas"
@@ -146,7 +155,7 @@
         [class.tool-atom]="activeTool() === 'atom'"
         [class.tool-bond]="activeTool() === 'bond'"
         [class.tool-fragment]="activeTool() === 'fragment'"
-        [class.tool-arrow]="activeTool() === 'arrow'"
+        [class.tool-arrow]="activeTool() === 'electron-arrow' || activeTool() === 'arrow'"
         [class.tool-erase]="activeTool() === 'erase'"
         viewBox="0 0 1400 800"
         preserveAspectRatio="xMidYMid meet"
@@ -172,6 +181,26 @@
             orient="auto"
           >
             <path d="M0,0 L9,4.5 L0,9 Z" class="arrow-head-shape" />
+          </marker>
+          <marker
+            id="electron-arrow-head"
+            markerWidth="8"
+            markerHeight="8"
+            refX="7"
+            refY="4"
+            orient="auto"
+          >
+            <path d="M0,0 L8,4 L0,8 Z" class="electron-arrow-head-shape" />
+          </marker>
+          <marker
+            id="electron-fishhook-head"
+            markerWidth="8"
+            markerHeight="8"
+            refX="7"
+            refY="4"
+            orient="auto"
+          >
+            <path d="M0,0 L8,4 L1,4" class="electron-fishhook-head-shape" />
           </marker>
           <marker
             id="arrow-head-start"
@@ -220,6 +249,15 @@
                     [attr.y2]="hit.y2"
                   />
                 }
+                @if (reactionConditions(arrow.id)) {
+                  <text
+                    class="reaction-condition-label"
+                    [attr.x]="(arrow.x1 + arrow.x2) / 2"
+                    [attr.y]="(arrow.y1 + arrow.y2) / 2 - 16"
+                  >
+                    {{ reactionConditions(arrow.id) }}
+                  </text>
+                }
               </g>
             }
             @if (arrowDraft(); as draft) {
@@ -232,80 +270,115 @@
                 marker-end="url(#arrow-head)"
               />
             }
+            @for (arrow of molecule().electronArrows || []; track arrow.id) {
+              <path
+                class="electron-arrow-line"
+                [attr.d]="electronArrowPath(arrow)"
+                [attr.marker-end]="
+                  arrow.kind === 'pair'
+                    ? 'url(#electron-arrow-head)'
+                    : 'url(#electron-fishhook-head)'
+                "
+                (pointerdown)="onElectronArrowPointerDown($event, arrow)"
+                (contextmenu)="openElectronArrowContextMenu($event, arrow)"
+              />
+            }
+            @if (electronArrowDraft(); as draft) {
+              <path
+                class="electron-arrow-line draft-line"
+                [attr.d]="draftElectronArrowPath(draft)"
+                [attr.marker-end]="
+                  activeElectronArrowKind() === 'pair'
+                    ? 'url(#electron-arrow-head)'
+                    : 'url(#electron-fishhook-head)'
+                "
+              />
+            }
           </g>
           <g class="bond-layer">
             @for (bond of molecule().bonds; track bond.id) {
-              <g
-                class="bond-group"
-                [class.selected]="isBondSelected(bond.id)"
-                [style.--bond-ink]="bond.color || null"
-                (pointerdown)="onBondPointerDown($event, bond)"
-                (contextmenu)="openBondContextMenu($event, bond)"
-              >
-                @switch (bondVisualKind(bond)) {
-                  @case ('up') {
-                    <polygon class="bond-wedge" [attr.points]="wedgePoints(bond)" />
-                  }
-                  @case ('down') {
-                    @for (line of hashedBondLines(bond); track $index) {
-                      <line
-                        class="bond-line"
-                        [attr.x1]="line.x1"
-                        [attr.y1]="line.y1"
-                        [attr.x2]="line.x2"
-                        [attr.y2]="line.y2"
-                      />
+              @if (!isBondHidden(bond)) {
+                <g
+                  class="bond-group"
+                  [class.selected]="isBondSelected(bond.id)"
+                  [style.--bond-ink]="bond.color || null"
+                  (pointerdown)="onBondPointerDown($event, bond)"
+                  (contextmenu)="openBondContextMenu($event, bond)"
+                >
+                  @switch (bondVisualKind(bond)) {
+                    @case ('up') {
+                      <polygon class="bond-wedge" [attr.points]="wedgePoints(bond)" />
+                    }
+                    @case ('down') {
+                      @for (line of hashedBondLines(bond); track $index) {
+                        <line
+                          class="bond-line"
+                          [attr.x1]="line.x1"
+                          [attr.y1]="line.y1"
+                          [attr.x2]="line.x2"
+                          [attr.y2]="line.y2"
+                        />
+                      }
+                    }
+                    @case ('any') {
+                      <path class="bond-line bond-any" [attr.d]="wavyBondPath(bond)" />
+                    }
+                    @case ('dative') {
+                      @if (bondLines(bond)[0]; as line) {
+                        <line
+                          class="bond-line bond-dative"
+                          [attr.x1]="line.x1"
+                          [attr.y1]="line.y1"
+                          [attr.x2]="line.x2"
+                          [attr.y2]="line.y2"
+                          marker-end="url(#arrow-head)"
+                        />
+                      }
+                    }
+                    @default {
+                      @for (line of bondLines(bond); track $index) {
+                        <line
+                          class="bond-line"
+                          [class.bond-aromatic]="bondVisualKind(bond) === 'aromatic'"
+                          [class.bond-delocalized]="bondVisualKind(bond) === 'delocalized'"
+                          [class.bond-hydrogen]="bondVisualKind(bond) === 'hydrogen'"
+                          [attr.x1]="line.x1"
+                          [attr.y1]="line.y1"
+                          [attr.x2]="line.x2"
+                          [attr.y2]="line.y2"
+                        />
+                      }
                     }
                   }
-                  @case ('any') {
-                    <path class="bond-line bond-any" [attr.d]="wavyBondPath(bond)" />
+                  @if (bondLines(bond)[0]; as hit) {
+                    <line
+                      class="bond-hit"
+                      [attr.x1]="hit.x1"
+                      [attr.y1]="hit.y1"
+                      [attr.x2]="hit.x2"
+                      [attr.y2]="hit.y2"
+                    />
                   }
-                  @case ('dative') {
-                    @if (bondLines(bond)[0]; as line) {
-                      <line
-                        class="bond-line bond-dative"
-                        [attr.x1]="line.x1"
-                        [attr.y1]="line.y1"
-                        [attr.x2]="line.x2"
-                        [attr.y2]="line.y2"
-                        marker-end="url(#arrow-head)"
-                      />
-                    }
+                  @if (layers.bondOrders()) {
+                    <text
+                      class="bond-order-label"
+                      [attr.x]="bondMidpoint(bond).x"
+                      [attr.y]="bondMidpoint(bond).y - 12"
+                    >
+                      {{ bond.order }}
+                    </text>
                   }
-                  @default {
-                    @for (line of bondLines(bond); track $index) {
-                      <line
-                        class="bond-line"
-                        [class.bond-aromatic]="bondVisualKind(bond) === 'aromatic'"
-                        [class.bond-delocalized]="bondVisualKind(bond) === 'delocalized'"
-                        [class.bond-hydrogen]="bondVisualKind(bond) === 'hydrogen'"
-                        [attr.x1]="line.x1"
-                        [attr.y1]="line.y1"
-                        [attr.x2]="line.x2"
-                        [attr.y2]="line.y2"
-                      />
-                    }
+                  @if (bond.stereochemistry) {
+                    <text
+                      class="bond-stereo-label"
+                      [attr.x]="bondMidpoint(bond).x"
+                      [attr.y]="bondMidpoint(bond).y + 22"
+                    >
+                      {{ bond.stereochemistry }}
+                    </text>
                   }
-                }
-                @if (bondLines(bond)[0]; as hit) {
-                  <line
-                    class="bond-hit"
-                    [attr.x1]="hit.x1"
-                    [attr.y1]="hit.y1"
-                    [attr.x2]="hit.x2"
-                    [attr.y2]="hit.y2"
-                  />
-                }
-                @if (layers.bondOrders()) {
-                  <text
-                    class="bond-order-label"
-                    [attr.x]="bondMidpoint(bond).x"
-                    [attr.y]="bondMidpoint(bond).y - 12"
-                  >
-                    {{ bond.order }}
-                  </text>
-                }
-              </g>
+                </g>
+              }
             }
             @if (bondDraft(); as draft) {
               <line
@@ -320,77 +393,84 @@
 
           <g class="atom-layer">
             @for (atom of molecule().atoms; track atom.id; let atomIndex = $index) {
-              <g
-                class="atom-node"
-                [class.selected]="isSelected(atom.id)"
-                [class.bond-origin]="bondStartId() === atom.id"
-                [class.skeletal-carbon]="layers.skeletal() && atom.element === 'C'"
-                [class.invalid]="layers.valenceWarnings() && stats().invalidAtomIds.has(atom.id)"
-                [attr.transform]="'translate(' + atom.x + ' ' + atom.y + ')'"
-                (pointerdown)="onAtomPointerDown($event, atom)"
-                (contextmenu)="openContextMenu($event, atom)"
-              >
-                <circle class="selection-ring" [attr.r]="atomRadius(atom) + 8" />
-                <circle
-                  class="atom-sphere"
-                  [attr.r]="atomRadius(atom)"
-                  [attr.fill]="atomDefinition(atom.element).color"
-                  filter="url(#atom-shadow)"
-                />
-                @if (layers.atomLabels()) {
-                  <text
-                    class="atom-label"
-                    y="6"
-                    [attr.fill]="atomDefinition(atom.element).textColor"
-                  >
-                    {{ atom.element }}
-                  </text>
-                }
-                @if (annotationLayout(atom); as annotations) {
-                  @if (annotations.charge) {
+              @if (!isAtomHidden(atom.id)) {
+                <g
+                  class="atom-node"
+                  [class.selected]="isSelected(atom.id)"
+                  [class.bond-origin]="bondStartId() === atom.id"
+                  [class.skeletal-carbon]="layers.skeletal() && atom.element === 'C'"
+                  [class.invalid]="layers.valenceWarnings() && stats().invalidAtomIds.has(atom.id)"
+                  [attr.transform]="'translate(' + atom.x + ' ' + atom.y + ')'"
+                  (pointerdown)="onAtomPointerDown($event, atom)"
+                  (contextmenu)="openContextMenu($event, atom)"
+                >
+                  <circle class="selection-ring" [attr.r]="atomRadius(atom) + 8" />
+                  <circle
+                    class="atom-sphere"
+                    [attr.r]="atomRadius(atom)"
+                    [attr.fill]="atomDefinition(atom.element).color"
+                    filter="url(#atom-shadow)"
+                  />
+                  @if (layers.atomLabels()) {
                     <text
-                      class="charge-label"
-                      [attr.x]="annotations.charge.x"
-                      [attr.y]="annotations.charge.y + 4"
+                      class="atom-label"
+                      y="6"
+                      [attr.fill]="atomDefinition(atom.element).textColor"
                     >
-                      {{ atomChargeLabel(atom) }}
+                      {{ atom.element }}
                     </text>
                   }
-                  @for (pair of annotations.lonePairs; track $index) {
-                    <g
-                      class="lone-pair"
-                      [attr.transform]="
-                        'translate(' + pair.x + ' ' + pair.y + ') rotate(' + pair.rotation + ')'
-                      "
-                    >
-                      <circle cx="-2.8" r="1.8" />
-                      <circle cx="2.8" r="1.8" />
-                    </g>
+                  @if (annotationLayout(atom); as annotations) {
+                    @if (annotations.charge) {
+                      <text
+                        class="charge-label"
+                        [attr.x]="annotations.charge.x"
+                        [attr.y]="annotations.charge.y + 4"
+                      >
+                        {{ atomChargeLabel(atom) }}
+                      </text>
+                    }
+                    @for (pair of annotations.lonePairs; track $index) {
+                      <g
+                        class="lone-pair"
+                        [attr.transform]="
+                          'translate(' + pair.x + ' ' + pair.y + ') rotate(' + pair.rotation + ')'
+                        "
+                      >
+                        <circle cx="-2.8" r="1.8" />
+                        <circle cx="2.8" r="1.8" />
+                      </g>
+                    }
+                    @for (radical of annotations.radicals; track $index) {
+                      <circle
+                        class="radical-electron"
+                        [attr.cx]="radical.x"
+                        [attr.cy]="radical.y"
+                        r="2.3"
+                      />
+                    }
+                    @if (!layers.skeletal() && layers.implicitHydrogens() && annotations.hydrogen) {
+                      <text
+                        class="implicit-hydrogen"
+                        [attr.x]="annotations.hydrogen.x"
+                        [attr.y]="annotations.hydrogen.y + 5"
+                      >
+                        {{ implicitHydrogenLabel(atom) }}
+                      </text>
+                    }
                   }
-                  @for (radical of annotations.radicals; track $index) {
-                    <circle
-                      class="radical-electron"
-                      [attr.cx]="radical.x"
-                      [attr.cy]="radical.y"
-                      r="2.3"
-                    />
-                  }
-                  @if (!layers.skeletal() && layers.implicitHydrogens() && annotations.hydrogen) {
-                    <text
-                      class="implicit-hydrogen"
-                      [attr.x]="annotations.hydrogen.x"
-                      [attr.y]="annotations.hydrogen.y + 5"
-                    >
-                      {{ implicitHydrogenLabel(atom) }}
+                  @if (layers.atomIndexes()) {
+                    <text class="atom-index" [attr.y]="atomRadius(atom) + 20">
+                      {{ atomIndex + 1 }}
                     </text>
                   }
-                }
-                @if (layers.atomIndexes()) {
-                  <text class="atom-index" [attr.y]="atomRadius(atom) + 20">
-                    {{ atomIndex + 1 }}
-                  </text>
-                }
-              </g>
+                  @if (atom.stereochemistry) {
+                    <text class="atom-stereo-label" [attr.y]="-atomRadius(atom) - 13">
+                      ({{ atom.stereochemistry }})
+                    </text>
+                  }
+                </g>
+              }
             }
           </g>
 
@@ -708,7 +788,7 @@
         <div class="rail-tool-group">
           <button
             type="button"
-            [class.active]="activeTool() === 'arrow'"
+            [class.active]="activeTool() === 'arrow' || activeTool() === 'electron-arrow'"
             title="Flechas químicas (F)"
             aria-label="Flechas químicas"
             (click)="setTool('arrow')"
@@ -740,6 +820,32 @@
             >
               <span class="arrow-sample">⇌</span
               ><span><strong>Equilibrio</strong><small>Proceso reversible</small></span>
+            </button>
+            <span class="flyout-title">Movimiento electrónico</span>
+            <button
+              type="button"
+              [class.active]="
+                activeTool() === 'electron-arrow' && activeElectronArrowKind() === 'pair'
+              "
+              (click)="setElectronArrowKind('pair')"
+            >
+              <span class="arrow-sample">↷</span
+              ><span
+                ><strong>Par de electrones</strong
+                ><small>Flecha curva de dos electrones</small></span
+              >
+            </button>
+            <button
+              type="button"
+              [class.active]="
+                activeTool() === 'electron-arrow' && activeElectronArrowKind() === 'single'
+              "
+              (click)="setElectronArrowKind('single')"
+            >
+              <span class="arrow-sample">⤷</span
+              ><span
+                ><strong>Electrón individual</strong><small>Media flecha o fishhook</small></span
+              >
             </button>
           </div>
         </div>
@@ -860,6 +966,20 @@
                   ></button>
                 }
               </div>
+              @if (bond.order === 2) {
+                <div class="stereo-choice" aria-label="Estereoquímica del doble enlace">
+                  <span>Geometría</span>
+                  @for (value of [null, 'E', 'Z']; track $index) {
+                    <button
+                      type="button"
+                      [class.active]="(bond.stereochemistry || null) === value"
+                      (click)="setBondStereo(bond.id, $any(value))"
+                    >
+                      {{ value || '—' }}
+                    </button>
+                  }
+                </div>
+              }
             </div>
             <p class="bond-inspector-note">
               Las líneas de un enlace doble o triple forman una sola entidad química. Los extremos A
@@ -985,6 +1105,22 @@
                 <app-icon name="more" />
               </button>
             </div>
+          </div>
+          <div class="stereo-choice atom-stereo-choice" aria-label="Descriptor estereoquímico">
+            <span>Estereoquímica · {{ selectionStereoValue() }}</span>
+            @for (value of [null, 'R', 'S', 'unknown']; track $index) {
+              <button
+                type="button"
+                [class.active]="
+                  value === null
+                    ? selectionStereoValue() === 'Sin asignar'
+                    : selectionStereoValue() === value
+                "
+                (click)="setAtomStereo($any(value))"
+              >
+                {{ value === null ? '—' : value === 'unknown' ? '?' : value }}
+              </button>
+            }
           </div>
           <div class="inspector-steppers">
             <div class="property-stepper">
@@ -1234,6 +1370,26 @@
                 >
               </button>
             }
+            @case ('electron-arrow') {
+              <div class="context-title">Movimiento de electrones</div>
+              <button type="button" (click)="setElectronArrowType(menu.id, 'pair')">
+                <span class="context-glyph">↷</span
+                ><span
+                  ><strong>Par electrónico</strong><small>Movimiento de dos electrones</small></span
+                >
+              </button>
+              <button type="button" (click)="setElectronArrowType(menu.id, 'single')">
+                <span class="context-glyph">⤷</span
+                ><span
+                  ><strong>Electrón individual</strong><small>Media flecha radicalaria</small></span
+                >
+              </button>
+              <button type="button" (click)="deleteElectronArrow(menu.id)">
+                <app-icon name="trash" /><span
+                  ><strong>Eliminar flecha</strong><small>Retirar del mecanismo</small></span
+                >
+              </button>
+            }
           }
         </div>
       }
@@ -1298,12 +1454,18 @@
               </button>
               <button type="button" (click)="triggerImport()">
                 <app-icon name="download" /><span
-                  ><strong>Importar</strong><small>Archivo .json</small></span
+                  ><strong>Importar</strong
+                  ><small>MOL · SDF · SMILES · InChI · CML · JSON</small></span
                 >
               </button>
               <button type="button" (click)="exportJson()">
                 <app-icon name="download" /><span
                   ><strong>Documento</strong><small>.molecular.json</small></span
+                >
+              </button>
+              <button type="button" (click)="togglePanel('history')">
+                <app-icon name="undo" /><span
+                  ><strong>Historial visual</strong><small>Miniaturas y recuperación</small></span
                 >
               </button>
             </div>
@@ -1411,6 +1573,107 @@
                 servicios externos.
               </p>
             </div>
+          </div>
+        }
+        @case ('reaction') {
+          <header class="panel-header">
+            <div>
+              <span class="eyebrow">Ecuaciones y condiciones</span>
+              <h2>Editor de reacciones</h2>
+            </div>
+            <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
+          </header>
+          <div class="panel-content reaction-editor">
+            <div class="panel-note">
+              <app-icon name="info" />
+              <p>
+                Asigna a cada componente su papel y coeficiente. Molecular enlaza reactivos y
+                productos con una flecha y conserva catalizador, disolvente, temperatura y otras
+                condiciones.
+              </p>
+            </div>
+            <div class="reaction-component-list">
+              @for (component of components(); track component.id) {
+                <section>
+                  <header>
+                    <strong>{{ component.name }}</strong>
+                    <small
+                      >{{ componentFormula(component) }} ·
+                      {{ component.atomIds.length }} átomos</small
+                    >
+                  </header>
+                  <label>
+                    <span>Papel</span>
+                    <select
+                      [value]="component.role"
+                      (change)="setComponentRole(component.id, $any($event.target).value)"
+                    >
+                      <option value="structure">Estructura libre</option>
+                      <option value="reactant">Reactivo</option>
+                      <option value="product">Producto</option>
+                      <option value="reagent">Reactivo auxiliar</option>
+                      <option value="catalyst">Catalizador</option>
+                      <option value="solvent">Disolvente</option>
+                    </select>
+                  </label>
+                  <div class="coefficient-stepper">
+                    <button type="button" (click)="changeComponentCoefficient(component.id, -1)">
+                      −
+                    </button>
+                    <span
+                      >Coeficiente <strong>{{ component.coefficient }}</strong></span
+                    >
+                    <button type="button" (click)="changeComponentCoefficient(component.id, 1)">
+                      +
+                    </button>
+                  </div>
+                </section>
+              } @empty {
+                <p class="empty-panel-message">
+                  Añade átomos o importa estructuras para crear componentes.
+                </p>
+              }
+            </div>
+            @if (activeReaction(); as reaction) {
+              <div class="reaction-fields">
+                <label
+                  ><span>Nombre</span
+                  ><input [value]="reaction.name" (change)="updateReactionField('name', $event)"
+                /></label>
+                <label
+                  ><span>Catalizador</span
+                  ><input
+                    placeholder="p. ej. Pt"
+                    [value]="reaction.catalyst"
+                    (change)="updateReactionField('catalyst', $event)"
+                /></label>
+                <label
+                  ><span>Disolvente</span
+                  ><input
+                    placeholder="p. ej. H₂O"
+                    [value]="reaction.solvent"
+                    (change)="updateReactionField('solvent', $event)"
+                /></label>
+                <label
+                  ><span>Temperatura</span
+                  ><input
+                    placeholder="p. ej. 80 °C"
+                    [value]="reaction.temperature"
+                    (change)="updateReactionField('temperature', $event)"
+                /></label>
+                <label class="wide"
+                  ><span>Condiciones</span
+                  ><input
+                    placeholder="luz, presión, tiempo…"
+                    [value]="reaction.conditions"
+                    (change)="updateReactionField('conditions', $event)"
+                /></label>
+              </div>
+            }
+            <button class="formula-submit" type="button" (click)="createReaction()">
+              <app-icon name="arrow" />
+              {{ activeReaction() ? 'Reconstruir esquema' : 'Crear esquema de reacción' }}
+            </button>
           </div>
         }
         @case ('layers') {
@@ -1530,6 +1793,92 @@
                 ></span
               ><b [class.on]="layers.valenceWarnings()"></b>
             </button>
+            <section class="component-manager">
+              <div class="section-heading">
+                <h3>Componentes independientes</h3>
+                <span>{{ components().length }}</span>
+              </div>
+              <button
+                class="group-selection-action"
+                type="button"
+                [disabled]="!selectedAtoms().length"
+                (click)="groupSelection()"
+              >
+                <app-icon name="layers" /> Agrupar selección
+              </button>
+              @for (component of components(); track component.id) {
+                <article class="component-card" [class.muted]="component.hidden">
+                  <input
+                    type="text"
+                    [value]="component.name"
+                    aria-label="Nombre del componente"
+                    (change)="renameComponent(component.id, $event)"
+                  />
+                  <small
+                    >{{ componentFormula(component) }} ·
+                    {{ component.atomIds.length }} átomos</small
+                  >
+                  <div>
+                    <button
+                      type="button"
+                      [class.active]="component.locked"
+                      [attr.aria-label]="
+                        component.locked ? 'Desbloquear componente' : 'Bloquear componente'
+                      "
+                      (click)="toggleComponent(component.id, 'locked')"
+                    >
+                      {{ component.locked ? '🔒' : '🔓' }}
+                    </button>
+                    <button
+                      type="button"
+                      [class.active]="component.hidden"
+                      [attr.aria-label]="
+                        component.hidden ? 'Mostrar componente' : 'Ocultar componente'
+                      "
+                      (click)="toggleComponent(component.id, 'hidden')"
+                    >
+                      {{ component.hidden ? '○' : '●' }}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Mover a la izquierda"
+                      (click)="moveComponent(component.id, -28, 0)"
+                    >
+                      ←
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Mover a la derecha"
+                      (click)="moveComponent(component.id, 28, 0)"
+                    >
+                      →
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Mover arriba"
+                      (click)="moveComponent(component.id, 0, -28)"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Mover abajo"
+                      (click)="moveComponent(component.id, 0, 28)"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Separar componente"
+                      title="Separar grupo"
+                      (click)="ungroupComponent(component.id)"
+                    >
+                      ⨯
+                    </button>
+                  </div>
+                </article>
+              }
+            </section>
             <div class="panel-note">
               <app-icon name="info" />
               <p>
@@ -1537,6 +1886,51 @@
                 compatible con los enlaces dibujados.
               </p>
             </div>
+          </div>
+        }
+        @case ('history') {
+          <header class="panel-header">
+            <div>
+              <span class="eyebrow">Recuperación no destructiva</span>
+              <h2>Historial visual</h2>
+            </div>
+            <button type="button" (click)="closePanels()"><app-icon name="close" /></button>
+          </header>
+          <div class="panel-content history-timeline">
+            <button class="checkpoint-action" type="button" (click)="saveHistoryCheckpoint()">
+              <app-icon name="save" /> Guardar punto actual
+            </button>
+            @for (entry of historyEntries(); track entry.id) {
+              <article>
+                <svg [attr.viewBox]="historyViewBox(entry)" aria-hidden="true">
+                  @for (bond of entry.document.bonds; track bond.id) {
+                    <line
+                      [attr.x1]="historyBondLine(entry, bond).x1"
+                      [attr.y1]="historyBondLine(entry, bond).y1"
+                      [attr.x2]="historyBondLine(entry, bond).x2"
+                      [attr.y2]="historyBondLine(entry, bond).y2"
+                    />
+                  }
+                  @for (atom of entry.document.atoms; track atom.id) {
+                    <circle [attr.cx]="atom.x" [attr.cy]="atom.y" r="12" />
+                    <text [attr.x]="atom.x" [attr.y]="atom.y + 4">{{ atom.element }}</text>
+                  }
+                </svg>
+                <div>
+                  <strong>{{ entry.label }}</strong>
+                  <small
+                    >{{ entry.timestamp.slice(11, 19) }} ·
+                    {{ entry.document.atoms.length }} átomos</small
+                  >
+                </div>
+                <button type="button" (click)="restoreHistoryEntry(entry)">Restaurar</button>
+              </article>
+            } @empty {
+              <p class="empty-panel-message">
+                El historial aparecerá con la primera edición. También puedes guardar un punto
+                manual antes de experimentar.
+              </p>
+            }
           </div>
         }
         @case ('encyclopedia') {
@@ -2010,6 +2404,41 @@
                 ><small>Conserva átomos, enlaces, posiciones y cargas</small></span
               ><app-icon name="download" />
             </button>
+            <button type="button" (click)="exportChemical('mol')">
+              <span class="file-type">MOL</span
+              ><span
+                ><strong>MDL Molfile V2000</strong
+                ><small>Coordenadas 2D, órdenes, carga y cuñas</small></span
+              ><app-icon name="download" />
+            </button>
+            <button type="button" (click)="exportChemical('sdf')">
+              <span class="file-type">SDF</span
+              ><span
+                ><strong>Structure Data File</strong
+                ><small>Registro químico intercambiable</small></span
+              ><app-icon name="download" />
+            </button>
+            <button type="button" (click)="exportChemical('smiles')">
+              <span class="file-type">SMI</span
+              ><span
+                ><strong>SMILES</strong
+                ><small>Grafo lineal con ramas, anillos y cargas</small></span
+              ><app-icon name="download" />
+            </button>
+            <button type="button" (click)="exportChemical('inchi')">
+              <span class="file-type">InChI</span
+              ><span
+                ><strong>Capa de fórmula InChI</strong
+                ><small>Salida explícitamente parcial para revisión</small></span
+              ><app-icon name="download" />
+            </button>
+            <button type="button" (click)="exportChemical('cml')">
+              <span class="file-type">CML</span
+              ><span
+                ><strong>Chemical Markup Language</strong
+                ><small>XML con átomos, enlaces y coordenadas</small></span
+              ><app-icon name="download" />
+            </button>
             <button type="button" (click)="openModel()">
               <span class="file-type">3D</span
               ><span
@@ -2043,8 +2472,8 @@
               <section>
                 <span class="eyebrow">Versión actual</span><strong>{{ version }}</strong>
                 <p>
-                  Inspector A/B de enlaces, Lewis sin solapes, SMILES ampliado, temas solares,
-                  enciclopedia de 15 capítulos y cinco representaciones WebGL.
+                  Componentes independientes, formatos químicos, limpieza 2D, estereoquímica,
+                  reacciones, flechas electrónicas e historial visual.
                 </p>
               </section>
               <section>
@@ -2059,9 +2488,9 @@
               <span class="eyebrow">Qué ofrece</span>
               <p>
                 Un lienzo continuo para dibujar átomos, enlaces independientes, grupos R, cargas,
-                pares solitarios, radicales, flechas y fragmentos; seleccionar por rectángulo o
-                lazo; limpiar la disposición; construir un borrador desde fórmula molecular o
-                SMILES; explorar la selección con profundidad 3D; y exportar el resultado.
+                pares solitarios, radicales, flechas y fragmentos; gestionar componentes; componer
+                reacciones; limpiar la disposición; construir desde fórmula o SMILES; importar y
+                exportar formatos químicos; recuperar estados visuales y explorar en 3D.
               </p>
               <p>
                 La fórmula molecular no determina por sí sola un isómero y la geometría 3D es una
@@ -2166,7 +2595,7 @@
     #importInput
     class="visually-hidden"
     type="file"
-    accept=".json,.molecular.json,application/json"
+    accept=".json,.molecular.json,.mol,.sdf,.smi,.smiles,.inchi,.cml,application/json,chemical/x-mdl-molfile,chemical/x-mdl-sdfile,chemical/x-cml,text/plain,application/xml"
     (change)="importDocument($event)"
   />
 </div>

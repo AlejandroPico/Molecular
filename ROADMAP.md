@@ -44,19 +44,22 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 - Enciclopedia didáctica de 15 capítulos con diagramas, buscador, glosario y fuentes primarias.
 - Capas flotantes corregidas para que enciclopedia e inspectores no queden bajo el pie informativo.
 
-## 0.5 — Mecanismos e interoperabilidad
+## 0.5.0 — Publicado
 
-- Flechas curvas de empuje electrónico con puntos de control editables.
-- Etiquetas, corchetes, coeficientes, condiciones de reacción y objetos de texto.
-- Importación y exportación SMILES, MOL y SDF con pruebas de ida y vuelta.
-- Editor explícito de hidrógenos, isotopía y numeración de átomos.
-- Portapapeles vectorial y contratos de intercambio iniciales con Atlas Editor.
+- Componentes independientes con nombre, agrupación, bloqueo, visibilidad, desplazamiento, papel de reacción y coeficiente.
+- Importación/exportación local MOL V2000, SDF, SMILES, CML y capa de fórmula InChI, además del formato Molecular.
+- Limpieza 2D con resortes de enlace, separación angular, repulsión, penalización de cruces y empaquetado de grafos.
+- Edición declarativa R/S y E/Z, integrada con cuñas y preservada en el documento y formatos compatibles.
+- Editor de reacciones con reactivos, productos, coeficientes, catalizador, disolvente, temperatura y condiciones.
+- Flechas curvas de par electrónico y medias flechas radicalarias.
+- Historial visual con 48 miniaturas, puntos manuales y recuperación no destructiva.
+- Pruebas de ida y vuelta de formatos, migración del documento v2 y restricciones del motor de disposición.
 
-## 0.6 — Química estructural
+## 0.6 — Química estructural avanzada
 
-- Aromaticidad formal, estereoquímica tetraédrica y dobles enlaces E/Z.
+- Asignación CIP automática y comprobada para R/S y E/Z.
 - Grupos funcionales, abreviaturas químicas y plantillas ampliables.
-- Normalización de enlaces, detección de anillos y limpieza 2D con restricciones químicas.
+- Puntos de control editables, texto libre y reacciones multietapa.
 - Conformadores reales y propiedades verificadas mediante una fuente química externa opcional.
 
 ## 0.7 — Datos locales y cálculo opcional
@@ -75,4 +78,4 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 
 ## Fuera del alcance actual
 
-Molecular 0.4 no realiza química cuántica, dinámica molecular, predicción de reacciones ni validación experimental. La geometría 3D actual es topológica y educativa; cualquier capacidad avanzada deberá indicar su método y procedencia.
+Molecular 0.5 no realiza química cuántica, dinámica molecular, predicción de reacciones ni validación experimental. La geometría 3D actual es topológica y educativa; cualquier capacidad avanzada deberá indicar su método y procedencia. R/S y E/Z son descriptores introducidos por la persona editora, no resultados de un cálculo CIP.

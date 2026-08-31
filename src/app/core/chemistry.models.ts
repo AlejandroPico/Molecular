@@ -44,6 +44,11 @@ export type BondKind =
   | 'hash';
 
 export type ArrowKind = 'forward' | 'resonance' | 'equilibrium';
+export type ComponentRole =
+  'structure' | 'reactant' | 'product' | 'reagent' | 'catalyst' | 'solvent';
+export type ElectronArrowKind = 'pair' | 'single';
+export type AtomStereo = 'R' | 'S' | 'unknown';
+export type BondStereo = 'E' | 'Z' | 'unknown';
 
 export interface Atom {
   id: string;
@@ -56,6 +61,7 @@ export interface Atom {
   implicitHydrogenOverride?: number;
   isotope?: number;
   chirality?: '@' | '@@';
+  stereochemistry?: AtomStereo;
 }
 
 export interface Bond {
@@ -65,6 +71,7 @@ export interface Bond {
   order: 1 | 2 | 3;
   kind?: BondKind;
   color?: string;
+  stereochemistry?: BondStereo;
 }
 
 export interface ReactionArrow {
@@ -76,12 +83,50 @@ export interface ReactionArrow {
   y2: number;
 }
 
+export interface ElectronArrow {
+  id: string;
+  kind: ElectronArrowKind;
+  x1: number;
+  y1: number;
+  controlX: number;
+  controlY: number;
+  x2: number;
+  y2: number;
+}
+
+export interface MolecularComponent {
+  id: string;
+  name: string;
+  atomIds: string[];
+  locked: boolean;
+  hidden: boolean;
+  role: ComponentRole;
+  coefficient: number;
+}
+
+export interface ReactionScheme {
+  id: string;
+  name: string;
+  arrowId?: string;
+  reactantComponentIds: string[];
+  productComponentIds: string[];
+  reagentComponentIds: string[];
+  catalyst: string;
+  solvent: string;
+  temperature: string;
+  conditions: string;
+}
+
 export interface MoleculeDocument {
+  schemaVersion?: 2;
   id: string;
   name: string;
   atoms: Atom[];
   bonds: Bond[];
   arrows: ReactionArrow[];
+  electronArrows?: ElectronArrow[];
+  components?: MolecularComponent[];
+  reactions?: ReactionScheme[];
   createdAt: string;
   updatedAt: string;
 }
@@ -162,19 +207,24 @@ export function createBond(
 export function createDocument(name = 'Molécula sin título'): MoleculeDocument {
   const now = new Date().toISOString();
   return {
+    schemaVersion: 2,
     id: uid('molecule'),
     name,
     atoms: [],
     bonds: [],
     arrows: [],
+    electronArrows: [],
+    components: [],
+    reactions: [],
     createdAt: now,
     updatedAt: now,
   };
 }
 
 export function cloneDocument(document: MoleculeDocument): MoleculeDocument {
-  return {
+  const cloned: MoleculeDocument = {
     ...document,
+    schemaVersion: 2,
     atoms: document.atoms.map((atom) => ({
       ...atom,
       lonePairs: atom.lonePairs ?? 0,
@@ -185,7 +235,26 @@ export function cloneDocument(document: MoleculeDocument): MoleculeDocument {
       kind: bond.kind === 'wedge' ? 'up' : bond.kind === 'hash' ? 'down' : bond.kind,
     })),
     arrows: (document.arrows ?? []).map((arrow) => ({ ...arrow })),
+    electronArrows: (document.electronArrows ?? []).map((arrow) => ({ ...arrow })),
+    components: (document.components ?? []).map((component) => ({
+      ...component,
+      atomIds: [...component.atomIds],
+      coefficient: Math.max(1, component.coefficient ?? 1),
+      role: component.role ?? 'structure',
+    })),
+    reactions: (document.reactions ?? []).map((reaction) => ({
+      ...reaction,
+      reactantComponentIds: [...(reaction.reactantComponentIds ?? [])],
+      productComponentIds: [...(reaction.productComponentIds ?? [])],
+      reagentComponentIds: [...(reaction.reagentComponentIds ?? [])],
+      catalyst: reaction.catalyst ?? '',
+      solvent: reaction.solvent ?? '',
+      temperature: reaction.temperature ?? '',
+      conditions: reaction.conditions ?? '',
+    })),
   };
+  synchronizeComponents(cloned);
+  return cloned;
 }
 
 export function createReactionArrow(
@@ -196,6 +265,123 @@ export function createReactionArrow(
   y2: number,
 ): ReactionArrow {
   return { id: uid('arrow'), kind, x1, y1, x2, y2 };
+}
+
+export function createElectronArrow(
+  kind: ElectronArrowKind,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): ElectronArrow {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const length = Math.max(1, Math.hypot(dx, dy));
+  const bend = Math.min(90, Math.max(34, length * 0.24));
+  return {
+    id: uid('electron-arrow'),
+    kind,
+    x1,
+    y1,
+    controlX: (x1 + x2) / 2 - (dy / length) * bend,
+    controlY: (y1 + y2) / 2 + (dx / length) * bend,
+    x2,
+    y2,
+  };
+}
+
+export function createMolecularComponent(
+  atomIds: string[],
+  name = 'Componente',
+): MolecularComponent {
+  return {
+    id: uid('component'),
+    name,
+    atomIds: [...new Set(atomIds)],
+    locked: false,
+    hidden: false,
+    role: 'structure',
+    coefficient: 1,
+  };
+}
+
+export function createReactionScheme(
+  components: MolecularComponent[],
+  arrowId?: string,
+): ReactionScheme {
+  return {
+    id: uid('reaction'),
+    name: 'Reacción 1',
+    arrowId,
+    reactantComponentIds: components
+      .filter((component) => component.role === 'reactant')
+      .map((component) => component.id),
+    productComponentIds: components
+      .filter((component) => component.role === 'product')
+      .map((component) => component.id),
+    reagentComponentIds: components
+      .filter((component) => component.role === 'reagent')
+      .map((component) => component.id),
+    catalyst: components
+      .filter((component) => component.role === 'catalyst')
+      .map((component) => component.name)
+      .join(', '),
+    solvent: components
+      .filter((component) => component.role === 'solvent')
+      .map((component) => component.name)
+      .join(', '),
+    temperature: '',
+    conditions: '',
+  };
+}
+
+/**
+ * Adds unassigned connected graphs as components and removes stale atom references.
+ * Existing explicit groups are preserved, even when they contain disconnected structures.
+ */
+export function synchronizeComponents(document: MoleculeDocument): void {
+  const atomIds = new Set(document.atoms.map((atom) => atom.id));
+  const components = (document.components ?? [])
+    .map((component) => ({
+      ...component,
+      atomIds: [...new Set(component.atomIds.filter((id) => atomIds.has(id)))],
+      coefficient: Math.max(1, Math.floor(component.coefficient || 1)),
+      role: component.role ?? ('structure' as ComponentRole),
+      locked: Boolean(component.locked),
+      hidden: Boolean(component.hidden),
+    }))
+    .filter((component) => component.atomIds.length > 0);
+  const assigned = new Set(components.flatMap((component) => component.atomIds));
+  const adjacency = new Map<string, string[]>();
+  for (const atom of document.atoms) adjacency.set(atom.id, []);
+  for (const bond of document.bonds) {
+    adjacency.get(bond.atomA)?.push(bond.atomB);
+    adjacency.get(bond.atomB)?.push(bond.atomA);
+  }
+  for (const atom of document.atoms) {
+    if (assigned.has(atom.id)) continue;
+    const queue = [atom.id];
+    const connected: string[] = [];
+    assigned.add(atom.id);
+    while (queue.length) {
+      const current = queue.shift()!;
+      connected.push(current);
+      for (const neighbor of adjacency.get(current) ?? []) {
+        if (assigned.has(neighbor)) continue;
+        assigned.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+    components.push(createMolecularComponent(connected, `Componente ${components.length + 1}`));
+  }
+  document.components = components;
+  const componentIds = new Set(components.map((component) => component.id));
+  document.reactions = (document.reactions ?? []).map((reaction) => ({
+    ...reaction,
+    reactantComponentIds: reaction.reactantComponentIds.filter((id) => componentIds.has(id)),
+    productComponentIds: reaction.productComponentIds.filter((id) => componentIds.has(id)),
+    reagentComponentIds: reaction.reagentComponentIds.filter((id) => componentIds.has(id)),
+  }));
 }
 
 export function bondOrderForAtom(document: MoleculeDocument, atomId: string): number {
@@ -525,5 +711,6 @@ export function documentFromPreset(preset: MoleculePreset): MoleculeDocument {
   document.bonds = preset.bonds.map((presetBond) =>
     createBond(ids.get(presetBond.a)!, ids.get(presetBond.b)!, presetBond.order),
   );
+  synchronizeComponents(document);
   return document;
 }

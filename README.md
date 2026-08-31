@@ -1,6 +1,6 @@
 # Molecular
 
-**Versión 0.4.6**
+**Versión 0.5.0**
 
 Molecular es un estudio químico visual de Alejandro Pico para construir estructuras en dos dimensiones, comprobar reglas básicas de enlace y explorarlas como modelos tridimensionales. Toma como referencia conceptual el flujo 2D → 3D de herramientas educativas como [MolView](https://molview.org/), con interfaz, arquitectura y motor propios.
 
@@ -10,7 +10,19 @@ Molecular es un estudio químico visual de Alejandro Pico para construir estruct
 
 El despliegue se actualiza automáticamente con cada publicación en `main`.
 
-## Novedades de las versiones 0.4.0–0.4.6
+## Novedades de la versión 0.5.0
+
+### Siete ampliaciones prioritarias
+
+- El documento v2 divide el lienzo en **componentes independientes**: se pueden nombrar, agrupar, bloquear, ocultar, desplazar y asignar como reactivo, producto, reactivo auxiliar, catalizador o disolvente.
+- Importación local de `.molecular.json`, **MOL V2000, SDF, SMILES, InChI y CML**; exportación en esos formatos además de SVG y PNG. SDF conserva varios registros. La ruta InChI importa y exporta de forma explícita solo la capa de fórmula, sin fingir una conectividad que el motor local no ha calculado.
+- El nuevo motor de **limpieza 2D** combina longitudes de enlace, repulsión, separación angular, penalización de cruces y empaquetado de grafos; respeta los componentes bloqueados.
+- Edición estereoquímica declarativa: cuñas delante/detrás, descriptores atómicos **R/S/?** y geometría **E/Z** de dobles enlaces, conservados en el documento y en las salidas compatibles. No se presenta como asignación CIP automática.
+- El **editor de reacciones** gestiona coeficientes, reactivos y productos, catalizador, disolvente, temperatura y condiciones; crea una flecha enlazada al esquema y muestra sus condiciones.
+- Flechas curvas para movimiento de **pares de electrones** y medias flechas para electrones individuales, editables mediante su menú contextual y exportables en SVG.
+- **Historial visual** de hasta 48 estados con miniaturas, puntos manuales y restauración no destructiva, además de Deshacer/Rehacer.
+
+## Mejoras acumuladas de las versiones 0.4.0–0.4.6
 
 ### Composición segura y paneles contextuales
 
@@ -61,7 +73,9 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 4. Abre el único grupo de selección para elegir Directa, Rectangular, Lazo o Desplazar; usa Limpiar para ordenar el esquema localmente.
 5. Abre Fórmula en la barra superior y pega una o varias entradas separadas por coma, punto y coma o línea; se añadirán como borradores editables sin sustituir el lienzo.
 6. Usa la rueda o la pinza táctil para ampliar bajo el puntero y abre el visor 3D para elegir una representación.
-7. Abre Exportar para obtener SVG, PNG, captura 3D o documento editable.
+7. Abre Reacciones para asignar papeles y condiciones; usa la paleta de flechas para mecanismos electrónicos.
+8. Abre Exportar para obtener SVG, PNG, MOL, SDF, SMILES, CML, capa de fórmula InChI o documento editable.
+9. En Archivo abre el Historial visual para guardar o restaurar puntos con miniatura.
 
 ### Atajos
 
@@ -90,7 +104,7 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 
 ## Arquitectura sin servidor
 
-GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.4.6 funciona íntegramente en el navegador para mantener edición, validación, generación, consulta, guardado y 3D inmediatos.
+GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.5.0 funciona íntegramente en el navegador para mantener edición, validación, conversión, generación, consulta, guardado y 3D inmediatos.
 
 La evolución prevista conserva dos vías:
 
@@ -130,7 +144,9 @@ Molecular/
 ├── src/app/core/
 │   ├── periodic-table.data.ts     # catálogo de 118 elementos
 │   ├── chemistry.models.ts        # documento, valencia, fórmulas y validación
+│   ├── chemical-formats.ts        # MOL/SDF/SMILES/InChI/CML
 │   ├── formula-generator.ts       # fórmula molecular y subconjunto OpenSMILES
+│   ├── layout-engine.ts           # limpieza y empaquetado 2D
 │   ├── encyclopedia.data.ts       # lector químico de 15 capítulos y fuentes
 │   └── solar-theme.ts             # amanecer, ocaso y tema ambiental
 ├── src/app/shared/                # iconografía SVG local
@@ -142,7 +158,7 @@ Molecular/
 
 ## Alcance científico
 
-La validación 0.4.6 es educativa. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Las marcas arriba/abajo y `@/@@` influyen en la profundidad inicial, pero no constituyen todavía una asignación CIP ni una conformación rigurosa.
+La validación 0.5.0 es educativa. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Los descriptores R/S y E/Z son asignaciones declaradas por la persona editora: Molecular no calcula todavía prioridades CIP ni demuestra que el descriptor elegido sea correcto.
 
 Una fórmula molecular no contiene conectividad suficiente para identificar un isómero. El generador produce en ese caso un punto de partida editable; SMILES es la entrada apropiada cuando la conectividad debe ser inequívoca. La colocación 3D es una incrustación topológica relajada, no una optimización energética.
 
@@ -150,7 +166,7 @@ Molecular no calcula resonancia electrónica, aromaticidad formal, cargas parcia
 
 ## Roadmap
 
-El plan versionado se mantiene en [ROADMAP.md](ROADMAP.md). Los siguientes hitos se centran en flechas curvas de mecanismo, formatos MOL/SDF, estereoquímica formal, conformadores reales y compatibilidad con Atlas Editor.
+El plan versionado se mantiene en [ROADMAP.md](ROADMAP.md). Los siguientes hitos se centran en edición avanzada de puntos de control, formatos completos mediante un motor químico opcional, conformadores reales, cálculos con procedencia y compatibilidad con Atlas Editor.
 
 ## Autor
 

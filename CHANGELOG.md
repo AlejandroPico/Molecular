@@ -1,5 +1,30 @@
 # Historial de versiones
 
+## 0.5.0 — 2026-08-31
+
+### Añadido
+
+- Documento Molecular v2 con componentes independientes, papeles de reacción, coeficientes, estereoquímica, mecanismos electrónicos y metadatos de reacción.
+- Gestor de componentes para nombrar, agrupar, bloquear, ocultar y desplazar estructuras sin alterar el resto del lienzo.
+- Importación y exportación MOL V2000, SDF, SMILES y CML, más compatibilidad explícitamente parcial con la capa de fórmula InChI.
+- Motor de limpieza 2D con corrección de longitudes, repulsión, separación angular, penalización de cruces y empaquetado de componentes.
+- Controles R/S/? en átomos y E/Z en dobles enlaces, además de las cuñas delante/detrás existentes.
+- Editor de reacción con reactivos, productos, coeficientes, catalizador, disolvente, temperatura y condiciones sobre la flecha.
+- Flechas curvas para pares de electrones y medias flechas para electrones individuales.
+- Historial visual de 48 estados con miniaturas, puntos manuales y restauración no destructiva.
+- Pruebas unitarias para formatos químicos, componentes, migración del documento v2 y motor de disposición.
+
+### Cambiado
+
+- El panel Archivo acepta los formatos químicos nuevos y enlaza el historial visual.
+- Exportar incorpora cinco salidas químicas, manteniendo SVG, PNG, JSON y captura 3D.
+- La exportación SVG conserva estereoquímica declarada, flechas electrónicas y condiciones de reacción.
+
+### Límites documentados
+
+- La salida InChI local contiene la capa de fórmula y no pretende sustituir la generación oficial de InChI.
+- R/S y E/Z son descriptores declarados, no una asignación automática de prioridades CIP.
+
 ## 0.4.6 — 2026-08-31
 
 ### Cambiado

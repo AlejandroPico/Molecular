@@ -15,7 +15,7 @@ describe('App', () => {
     aboutButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Acerca de Molecular');
-    expect(fixture.nativeElement.textContent).toContain('0.4.6');
+    expect(fixture.nativeElement.textContent).toContain('0.5.0');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {
@@ -44,6 +44,30 @@ describe('App', () => {
     expect(fixture.nativeElement.querySelector('.erase-flyout').textContent).toContain(
       'Vaciar lienzo',
     );
+  });
+
+  it('exposes the seven priority capabilities through compact panels and tools', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+
+    expect(root.querySelector('.arrow-flyout')?.textContent).toContain('Par de electrones');
+    expect(root.querySelector('.arrow-flyout')?.textContent).toContain('Electrón individual');
+
+    (root.querySelector('[aria-label="Capas"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Componentes independientes');
+    expect(root.querySelectorAll('.component-card').length).toBe(1);
+
+    (root.querySelector('[aria-label="Editor de reacciones"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Editor de reacciones');
+    expect(root.textContent).toContain('Coeficiente');
+
+    (root.querySelector('[aria-label="Exportar"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('MDL Molfile V2000');
+    expect(root.textContent).toContain('Chemical Markup Language');
   });
 
   it('appends several formulas without replacing the document and undoes the whole batch', () => {

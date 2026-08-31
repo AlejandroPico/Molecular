@@ -11,6 +11,9 @@ import {
   implicitHydrogensForAtom,
   validateBondChange,
   validateChargeChange,
+  createElectronArrow,
+  createMolecularComponent,
+  synchronizeComponents,
 } from './chemistry.models';
 
 describe('chemistry model', () => {
@@ -110,5 +113,26 @@ describe('chemistry model', () => {
     expect(migrated.arrows).toEqual([]);
     expect(migrated.atoms[0].lonePairs).toBe(0);
     expect(migrated.atoms[0].radicalElectrons).toBe(0);
+    expect(migrated.electronArrows).toEqual([]);
+    expect(migrated.components).toHaveLength(1);
+  });
+
+  it('preserves explicit component groups and adds unassigned graphs', () => {
+    const document = createDocument('Componentes');
+    const a = createAtom('C', 0, 0);
+    const b = createAtom('O', 100, 0);
+    const c = createAtom('N', 300, 0);
+    document.atoms = [a, b, c];
+    document.bonds = [createBond(a.id, b.id)];
+    document.components = [createMolecularComponent([a.id, b.id], 'Reactivo')];
+    synchronizeComponents(document);
+    expect(document.components).toHaveLength(2);
+    expect(document.components?.[0].name).toBe('Reactivo');
+  });
+
+  it('creates curved arrows for electron pairs and fishhooks', () => {
+    const arrow = createElectronArrow('pair', 0, 0, 100, 0);
+    expect(arrow.controlY).toBeGreaterThan(0);
+    expect(arrow.kind).toBe('pair');
   });
 });

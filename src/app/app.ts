@@ -9,14 +9,20 @@ import {
 } from '@angular/core';
 import {
   Atom,
+  AtomStereo,
   AtomSymbol,
   ArrowKind,
   Bond,
   BondKind,
+  BondStereo,
+  ComponentRole,
+  ElectronArrow,
+  ElectronArrowKind,
   ELEMENTS,
   ELEMENT_BY_SYMBOL,
   MOLECULE_PRESETS,
   MoleculeDocument,
+  MolecularComponent,
   QUICK_ELEMENTS,
   ReactionArrow,
   bondOrderForAtom,
@@ -27,23 +33,39 @@ import {
   createAtom,
   createBond,
   createDocument,
+  createElectronArrow,
+  createMolecularComponent,
   createReactionArrow,
+  createReactionScheme,
   documentFromPreset,
   implicitHydrogensForAtom,
   maxValenceForAtom,
+  synchronizeComponents,
   validateBondChange,
   validateChargeChange,
   validateElementChange,
 } from './core/chemistry.models';
+import { ChemicalFormat, exportChemicalText, importChemicalText } from './core/chemical-formats';
 import { generateStructures } from './core/formula-generator';
+import { cleanMolecularLayout } from './core/layout-engine';
 import { ENCYCLOPEDIA_CHAPTERS } from './core/encyclopedia.data';
 import { resolveSolarTheme, SolarTheme } from './core/solar-theme';
 import { IconComponent } from './shared/icon.component';
 import { ThreeDViewerComponent } from './three-d-viewer/three-d-viewer.component';
 
-type EditorTool = 'select' | 'pan' | 'atom' | 'bond' | 'fragment' | 'arrow' | 'erase';
+type EditorTool =
+  'select' | 'pan' | 'atom' | 'bond' | 'fragment' | 'arrow' | 'electron-arrow' | 'erase';
 type PanelName =
-  'file' | 'formula' | 'layers' | 'encyclopedia' | 'theme' | 'export' | 'about' | null;
+  | 'file'
+  | 'formula'
+  | 'reaction'
+  | 'layers'
+  | 'history'
+  | 'encyclopedia'
+  | 'theme'
+  | 'export'
+  | 'about'
+  | null;
 type ThemeMode = 'auto' | SolarTheme;
 type SelectionMode = 'direct' | 'rectangle' | 'lasso';
 type GridStyle = 'triangular' | 'dots';
@@ -62,7 +84,7 @@ interface SelectionBox {
 interface ContextMenuState {
   x: number;
   y: number;
-  target: 'atoms' | 'bond' | 'arrow';
+  target: 'atoms' | 'bond' | 'arrow' | 'electron-arrow';
   id?: string;
 }
 interface PinnedAtomInspector {
@@ -87,8 +109,15 @@ interface StoredDocument {
   savedAt: string;
 }
 
+interface HistoryEntry {
+  id: string;
+  label: string;
+  timestamp: string;
+  document: MoleculeDocument;
+}
+
 interface PointerState {
-  mode: 'drag' | 'pan' | 'select' | 'lasso' | 'bond' | 'arrow';
+  mode: 'drag' | 'pan' | 'select' | 'lasso' | 'bond' | 'arrow' | 'electron-arrow';
   pointerId: number;
   startClient: CanvasPoint;
   startPoint: CanvasPoint;
@@ -152,7 +181,7 @@ interface LineDraft {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  protected readonly version = '0.4.6';
+  protected readonly version = '0.5.0';
   protected readonly elements = ELEMENTS;
   protected readonly quickElements = QUICK_ELEMENTS;
   protected readonly presets = MOLECULE_PRESETS;
@@ -169,10 +198,12 @@ export class App {
   protected readonly bondKind = signal<BondKind>('single');
   protected readonly activeBondColor = signal<string | null>(null);
   protected readonly activeArrowKind = signal<ArrowKind>('forward');
+  protected readonly activeElectronArrowKind = signal<ElectronArrowKind>('pair');
   protected readonly activeFragment = signal<FragmentTemplate['id']>('benzene');
   protected readonly bondStartId = signal<string | null>(null);
   protected readonly bondDraft = signal<LineDraft | null>(null);
   protected readonly arrowDraft = signal<LineDraft | null>(null);
+  protected readonly electronArrowDraft = signal<LineDraft | null>(null);
   protected readonly lassoPoints = signal<CanvasPoint[]>([]);
   protected readonly activePanel = signal<PanelName>(null);
   protected readonly modelOpen = signal(false);
@@ -199,6 +230,7 @@ export class App {
   protected readonly canUndo = signal(false);
   protected readonly canRedo = signal(false);
   protected readonly gridStyle = signal<GridStyle>('triangular');
+  protected readonly historyEntries = signal<HistoryEntry[]>([]);
 
   protected readonly fragmentTemplates: ReadonlyArray<FragmentTemplate> = [
     { id: 'benzene', label: 'Benceno', sides: 6, aromatic: true },
@@ -254,6 +286,9 @@ export class App {
     if (!atoms.length) return null;
     return atoms.every((atom) => atom.element === atoms[0].element) ? atoms[0].element : null;
   });
+  protected readonly components = computed(() => this.molecule().components ?? []);
+  protected readonly reactions = computed(() => this.molecule().reactions ?? []);
+  protected readonly activeReaction = computed(() => this.reactions()[0] ?? null);
   protected readonly transform = computed(() => {
     const pan = this.pan();
     return 'translate(' + pan.x + ' ' + pan.y + ') scale(' + this.zoom() + ')';
@@ -369,6 +404,7 @@ export class App {
     if (tool !== 'bond') this.bondStartId.set(null);
     if (tool !== 'bond') this.bondDraft.set(null);
     if (tool !== 'arrow') this.arrowDraft.set(null);
+    if (tool !== 'electron-arrow') this.electronArrowDraft.set(null);
     if (tool !== 'select') this.lassoPoints.set([]);
     this.contextMenu.set(null);
   }
@@ -406,6 +442,13 @@ export class App {
     this.activeArrowKind.set(kind);
     this.activeTool.set('arrow');
     this.arrowDraft.set(null);
+    this.contextMenu.set(null);
+  }
+
+  protected setElectronArrowKind(kind: ElectronArrowKind): void {
+    this.activeElectronArrowKind.set(kind);
+    this.activeTool.set('electron-arrow');
+    this.electronArrowDraft.set(null);
     this.contextMenu.set(null);
   }
 
@@ -499,7 +542,10 @@ export class App {
       document.atoms = [];
       document.bonds = [];
       document.arrows = [];
-    });
+      document.electronArrows = [];
+      document.components = [];
+      document.reactions = [];
+    }, 'Vaciar lienzo');
     this.selectedAtomIds.set(new Set());
     this.pinnedAtomInspectors.set([]);
     this.notify('Lienzo vaciado');
@@ -546,21 +592,18 @@ export class App {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const parsed = JSON.parse(String(reader.result)) as MoleculeDocument;
-        if (
-          !Array.isArray(parsed.atoms) ||
-          !Array.isArray(parsed.bonds) ||
-          typeof parsed.name !== 'string'
-        )
-          throw new Error('Formato no válido');
-        const atomIds = new Set(parsed.atoms.map((atom) => atom.id));
-        if (parsed.bonds.some((bond) => !atomIds.has(bond.atomA) || !atomIds.has(bond.atomB)))
-          throw new Error('Enlaces huérfanos');
-        this.loadDocument({ ...parsed, updatedAt: new Date().toISOString() });
+        const imported = importChemicalText(String(reader.result), file.name);
+        if (imported.format === 'molecular' && imported.documents.length === 1) {
+          this.loadDocument(imported.documents[0]);
+        } else {
+          this.appendGeneratedDocuments(imported.documents);
+        }
         this.activePanel.set(null);
-        this.notify('Documento molecular importado');
-      } catch {
-        this.notify('No se ha podido importar: archivo molecular no válido');
+        this.notify(imported.notice);
+      } catch (error) {
+        this.notify(
+          error instanceof Error ? error.message : 'No se ha podido importar el archivo químico.',
+        );
       }
       input.value = '';
     };
@@ -573,6 +616,27 @@ export class App {
       this.safeFileName(this.molecule().name) + '.molecular.json',
     );
     this.notify('Documento molecular exportado');
+  }
+
+  protected exportChemical(format: ChemicalFormat): void {
+    const extensions: Record<ChemicalFormat, string> = {
+      molecular: 'molecular.json',
+      mol: 'mol',
+      sdf: 'sdf',
+      smiles: 'smi',
+      inchi: 'inchi',
+      cml: 'cml',
+    };
+    const mime = format === 'cml' ? 'application/xml' : 'text/plain;charset=utf-8';
+    this.download(
+      new Blob([exportChemicalText(this.molecule(), format)], { type: mime }),
+      `${this.safeFileName(this.molecule().name)}.${extensions[format]}`,
+    );
+    this.notify(
+      format === 'inchi'
+        ? 'InChI exportado por capa de fórmula; revisa su conectividad'
+        : `${format.toUpperCase()} exportado`,
+    );
   }
 
   protected exportSvg(): void {
@@ -670,7 +734,12 @@ export class App {
       this.selectedBondId.set(null);
       return;
     }
-    const ids = this.selectedAtomIds();
+    const lockedIds = new Set(
+      this.components()
+        .filter((component) => component.locked)
+        .flatMap((component) => component.atomIds),
+    );
+    const ids = new Set([...this.selectedAtomIds()].filter((id) => !lockedIds.has(id)));
     if (!ids.size) return;
     this.mutate((document) => {
       const affected = document.bonds
@@ -727,8 +796,11 @@ export class App {
   }
 
   protected applyElementToSelection(symbol: AtomSymbol): boolean {
-    const ids = this.selectedAtomIds();
-    if (!ids.size) return false;
+    const ids = this.editableSelectionIds();
+    if (!ids.size) {
+      this.notify('La selección está bloqueada');
+      return false;
+    }
     const invalid = this.molecule()
       .atoms.filter((atom) => ids.has(atom.id))
       .map((atom) => validateElementChange(this.molecule(), atom, symbol))
@@ -750,6 +822,10 @@ export class App {
   }
 
   protected changeAtomElement(atomId: string, symbol: AtomSymbol): boolean {
+    if (this.isAtomLocked(atomId)) {
+      this.notify('Este componente está bloqueado');
+      return false;
+    }
     const atom = this.molecule().atoms.find((candidate) => candidate.id === atomId);
     if (!atom) return false;
     const validation = validateElementChange(this.molecule(), atom, symbol);
@@ -766,7 +842,7 @@ export class App {
   }
 
   protected changeCharge(delta: number): void {
-    const ids = this.selectedAtomIds();
+    const ids = this.editableSelectionIds();
     if (!ids.size) {
       this.notify('Selecciona al menos un átomo para cambiar su carga');
       return;
@@ -793,7 +869,7 @@ export class App {
   }
 
   protected changeLonePairs(delta: number): void {
-    const ids = this.selectedAtomIds();
+    const ids = this.editableSelectionIds();
     if (!ids.size) {
       this.notify('Selecciona al menos un átomo para editar sus pares solitarios');
       return;
@@ -807,7 +883,7 @@ export class App {
   }
 
   protected changeRadicals(delta: number): void {
-    const ids = this.selectedAtomIds();
+    const ids = this.editableSelectionIds();
     if (!ids.size) {
       this.notify('Selecciona al menos un átomo para editar electrones desapareados');
       return;
@@ -822,6 +898,10 @@ export class App {
   }
 
   protected changeAtomCharge(atomId: string, delta: number): void {
+    if (this.isAtomLocked(atomId)) {
+      this.notify('Este componente está bloqueado');
+      return;
+    }
     const atom = this.molecule().atoms.find((candidate) => candidate.id === atomId);
     if (!atom) return;
     const charge = Math.max(-4, Math.min(4, atom.charge + delta));
@@ -842,6 +922,7 @@ export class App {
   }
 
   protected changeAtomLonePairs(atomId: string, delta: number): void {
+    if (this.isAtomLocked(atomId)) return;
     this.mutate((document) => {
       const atom = document.atoms.find((candidate) => candidate.id === atomId);
       if (atom) atom.lonePairs = Math.max(0, Math.min(4, atom.lonePairs + delta));
@@ -849,6 +930,7 @@ export class App {
   }
 
   protected changeAtomRadicals(atomId: string, delta: number): void {
+    if (this.isAtomLocked(atomId)) return;
     this.mutate((document) => {
       const atom = document.atoms.find((candidate) => candidate.id === atomId);
       if (atom) atom.radicalElectrons = Math.max(0, Math.min(2, atom.radicalElectrons + delta));
@@ -877,6 +959,19 @@ export class App {
     return String(value);
   }
 
+  private editableSelectionIds(): Set<string> {
+    return new Set([...this.selectedAtomIds()].filter((id) => !this.isAtomLocked(id)));
+  }
+
+  protected selectionStereoValue(): string {
+    const atoms = this.selectedAtoms();
+    if (!atoms.length) return 'Sin asignar';
+    const value = atoms[0].stereochemistry ?? 'Sin asignar';
+    return atoms.every((atom) => (atom.stereochemistry ?? 'Sin asignar') === value)
+      ? value
+      : 'Mixto';
+  }
+
   protected changeZoom(delta: number): void {
     this.zoom.update((value) => Math.max(0.35, Math.min(3.2, Number((value + delta).toFixed(2)))));
   }
@@ -888,46 +983,206 @@ export class App {
 
   protected cleanLayout(): void {
     if (this.molecule().atoms.length < 2) return;
+    const before = cloneDocument(this.molecule());
+    const locked = new Set(
+      this.components()
+        .filter((component) => component.locked)
+        .flatMap((component) => component.atomIds),
+    );
+    const next = cleanMolecularLayout(before, locked);
+    next.updatedAt = new Date().toISOString();
+    this.molecule.set(next);
+    this.recordHistory(before, 'Limpieza 2D inteligente');
+    this.persistAutosave();
+    this.frameCurrentDocument();
+    this.notify('Estructura ordenada: menos cruces, solapes y ángulos deficientes');
+  }
+
+  protected groupSelection(): void {
+    const ids = [...this.selectedAtomIds()];
+    if (!ids.length) {
+      this.notify('Selecciona al menos un átomo para crear un componente');
+      return;
+    }
     this.mutate((document) => {
-      const positions = new Map(document.atoms.map((atom) => [atom.id, { x: atom.x, y: atom.y }]));
-      const targetLength = 112;
-      for (let iteration = 0; iteration < 90; iteration += 1) {
-        for (const bond of document.bonds) {
-          const a = positions.get(bond.atomA);
-          const b = positions.get(bond.atomB);
-          if (!a || !b) continue;
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          const distance = Math.max(1, Math.hypot(dx, dy));
-          const correction = ((distance - targetLength) / distance) * 0.13;
-          a.x += dx * correction * 0.5;
-          a.y += dy * correction * 0.5;
-          b.x -= dx * correction * 0.5;
-          b.y -= dy * correction * 0.5;
-        }
-        for (let first = 0; first < document.atoms.length; first += 1) {
-          for (let second = first + 1; second < document.atoms.length; second += 1) {
-            const a = positions.get(document.atoms[first].id)!;
-            const b = positions.get(document.atoms[second].id)!;
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
-            const distance = Math.max(1, Math.hypot(dx, dy));
-            if (distance > 86) continue;
-            const force = ((86 - distance) / distance) * 0.06;
-            a.x -= dx * force;
-            a.y -= dy * force;
-            b.x += dx * force;
-            b.y += dy * force;
-          }
-        }
+      document.components = (document.components ?? [])
+        .map((component) => ({
+          ...component,
+          atomIds: component.atomIds.filter((id) => !ids.includes(id)),
+        }))
+        .filter((component) => component.atomIds.length);
+      document.components.push(
+        createMolecularComponent(ids, `Componente ${document.components.length + 1}`),
+      );
+    }, 'Agrupar componente');
+    this.activePanel.set('layers');
+    this.notify('Selección agrupada como componente independiente');
+  }
+
+  protected renameComponent(componentId: string, event: Event): void {
+    const name = (event.target as HTMLInputElement).value.trim();
+    if (!name) return;
+    this.mutate((document) => {
+      const component = document.components?.find((item) => item.id === componentId);
+      if (component) component.name = name;
+    }, 'Renombrar componente');
+  }
+
+  protected toggleComponent(componentId: string, property: 'locked' | 'hidden'): void {
+    this.mutate(
+      (document) => {
+        const component = document.components?.find((item) => item.id === componentId);
+        if (component) component[property] = !component[property];
+      },
+      property === 'locked' ? 'Bloquear componente' : 'Ocultar componente',
+    );
+  }
+
+  protected ungroupComponent(componentId: string): void {
+    this.mutate((document) => {
+      document.components =
+        document.components?.filter((component) => component.id !== componentId) ?? [];
+    }, 'Separar componente');
+    this.notify('Componente separado; cada grafo vuelve a ser independiente');
+  }
+
+  protected setComponentRole(componentId: string, role: ComponentRole): void {
+    this.mutate((document) => {
+      const component = document.components?.find((item) => item.id === componentId);
+      if (component) component.role = role;
+      const reaction = document.reactions?.[0];
+      if (reaction && document.components) {
+        reaction.reactantComponentIds = document.components
+          .filter((item) => item.role === 'reactant')
+          .map((item) => item.id);
+        reaction.productComponentIds = document.components
+          .filter((item) => item.role === 'product')
+          .map((item) => item.id);
+        reaction.reagentComponentIds = document.components
+          .filter((item) => item.role === 'reagent')
+          .map((item) => item.id);
       }
+    }, 'Asignar papel de reacción');
+  }
+
+  protected changeComponentCoefficient(componentId: string, delta: number): void {
+    this.mutate((document) => {
+      const component = document.components?.find((item) => item.id === componentId);
+      if (component)
+        component.coefficient = Math.max(1, Math.min(99, component.coefficient + delta));
+    }, 'Ajustar coeficiente');
+  }
+
+  protected moveComponent(componentId: string, dx: number, dy: number): void {
+    const component = this.components().find((item) => item.id === componentId);
+    if (!component || component.locked) return;
+    const ids = new Set(component.atomIds);
+    this.mutate((document) => {
       document.atoms.forEach((atom) => {
-        const position = positions.get(atom.id)!;
-        atom.x = position.x;
-        atom.y = position.y;
+        if (ids.has(atom.id)) {
+          atom.x += dx;
+          atom.y += dy;
+        }
       });
-    });
-    this.notify('Estructura ordenada localmente');
+    }, 'Mover componente');
+  }
+
+  protected createReaction(): void {
+    const components = this.components();
+    const reactants = components.filter((component) => component.role === 'reactant');
+    const products = components.filter((component) => component.role === 'product');
+    if (!reactants.length || !products.length) {
+      this.notify('Asigna al menos un reactivo y un producto');
+      return;
+    }
+    this.mutate((document) => {
+      const reactantAtoms = new Set(reactants.flatMap((component) => component.atomIds));
+      const productAtoms = new Set(products.flatMap((component) => component.atomIds));
+      const reactantX = Math.max(
+        ...document.atoms.filter((atom) => reactantAtoms.has(atom.id)).map((atom) => atom.x),
+      );
+      const productX = Math.min(
+        ...document.atoms.filter((atom) => productAtoms.has(atom.id)).map((atom) => atom.x),
+      );
+      const allY = document.atoms
+        .filter((atom) => reactantAtoms.has(atom.id) || productAtoms.has(atom.id))
+        .map((atom) => atom.y);
+      const y = allY.reduce((sum, value) => sum + value, 0) / Math.max(1, allY.length);
+      const arrow = createReactionArrow('forward', reactantX + 70, y, productX - 70, y);
+      document.arrows.push(arrow);
+      document.reactions = [createReactionScheme(document.components ?? [], arrow.id)];
+    }, 'Crear esquema de reacción');
+    this.notify('Esquema de reacción creado y enlazado a sus componentes');
+  }
+
+  protected updateReactionField(
+    field: 'name' | 'catalyst' | 'solvent' | 'temperature' | 'conditions',
+    event: Event,
+  ): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.mutate((document) => {
+      const reaction = document.reactions?.[0];
+      if (reaction) reaction[field] = value;
+    }, 'Editar condiciones de reacción');
+  }
+
+  protected reactionConditions(arrowId: string): string {
+    const reaction = this.reactions().find((item) => item.arrowId === arrowId);
+    if (!reaction) return '';
+    return [reaction.catalyst, reaction.solvent, reaction.temperature, reaction.conditions]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  protected setAtomStereo(value: AtomStereo | null): void {
+    const ids = this.editableSelectionIds();
+    if (!ids.size) return;
+    this.mutate((document) => {
+      document.atoms.forEach((atom) => {
+        if (ids.has(atom.id)) atom.stereochemistry = value ?? undefined;
+      });
+    }, 'Asignar estereoquímica atómica');
+  }
+
+  protected setBondStereo(bondId: string, value: BondStereo | null): void {
+    const source = this.molecule().bonds.find((bond) => bond.id === bondId);
+    if (source && this.isBondLocked(source)) {
+      this.notify('Este componente está bloqueado');
+      return;
+    }
+    this.mutate((document) => {
+      const bond = document.bonds.find((item) => item.id === bondId);
+      if (bond) bond.stereochemistry = value ?? undefined;
+    }, 'Asignar geometría E/Z');
+  }
+
+  protected isAtomHidden(atomId: string): boolean {
+    return this.components().some(
+      (component) => component.hidden && component.atomIds.includes(atomId),
+    );
+  }
+
+  protected isAtomLocked(atomId: string): boolean {
+    return this.components().some(
+      (component) => component.locked && component.atomIds.includes(atomId),
+    );
+  }
+
+  protected isBondHidden(bond: Bond): boolean {
+    return this.isAtomHidden(bond.atomA) || this.isAtomHidden(bond.atomB);
+  }
+
+  protected isBondLocked(bond: Bond): boolean {
+    return this.isAtomLocked(bond.atomA) || this.isAtomLocked(bond.atomB);
+  }
+
+  protected componentFormula(component: MolecularComponent): string {
+    const ids = new Set(component.atomIds);
+    return calculateStats({
+      ...this.molecule(),
+      atoms: this.molecule().atoms.filter((atom) => ids.has(atom.id)),
+      bonds: this.molecule().bonds.filter((bond) => ids.has(bond.atomA) && ids.has(bond.atomB)),
+    }).formula;
   }
 
   protected setTheme(mode: ThemeMode): void {
@@ -1324,6 +1579,11 @@ export class App {
       this.arrowDraft.set({ start: point, end: point });
       return;
     }
+    if (this.activeTool() === 'electron-arrow') {
+      this.beginPointer(event, 'electron-arrow', point);
+      this.electronArrowDraft.set({ start: point, end: point });
+      return;
+    }
     if (this.activeTool() === 'fragment') {
       this.insertFragment(this.activeFragment(), point);
       return;
@@ -1356,6 +1616,10 @@ export class App {
     this.contextMenu.set(null);
     if (this.registerTouchPointer(event)) return;
     if (event.button !== 0) return;
+    if (this.isAtomLocked(atom.id) && this.activeTool() !== 'select') {
+      this.notify('Este componente está bloqueado');
+      return;
+    }
     this.selectedBondId.set(null);
     if (this.activeTool() === 'erase') {
       this.deleteAtom(atom.id);
@@ -1381,6 +1645,12 @@ export class App {
       this.handleBondTarget(atom.id);
       return;
     }
+    if (this.activeTool() === 'electron-arrow') {
+      const point = this.toMoleculePoint(event);
+      this.beginPointer(event, 'electron-arrow', point);
+      this.electronArrowDraft.set({ start: point, end: point });
+      return;
+    }
     if (this.activeTool() === 'pan' || this.spacePressed) {
       this.beginPointer(event, 'pan', this.toMoleculePoint(event));
       return;
@@ -1390,6 +1660,10 @@ export class App {
     if (event.shiftKey) selected.has(atom.id) ? selected.delete(atom.id) : selected.add(atom.id);
     else if (!selected.has(atom.id)) selected = new Set([atom.id]);
     this.selectedAtomIds.set(selected);
+    if (this.isAtomLocked(atom.id)) {
+      this.notify('Componente seleccionado, pero bloqueado para movimiento');
+      return;
+    }
     this.beginPointer(event, 'drag', this.toMoleculePoint(event));
   }
 
@@ -1397,6 +1671,10 @@ export class App {
     event.stopPropagation();
     if (this.registerTouchPointer(event)) return;
     if (event.button !== 0) return;
+    if (this.isBondLocked(bond) && this.activeTool() !== 'select') {
+      this.notify('Este componente está bloqueado');
+      return;
+    }
     if (this.activeTool() === 'erase') {
       this.mutate((document) => {
         document.bonds = document.bonds.filter((candidate) => candidate.id !== bond.id);
@@ -1438,6 +1716,27 @@ export class App {
       return;
     }
     if (this.activeTool() === 'arrow') this.applyArrowKind(arrow.id, this.activeArrowKind());
+  }
+
+  protected onElectronArrowPointerDown(event: PointerEvent, arrow: ElectronArrow): void {
+    event.stopPropagation();
+    if (event.button !== 0) return;
+    if (this.activeTool() === 'erase') this.deleteElectronArrow(arrow.id);
+  }
+
+  protected electronArrowPath(arrow: ElectronArrow): string {
+    return `M ${arrow.x1} ${arrow.y1} Q ${arrow.controlX} ${arrow.controlY} ${arrow.x2} ${arrow.y2}`;
+  }
+
+  protected draftElectronArrowPath(draft: LineDraft): string {
+    const temporary = createElectronArrow(
+      this.activeElectronArrowKind(),
+      draft.start.x,
+      draft.start.y,
+      draft.end.x,
+      draft.end.y,
+    );
+    return this.electronArrowPath(temporary);
   }
 
   protected onCanvasPointerMove(event: PointerEvent): void {
@@ -1484,6 +1783,11 @@ export class App {
     if (state.mode === 'arrow') {
       const draft = this.arrowDraft();
       if (draft) this.arrowDraft.set({ ...draft, end: this.snapLineEnd(draft.start, point) });
+      return;
+    }
+    if (state.mode === 'electron-arrow') {
+      const draft = this.electronArrowDraft();
+      if (draft) this.electronArrowDraft.set({ ...draft, end: point });
       return;
     }
     if (state.mode === 'drag') {
@@ -1587,6 +1891,29 @@ export class App {
       }
       this.arrowDraft.set(null);
     }
+    if (state.mode === 'electron-arrow') {
+      const draft = this.electronArrowDraft();
+      if (draft && Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y) >= 32) {
+        this.mutate((document) => {
+          document.electronArrows ??= [];
+          document.electronArrows.push(
+            createElectronArrow(
+              this.activeElectronArrowKind(),
+              draft.start.x,
+              draft.start.y,
+              draft.end.x,
+              draft.end.y,
+            ),
+          );
+        }, 'Añadir flecha electrónica');
+        this.notify(
+          this.activeElectronArrowKind() === 'pair'
+            ? 'Flecha curva de par electrónico insertada'
+            : 'Flecha curva de electrón individual insertada',
+        );
+      }
+      this.electronArrowDraft.set(null);
+    }
     if (state.mode === 'drag' && state.moved) {
       this.recordHistory(state.original);
       this.persistAutosave();
@@ -1652,10 +1979,25 @@ export class App {
     });
   }
 
+  protected openElectronArrowContextMenu(event: MouseEvent, arrow: ElectronArrow): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.contextMenu.set({
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 286)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 220)),
+      target: 'electron-arrow',
+      id: arrow.id,
+    });
+  }
+
   protected applyBondKind(bondId: string | undefined, kind: BondKind): void {
     if (!bondId) return;
     const bond = this.molecule().bonds.find((candidate) => candidate.id === bondId);
     if (!bond) return;
+    if (this.isBondLocked(bond)) {
+      this.notify('Este componente está bloqueado');
+      return;
+    }
     const order = bondKindOrder(kind);
     const validation = validateBondChange(this.molecule(), bond.atomA, bond.atomB, order, kind);
     if (!validation.valid) {
@@ -1674,6 +2016,11 @@ export class App {
 
   protected deleteBond(bondId: string | undefined): void {
     if (!bondId) return;
+    const source = this.molecule().bonds.find((bond) => bond.id === bondId);
+    if (source && this.isBondLocked(source)) {
+      this.notify('Este componente está bloqueado');
+      return;
+    }
     this.mutate((document) => {
       const bond = document.bonds.find((candidate) => candidate.id === bondId);
       if (bond) this.clearHydrogenOverrides(document, [bond.atomA, bond.atomB]);
@@ -1700,6 +2047,24 @@ export class App {
     });
     this.contextMenu.set(null);
     this.notify('Flecha eliminada');
+  }
+
+  protected setElectronArrowType(arrowId: string | undefined, kind: ElectronArrowKind): void {
+    if (!arrowId) return;
+    this.mutate((document) => {
+      const arrow = document.electronArrows?.find((item) => item.id === arrowId);
+      if (arrow) arrow.kind = kind;
+    }, 'Cambiar flecha electrónica');
+    this.contextMenu.set(null);
+  }
+
+  protected deleteElectronArrow(arrowId: string | undefined): void {
+    if (!arrowId) return;
+    this.mutate((document) => {
+      document.electronArrows =
+        document.electronArrows?.filter((item) => item.id !== arrowId) ?? [];
+    }, 'Eliminar flecha electrónica');
+    this.contextMenu.set(null);
   }
 
   protected undo(): void {
@@ -1895,13 +2260,17 @@ export class App {
     document.documentElement.dataset['theme'] = resolved;
   }
 
-  private mutate(mutator: (document: MoleculeDocument) => void): void {
+  private mutate(
+    mutator: (document: MoleculeDocument) => void,
+    label = 'Edición del lienzo',
+  ): void {
     const before = cloneDocument(this.molecule());
     const next = cloneDocument(before);
     mutator(next);
+    synchronizeComponents(next);
     next.updatedAt = new Date().toISOString();
     this.molecule.set(next);
-    this.recordHistory(before);
+    this.recordHistory(before, label);
     this.persistAutosave();
   }
 
@@ -1941,6 +2310,7 @@ export class App {
           copy.implicitHydrogenOverride = atom.implicitHydrogenOverride;
           copy.isotope = atom.isotope;
           copy.chirality = atom.chirality;
+          copy.stereochemistry = atom.stereochemistry;
           idMap.set(atom.id, copy.id);
           newAtomIds.add(copy.id);
           return copy;
@@ -1954,6 +2324,9 @@ export class App {
             bond.color,
           ),
         );
+        bonds.forEach((bond, index) => {
+          bond.stereochemistry = source.bonds[index].stereochemistry;
+        });
         const arrows = source.arrows.map((arrow) =>
           createReactionArrow(
             arrow.kind,
@@ -1990,10 +2363,12 @@ export class App {
     const xValues = [
       ...document.atoms.map((atom) => atom.x),
       ...document.arrows.flatMap((arrow) => [arrow.x1, arrow.x2]),
+      ...(document.electronArrows ?? []).flatMap((arrow) => [arrow.x1, arrow.controlX, arrow.x2]),
     ];
     const yValues = [
       ...document.atoms.map((atom) => atom.y),
       ...document.arrows.flatMap((arrow) => [arrow.y1, arrow.y2]),
+      ...(document.electronArrows ?? []).flatMap((arrow) => [arrow.y1, arrow.controlY, arrow.y2]),
     ];
     if (!xValues.length || !yValues.length) return null;
     return {
@@ -2032,6 +2407,7 @@ export class App {
     this.bondStartId.set(null);
     this.bondDraft.set(null);
     this.arrowDraft.set(null);
+    this.electronArrowDraft.set(null);
     this.lassoPoints.set([]);
     this.modelOpen.set(false);
     this.undoStack = [];
@@ -2041,11 +2417,60 @@ export class App {
     this.persistAutosave();
   }
 
-  private recordHistory(previous: MoleculeDocument): void {
+  private recordHistory(previous: MoleculeDocument, label = 'Edición del lienzo'): void {
     this.undoStack.push(cloneDocument(previous));
     if (this.undoStack.length > 80) this.undoStack.shift();
     this.redoStack = [];
+    this.historyEntries.update((entries) =>
+      [
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          label,
+          timestamp: new Date().toISOString(),
+          document: cloneDocument(previous),
+        },
+        ...entries,
+      ].slice(0, 48),
+    );
     this.updateHistoryFlags();
+  }
+
+  protected saveHistoryCheckpoint(): void {
+    this.historyEntries.update((entries) =>
+      [
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          label: 'Punto guardado manualmente',
+          timestamp: new Date().toISOString(),
+          document: cloneDocument(this.molecule()),
+        },
+        ...entries,
+      ].slice(0, 48),
+    );
+    this.notify('Punto de recuperación guardado');
+  }
+
+  protected restoreHistoryEntry(entry: HistoryEntry): void {
+    const before = cloneDocument(this.molecule());
+    this.molecule.set(cloneDocument(entry.document));
+    this.recordHistory(before, `Antes de restaurar: ${entry.label}`);
+    this.persistAutosave();
+    this.activePanel.set(null);
+    this.frameCurrentDocument();
+    this.notify('Estado histórico restaurado');
+  }
+
+  protected historyViewBox(entry: HistoryEntry): string {
+    const bounds = this.documentBounds(entry.document);
+    if (!bounds) return '0 0 1400 800';
+    const margin = 36;
+    return `${bounds.minX - margin} ${bounds.minY - margin} ${Math.max(100, bounds.maxX - bounds.minX + margin * 2)} ${Math.max(80, bounds.maxY - bounds.minY + margin * 2)}`;
+  }
+
+  protected historyBondLine(entry: HistoryEntry, bond: Bond): BondLine {
+    const atomA = entry.document.atoms.find((atom) => atom.id === bond.atomA);
+    const atomB = entry.document.atoms.find((atom) => atom.id === bond.atomB);
+    return { x1: atomA?.x ?? 0, y1: atomA?.y ?? 0, x2: atomB?.x ?? 0, y2: atomB?.y ?? 0 };
   }
 
   private updateHistoryFlags(): void {
@@ -2077,7 +2502,7 @@ export class App {
       original,
       atomPositions: new Map(
         original.atoms
-          .filter((atom) => selected.has(atom.id))
+          .filter((atom) => selected.has(atom.id) && !this.isAtomLocked(atom.id))
           .map((atom) => [atom.id, { x: atom.x, y: atom.y }]),
       ),
       additive,
@@ -2325,10 +2750,12 @@ export class App {
     const allX = [
       ...molecule.atoms.map((atom) => atom.x),
       ...molecule.arrows.flatMap((arrow) => [arrow.x1, arrow.x2]),
+      ...(molecule.electronArrows ?? []).flatMap((arrow) => [arrow.x1, arrow.controlX, arrow.x2]),
     ];
     const allY = [
       ...molecule.atoms.map((atom) => atom.y),
       ...molecule.arrows.flatMap((arrow) => [arrow.y1, arrow.y2]),
+      ...(molecule.electronArrows ?? []).flatMap((arrow) => [arrow.y1, arrow.controlY, arrow.y2]),
     ];
     const minX = allX.length ? Math.min(...allX) - margin : 0;
     const minY = allY.length ? Math.min(...allY) - margin : 0;
@@ -2336,9 +2763,19 @@ export class App {
     const maxY = allY.length ? Math.max(...allY) + margin : this.viewHeight;
     const width = Math.max(280, maxX - minX);
     const height = Math.max(220, maxY - minY);
-    const bondMarkup = molecule.bonds.map((bond) => this.createBondSvgMarkup(bond)).join('');
+    const bondMarkup = molecule.bonds
+      .filter((bond) => !this.isBondHidden(bond))
+      .map((bond) => this.createBondSvgMarkup(bond))
+      .join('');
     const arrowMarkup = molecule.arrows.map((arrow) => this.createArrowSvgMarkup(arrow)).join('');
+    const electronArrowMarkup = (molecule.electronArrows ?? [])
+      .map(
+        (arrow) =>
+          `<path d="${this.electronArrowPath(arrow)}" marker-end="url(#${arrow.kind === 'pair' ? 'export-electron-arrow' : 'export-fishhook'})"/>`,
+      )
+      .join('');
     const atomMarkup = molecule.atoms
+      .filter((atom) => !this.isAtomHidden(atom.id))
       .map((atom) => {
         const definition = ELEMENT_BY_SYMBOL.get(atom.element)!;
         const radius = this.atomRadius(atom);
@@ -2387,6 +2824,9 @@ export class App {
             : '') +
           `<g fill="#6d3cc4">${lonePairs}</g>` +
           `<g fill="#c43f5a">${radicals}</g>` +
+          (atom.stereochemistry
+            ? `<text x="${atom.x}" y="${atom.y - radius - 12}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700" fill="#2567d8">(${atom.stereochemistry})</text>`
+            : '') +
           '</g>'
         );
       })
@@ -2404,7 +2844,7 @@ export class App {
       width +
       ' ' +
       height +
-      '"><defs><marker id="export-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#263142"/></marker><marker id="export-arrow-start" markerWidth="9" markerHeight="9" refX="1" refY="4.5" orient="auto-start-reverse"><path d="M9,0 L0,4.5 L9,9 Z" fill="#263142"/></marker></defs><rect x="' +
+      '"><defs><marker id="export-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#263142"/></marker><marker id="export-arrow-start" markerWidth="9" markerHeight="9" refX="1" refY="4.5" orient="auto-start-reverse"><path d="M9,0 L0,4.5 L9,9 Z" fill="#263142"/></marker><marker id="export-electron-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#6d3cc4"/></marker><marker id="export-fishhook" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L1,4" fill="none" stroke="#6d3cc4" stroke-width="1.5"/></marker></defs><rect x="' +
       minX +
       '" y="' +
       minY +
@@ -2418,6 +2858,9 @@ export class App {
       '<g fill="none" stroke="#263142" stroke-width="3" stroke-linecap="round">' +
       arrowMarkup +
       '</g>' +
+      '<g fill="none" stroke="#6d3cc4" stroke-width="2.5" stroke-linecap="round">' +
+      electronArrowMarkup +
+      '</g>' +
       atomMarkup +
       '</svg>'
     );
@@ -2426,23 +2869,31 @@ export class App {
   private createBondSvgMarkup(bond: Bond): string {
     const kind = this.bondVisualKind(bond);
     const color = bond.color ?? '#58677b';
+    const midpoint = this.bondMidpoint(bond);
+    const stereo = bond.stereochemistry
+      ? `<text x="${midpoint.x}" y="${midpoint.y + 22}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="11" font-weight="700" fill="#2567d8" stroke="none">${bond.stereochemistry}</text>`
+      : '';
     if (kind === 'up')
-      return `<polygon points="${this.wedgePoints(bond)}" fill="${color}" stroke="none"/>`;
+      return `<polygon points="${this.wedgePoints(bond)}" fill="${color}" stroke="none"/>${stereo}`;
     if (kind === 'down') {
-      return this.hashedBondLines(bond)
-        .map(
-          (line) =>
-            `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" stroke="${color}"/>`,
-        )
-        .join('');
+      return (
+        this.hashedBondLines(bond)
+          .map(
+            (line) =>
+              `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" stroke="${color}"/>`,
+          )
+          .join('') + stereo
+      );
     }
     if (kind === 'any')
-      return `<path d="${this.wavyBondPath(bond)}" fill="none" stroke="${color}"/>`;
+      return `<path d="${this.wavyBondPath(bond)}" fill="none" stroke="${color}"/>${stereo}`;
     if (kind === 'dative') {
       const line = this.bondLines(bond)[0];
-      return line
-        ? `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" stroke="${color}" marker-end="url(#export-arrow)"/>`
-        : '';
+      return (
+        (line
+          ? `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" stroke="${color}" marker-end="url(#export-arrow)"/>`
+          : '') + stereo
+      );
     }
     const dash =
       kind === 'aromatic'
@@ -2452,21 +2903,32 @@ export class App {
           : kind === 'hydrogen'
             ? ' stroke-dasharray="2 8" stroke-width="2.5"'
             : '';
-    return this.bondLines(bond)
-      .map(
-        (line) =>
-          `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" stroke="${color}"${dash}/>`,
-      )
-      .join('');
+    return (
+      this.bondLines(bond)
+        .map(
+          (line) =>
+            `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" stroke="${color}"${dash}/>`,
+        )
+        .join('') + stereo
+    );
   }
 
   private createArrowSvgMarkup(arrow: ReactionArrow): string {
-    return this.arrowLines(arrow)
+    const lines = this.arrowLines(arrow)
       .map((line) => {
         const start = arrow.kind === 'resonance' ? ' marker-start="url(#export-arrow-start)"' : '';
         return `<line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" marker-end="url(#export-arrow)"${start}/>`;
       })
       .join('');
+    const conditions = this.reactionConditions(arrow.id);
+    const label = conditions
+      ? `<text x="${(arrow.x1 + arrow.x2) / 2}" y="${(arrow.y1 + arrow.y2) / 2 - 16}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700" fill="#263142" stroke="none">${this.escapeMarkup(conditions)}</text>`
+      : '';
+    return lines + label;
+  }
+
+  private escapeMarkup(value: string): string {
+    return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   private download(blob: Blob, fileName: string): void {

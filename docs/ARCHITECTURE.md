@@ -1,6 +1,6 @@
 # Arquitectura de Molecular
 
-## Decisión de la versión 0.4.6
+## Decisión de la versión 0.5.0
 
 Molecular se publica en GitHub Pages. Ese alojamiento sirve archivos estáticos y no ejecuta procesos Python, Java, Go ni un servidor SQLite. Por ello, el primer núcleo se ejecuta íntegramente en el navegador:
 
@@ -19,7 +19,9 @@ src/app/
 ├── core/
 │   ├── periodic-table.data.ts    # 118 elementos, posiciones y capacidades
 │   ├── chemistry.models.ts       # documentos, enlaces, valencias y fórmulas
+│   ├── chemical-formats.ts       # importación/exportación química local
 │   ├── formula-generator.ts      # fórmula molecular y subconjunto OpenSMILES
+│   ├── layout-engine.ts          # limpieza y empaquetado 2D
 │   ├── encyclopedia.data.ts      # capítulos, secciones y fuentes
 │   └── solar-theme.ts            # ventana solar y tema automático
 ├── shared/
@@ -41,9 +43,13 @@ El formato `.molecular.json` es deliberadamente sencillo y versionable. Conserva
 - átomos con elemento, posición 2D, carga y anotaciones de Lewis;
 - enlaces con sus extremos, orden, clase química o visual y color opcional;
 - flechas con tipo, origen y destino;
+- flechas electrónicas cuadráticas para pares o electrones individuales;
+- componentes con nombre, átomos, bloqueo, visibilidad, papel y coeficiente;
+- reacciones con relación a componentes, flecha, catalizador, disolvente, temperatura y condiciones;
+- descriptores estereoquímicos declarados en átomos y enlaces;
 - fechas de creación y modificación.
 
-Es la primera frontera de interoperabilidad con Atlas Editor. Los conversores a MOL/SDF/SMILES se añadirán sobre este modelo sin acoplarlos a la interfaz.
+Es la primera frontera de interoperabilidad con Atlas Editor. `chemical-formats.ts` convierte sin acoplarse a la interfaz entre este grafo y MOL V2000, SDF, SMILES y CML. La compatibilidad InChI local se limita expresamente a su capa de fórmula: la generación completa exige el InChI oficial o un servicio químico especializado.
 
 ## Motor educativo de capacidad
 
@@ -51,13 +57,23 @@ Los enlaces covalentes tienen orden 1, 2 o 3; aromáticos y deslocalizados contr
 
 Los elementos representativos emplean valencias covalentes habituales. Los metales de transición, lantánidos y actínidos utilizan límites de coordinación simplificados: sirven para impedir estructuras arbitrarias, pero no modelan estados de oxidación, ligandos, geometrías de coordinación ni electrones de forma rigurosa.
 
-Los estilos arriba, abajo, deslocalizado, puente de hidrógeno, dativo, aromático e indeterminado se conservan en el documento y en la salida SVG. La visualización 3D utiliza arriba/abajo como indicio de profundidad, pero todavía no deriva estereoquímica formal de esas marcas.
+Los estilos arriba, abajo, deslocalizado, puente de hidrógeno, dativo, aromático e indeterminado se conservan en el documento y en la salida SVG. La visualización 3D utiliza arriba/abajo como indicio de profundidad. R/S y E/Z se conservan como descriptores declarados, pero todavía no se calculan mediante reglas CIP.
 
 ## Interacción geométrica
 
 El lienzo utiliza un `viewBox` fijo de 1400 × 800 con `preserveAspectRatio="xMidYMid meet"`. Las coordenadas del puntero se convierten mediante la matriz real del SVG; de este modo abrir un panel no deforma círculos ni distancias. El zoom recalcula la traslación para conservar bajo el cursor o el centro de la pinza el mismo punto molecular.
 
 La retícula es una capa HTML independiente y absoluta que ocupa el escenario completo. Sus variables CSS de escala y origen se actualizan con la cámara 2D; puede dibujarse como malla triangular o como puntos sin introducir márgenes por la relación de aspecto del SVG.
+
+El motor `layout-engine.ts` trabaja sobre una copia del documento. Aplica fuerzas de longitud de enlace, repulsión entre átomos, separación angular en centros con varios vecinos y una penalización geométrica para cruces de segmentos. Finalmente distribuye los grafos desconectados en filas. Los átomos de componentes bloqueados se excluyen de todos los desplazamientos.
+
+## Componentes, reacciones e historial
+
+Los componentes son agrupaciones explícitas de identificadores atómicos. La sincronización elimina referencias obsoletas y crea automáticamente un componente para cada grafo nuevo que todavía no pertenezca a otro; no divide los grupos creados deliberadamente por la persona editora. Ocultar afecta al render 2D, mientras que bloquear impide edición y movimiento.
+
+Una reacción referencia componentes por papel, no duplica átomos. Sus condiciones se vinculan a una flecha de reacción mediante `arrowId`, por lo que el esquema sigue siendo editable. Las flechas electrónicas son objetos distintos de las flechas de reacción y usan curvas de Bézier cuadráticas.
+
+Deshacer/Rehacer conserva pilas de documentos completos. El historial visual mantiene en memoria hasta 48 copias con etiqueta y fecha; una restauración registra primero el estado vigente, evitando que recuperar una miniatura destruya el trabajo actual.
 
 ## Generación y geometría
 
@@ -86,4 +102,4 @@ El modo de cálculo no será obligatorio para dibujar, guardar o visualizar. As�
 
 ## Límites científicos actuales
 
-La 0.4.6 aplica reglas de valencia y coordinación simplificadas y genera una geometría 3D didáctica a partir de la topología. No realiza minimización de energía, asignación CIP R/S, aromaticidad formal, orbitales ni dinámica molecular. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.
+La 0.5.0 aplica reglas de valencia y coordinación simplificadas y genera una geometría 3D didáctica a partir de la topología. No realiza minimización de energía, asignación CIP automática, aromaticidad formal, orbitales ni dinámica molecular. Los formatos se orientan al intercambio educativo local; para identificadores canónicos, V3000, percepción química exhaustiva o investigación se necesita un motor especializado. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.
