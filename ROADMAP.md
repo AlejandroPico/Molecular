@@ -78,16 +78,27 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 - Parche de composición para que las pestañas Enciclopedia/Tutorial conserven una fila propia y permanezcan pulsables en cualquier anchura.
 - Diseño adaptable de biblioteca, tutorial e identificación para escritorio, móvil y orientación horizontal.
 
-## 0.8 — Química estructural avanzada
+## 0.8.0 — Publicado
+
+- Árbol jerárquico filtrable de componentes, átomos, enlaces y flechas, con localización, visibilidad, bloqueo y orden.
+- Portapapeles molecular versionado para copiar selecciones o documentos y añadirlos entre pestañas sin destruir contenido.
+- Exportación por documento, selección o componente con fondo, proporción, escala, margen, retícula y capas editoriales configurables.
+- Plantillas de estructura limpia, artículo, presentación, atlas y publicación cuadrada.
+- SQLite-WASM persistente mediante `JsStorageDb`, migración de la biblioteca anterior y respaldo `localStorage`.
+- PWA instalable y utilizable sin conexión tras la primera carga, con manifiesto y caché versionada por Angular.
+- Laboratorio amplio con navegación lateral en escritorio, navegación táctil móvil y panel Identificar sin superposiciones.
+- Batería de 67 pruebas, compilación de producción y verificación de los artefactos SQLite/PWA.
+
+## 0.9 — Química estructural avanzada
 
 - Asignación CIP automática y comprobada para R/S y E/Z.
 - Grupos funcionales, abreviaturas químicas y plantillas ampliables.
 - Puntos de control editables, texto libre y reacciones multietapa.
 - Conformadores reales y propiedades verificadas mediante una fuente química externa opcional.
 
-## 0.9 — Datos locales y cálculo opcional
+## 1.0 — Datos amplios y cálculo opcional
 
-- SQLite-WASM con OPFS/IndexedDB para catálogos, proyectos y búsqueda local.
+- Migración opcional de SQLite-WASM a OPFS para catálogos grandes cuando el entorno de despliegue admita las cabeceras de aislamiento necesarias.
 - Servicio opcional FastAPI con RDKit u Open Babel para conversión y optimización geométrica.
 - Búsqueda estructural y por subestructura, manteniendo el editor básico utilizable sin servidor.
 - Cálculos con procedencia, unidades y límites científicos visibles.
@@ -101,4 +112,4 @@ Este documento separa lo publicado de lo previsto. Las fechas no son compromisos
 
 ## Fuera del alcance actual
 
-Molecular 0.6 no realiza química cuántica, dinámica molecular, predicción de reacciones ni validación experimental. Los grupos, propiedades y aromaticidad se obtienen con reglas locales; la geometría 3D y sus conformaciones son topológicas y educativas. R/S y E/Z son descriptores introducidos por la persona editora, no resultados de un cálculo CIP.
+Molecular 0.8 no realiza química cuántica, dinámica molecular, predicción de reacciones ni validación experimental. Los grupos, propiedades y aromaticidad se obtienen con reglas locales; la geometría 3D y sus conformaciones son topológicas y educativas. R/S y E/Z son descriptores introducidos por la persona editora, no resultados de un cálculo CIP.

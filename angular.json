@@ -28,12 +28,18 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "sqlite3.wasm",
+                "input": "node_modules/@sqlite.org/sqlite-wasm/dist",
+                "output": "."
               }
             ],
             "styles": ["src/styles.scss"]
           },
           "configurations": {
             "production": {
+              "serviceWorker": "ngsw-config.json",
               "budgets": [
                 {
                   "type": "initial",
@@ -42,8 +48,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "85kB",
-                  "maximumError": "100kB"
+                  "maximumWarning": "90kB",
+                  "maximumError": "110kB"
                 }
               ],
               "outputHashing": "all"

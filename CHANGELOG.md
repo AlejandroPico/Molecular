@@ -1,5 +1,36 @@
 # Historial de versiones
 
+## 0.8.0 — 2026-09-01
+
+### Añadido
+
+- Árbol de objetos avanzado con búsqueda, jerarquía de componentes/átomos/enlaces/flechas, selección localizada y controles de visibilidad, bloqueo y orden.
+- Portapapeles Molecular versionado para copiar una selección o un documento completo y pegarlo de forma no destructiva entre documentos y pestañas.
+- Exportador configurable por ámbito, proporción, fondo, margen, resolución, hidrógenos, anotaciones, retícula, título, fórmula, metadatos y marca.
+- Cinco plantillas de publicación: estructura limpia, artículo científico, presentación, ficha de atlas y composición cuadrada.
+- SQLite 3.53 compilado a WebAssembly y persistido mediante `JsStorageDb`, con migración desde la biblioteca local y respaldo compatible.
+- PWA instalable con manifiesto, service worker de Angular, caché del shell, recursos químicos y `sqlite3.wasm`.
+- Pruebas unitarias para portapapeles, árbol y plantillas, más regresión de la composición del Laboratorio; total de 67 pruebas.
+
+### Cambiado
+
+- Laboratorio científico ampliado a un espacio de trabajo con navegación vertical en escritorio y horizontal desplazable en móvil.
+- Identificar sustituye su gran aviso introductorio por un resumen operativo de ámbito, fórmula, átomos y referencias.
+- Capas integra el anterior gestor de componentes dentro de un árbol navegable.
+- Exportar pasa de una lista fija a un estudio de publicación configurable, manteniendo todos los formatos químicos.
+- Archivo incorpora intercambio entre documentos, estado de la base SQL y disponibilidad de instalación.
+- SVG y PNG respetan el ámbito y la composición seleccionados; PNG admite salida de 1× a 4×.
+
+### Corregido
+
+- La cabecera de Identificar deja de compartir implícitamente una fila con las pestañas, por lo que ya no las tapa ni impide pulsarlas.
+- Las pestañas del Laboratorio permanecen fuera del área desplazable de resultados en escritorio y móvil.
+
+### Límites documentados
+
+- El VFS persistente utiliza almacenamiento local del navegador. OPFS concurrente se pospone porque GitHub Pages no permite configurar las cabeceras COOP/COEP que requiere esa modalidad.
+- La PWA conserva recursos y documentos locales, pero no convierte los análisis educativos en cálculos químicos experimentales.
+
 ## 0.7.2 — 2026-08-31
 
 ### Corregido

@@ -1,0 +1,20 @@
+{
+  "name": "Molecular · Estudio químico visual",
+  "short_name": "Molecular",
+  "description": "Editor molecular 2D/3D, laboratorio científico y publicación química local.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f8fbff",
+  "theme_color": "#172033",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -72,6 +72,19 @@ import {
 } from './core/structure-identifier';
 import { TUTORIAL_LESSONS, TutorialLesson } from './core/tutorial.data';
 import { resolveSolarTheme, SolarTheme } from './core/solar-theme';
+import {
+  createClipboardPayload,
+  parseClipboardPayload,
+  serializeClipboardPayload,
+} from './core/document-clipboard';
+import { MolecularDatabase, INITIAL_DATABASE_STATUS } from './core/local-database';
+import { buildObjectTree, ObjectTreeNode } from './core/object-tree';
+import {
+  applyPublicationTemplate,
+  DEFAULT_EXPORT_SETTINGS,
+  ExportSettings,
+  PUBLICATION_TEMPLATES,
+} from './core/publication.data';
 import { IconComponent } from './shared/icon.component';
 import { ThreeDViewerComponent } from './three-d-viewer/three-d-viewer.component';
 
@@ -199,6 +212,11 @@ interface LineDraft {
   end: CanvasPoint;
 }
 
+interface InstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 @Component({
   selector: 'app-root',
   imports: [IconComponent, ThreeDViewerComponent],
@@ -207,7 +225,7 @@ interface LineDraft {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  protected readonly version = '0.7.2';
+  protected readonly version = '0.8.0';
   protected readonly elements = ELEMENTS;
   protected readonly quickElements = QUICK_ELEMENTS;
   protected readonly presets = MOLECULE_PRESETS;
@@ -271,6 +289,14 @@ export class App {
   protected readonly validationSettings = signal<ValidationSettings>(
     this.initialValidationSettings(),
   );
+  protected readonly objectTreeQuery = signal('');
+  protected readonly collapsedTreeNodes = signal<Set<string>>(new Set());
+  protected readonly publicationTemplates = PUBLICATION_TEMPLATES;
+  protected readonly activePublicationTemplate = signal<string>('structure');
+  protected readonly exportSettings = signal<ExportSettings>({ ...DEFAULT_EXPORT_SETTINGS });
+  protected readonly databaseStatus = signal(INITIAL_DATABASE_STATUS);
+  protected readonly installAvailable = signal(false);
+  protected readonly online = signal(typeof navigator === 'undefined' ? true : navigator.onLine);
 
   protected readonly fragmentTemplates: ReadonlyArray<FragmentTemplate> = [
     { id: 'benzene', label: 'Benceno', sides: 6, aromatic: true },
@@ -327,6 +353,9 @@ export class App {
     return atoms.every((atom) => atom.element === atoms[0].element) ? atoms[0].element : null;
   });
   protected readonly components = computed(() => this.molecule().components ?? []);
+  protected readonly objectTree = computed(() =>
+    buildObjectTree(this.molecule(), this.objectTreeQuery()),
+  );
   protected readonly reactions = computed(() => this.molecule().reactions ?? []);
   protected readonly activeReaction = computed(() => this.reactions()[0] ?? null);
   protected readonly functionalGroups = computed(() => analyzeFunctionalGroups(this.molecule()));
@@ -450,6 +479,8 @@ export class App {
   private readonly themeLocationKey = 'molecular.theme.location.v1';
   private readonly validationKey = 'molecular.validation.v1';
   private readonly tutorialProgressKey = 'molecular.tutorial.v1';
+  private readonly clipboardKey = 'molecular.clipboard.v1';
+  private readonly database = new MolecularDatabase();
   private undoStack: MoleculeDocument[] = [];
   private redoStack: MoleculeDocument[] = [];
   private pointerState: PointerState | null = null;
@@ -459,9 +490,13 @@ export class App {
   private toastTimer = 0;
   private pinnedInspectorDrag: PinnedInspectorDrag | null = null;
   private pinnedInspectorZ = 130;
+  private installPrompt: InstallPromptEvent | null = null;
 
   constructor() {
     this.applyTheme(this.themeMode());
+    if (typeof navigator !== 'undefined' && !navigator.userAgent.toLowerCase().includes('jsdom')) {
+      void this.initializeDatabase();
+    }
   }
 
   protected positionToolFlyout(event: Event): void {
@@ -691,6 +726,7 @@ export class App {
     ].slice(0, 24);
     this.savedDocuments.set(library);
     localStorage.setItem(this.libraryKey, JSON.stringify(library));
+    this.databaseStatus.set(this.database.saveDocument(source, 'library', stored.savedAt));
     this.notify('Molécula guardada en este dispositivo');
   }
 
@@ -705,6 +741,49 @@ export class App {
     const library = this.savedDocuments().filter((item) => item.id !== id);
     this.savedDocuments.set(library);
     localStorage.setItem(this.libraryKey, JSON.stringify(library));
+    this.databaseStatus.set(this.database.deleteDocument(id, 'library'));
+  }
+
+  protected async copyMolecularContent(selectionOnly = true): Promise<void> {
+    const ids = selectionOnly ? this.selectedAtomIds() : new Set<string>();
+    if (selectionOnly && !ids.size) {
+      this.notify('Selecciona uno o más átomos antes de copiar');
+      return;
+    }
+    const serialized = serializeClipboardPayload(createClipboardPayload(this.molecule(), ids));
+    try {
+      localStorage.setItem(this.clipboardKey, serialized);
+      await navigator.clipboard?.writeText(serialized);
+      this.notify(selectionOnly ? 'Selección copiada' : 'Documento copiado');
+    } catch {
+      this.notify('Copia interna preparada; podrás pegarla en otro documento Molecular');
+    }
+  }
+
+  protected async pasteMolecularContent(): Promise<void> {
+    let systemClipboard = '';
+    try {
+      systemClipboard = (await navigator.clipboard?.readText()) ?? '';
+    } catch {
+      /* browsers can deny system clipboard reads; use the local exchange buffer */
+    }
+    const localClipboard = localStorage.getItem(this.clipboardKey) ?? '';
+    const candidates = [...new Set([systemClipboard, localClipboard].filter(Boolean))];
+    if (!candidates.length) {
+      this.notify('No hay una estructura Molecular en el portapapeles');
+      return;
+    }
+    for (const candidate of candidates) {
+      try {
+        const payload = parseClipboardPayload(candidate);
+        this.appendGeneratedDocuments([payload.document]);
+        this.notify(`Copia de «${payload.sourceName}» añadida sin sustituir el lienzo`);
+        return;
+      } catch {
+        /* try the local exchange buffer when the system clipboard contains unrelated text */
+      }
+    }
+    this.notify('El portapapeles no contiene una estructura Molecular válida');
   }
 
   protected triggerImport(): void {
@@ -737,14 +816,16 @@ export class App {
   }
 
   protected exportJson(): void {
+    const molecule = this.exportDocument();
     this.download(
-      new Blob([JSON.stringify(this.molecule(), null, 2)], { type: 'application/json' }),
-      this.safeFileName(this.molecule().name) + '.molecular.json',
+      new Blob([JSON.stringify(molecule, null, 2)], { type: 'application/json' }),
+      this.safeFileName(molecule.name) + '.molecular.json',
     );
     this.notify('Documento molecular exportado');
   }
 
   protected exportChemical(format: ChemicalFormat): void {
+    const molecule = this.exportDocument();
     const extensions: Record<ChemicalFormat, string> = {
       molecular: 'molecular.json',
       mol: 'mol',
@@ -755,8 +836,8 @@ export class App {
     };
     const mime = format === 'cml' ? 'application/xml' : 'text/plain;charset=utf-8';
     this.download(
-      new Blob([exportChemicalText(this.molecule(), format)], { type: mime }),
-      `${this.safeFileName(this.molecule().name)}.${extensions[format]}`,
+      new Blob([exportChemicalText(molecule, format)], { type: mime }),
+      `${this.safeFileName(molecule.name)}.${extensions[format]}`,
     );
     this.notify(
       format === 'inchi'
@@ -766,31 +847,62 @@ export class App {
   }
 
   protected exportSvg(): void {
+    const molecule = this.exportDocument();
     this.download(
-      new Blob([this.createSvgMarkup()], { type: 'image/svg+xml;charset=utf-8' }),
-      this.safeFileName(this.molecule().name) + '.svg',
+      new Blob([this.createSvgMarkup(molecule)], { type: 'image/svg+xml;charset=utf-8' }),
+      this.safeFileName(molecule.name) + '.svg',
     );
     this.notify('Fórmula estructural exportada como SVG');
   }
 
   protected exportPng(): void {
-    const blob = new Blob([this.createSvgMarkup()], { type: 'image/svg+xml;charset=utf-8' });
+    const molecule = this.exportDocument();
+    const blob = new Blob([this.createSvgMarkup(molecule)], {
+      type: 'image/svg+xml;charset=utf-8',
+    });
     const url = URL.createObjectURL(blob);
     const image = new Image();
     image.onload = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = image.width * 2;
-      canvas.height = image.height * 2;
+      const scale = this.exportSettings().scale;
+      canvas.width = image.width * scale;
+      canvas.height = image.height * scale;
       const context = canvas.getContext('2d');
-      context?.scale(2, 2);
+      context?.scale(scale, scale);
       context?.drawImage(image, 0, 0);
       canvas.toBlob((png) => {
-        if (png) this.download(png, this.safeFileName(this.molecule().name) + '.png');
+        if (png) this.download(png, this.safeFileName(molecule.name) + '.png');
       }, 'image/png');
       URL.revokeObjectURL(url);
     };
     image.src = url;
     this.notify('Preparando imagen PNG');
+  }
+
+  protected setExportSetting<K extends keyof ExportSettings>(
+    key: K,
+    value: ExportSettings[K],
+  ): void {
+    this.exportSettings.update((settings) => ({ ...settings, [key]: value }));
+    this.activePublicationTemplate.set('custom');
+  }
+
+  protected setExportNumber(key: 'padding' | 'scale', event: Event): void {
+    const raw = Number((event.target as HTMLInputElement).value);
+    if (key === 'padding') this.setExportSetting('padding', Math.max(24, Math.min(240, raw)));
+    else this.setExportSetting('scale', Math.max(1, Math.min(4, raw)) as 1 | 2 | 3 | 4);
+  }
+
+  protected setExportText(key: 'watermark' | 'customBackground', event: Event): void {
+    this.setExportSetting(key, (event.target as HTMLInputElement).value);
+  }
+
+  protected applyPublicationTemplateById(id: string): void {
+    const template = this.publicationTemplates.find((candidate) => candidate.id === id);
+    if (!template) return;
+    this.exportSettings.set(applyPublicationTemplate(this.exportSettings(), template));
+    this.activePublicationTemplate.set(id);
+    this.notify(`Plantilla «${template.name}» aplicada`);
   }
 
   protected generateFromFormula(): void {
@@ -1209,6 +1321,41 @@ export class App {
         }
       });
     }, 'Mover componente');
+  }
+
+  protected toggleTreeNode(id: string): void {
+    this.collapsedTreeNodes.update((current) => {
+      const next = new Set(current);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  protected componentById(id: string): MolecularComponent | undefined {
+    return this.components().find((component) => component.id === id);
+  }
+
+  protected selectObjectTreeNode(node: ObjectTreeNode): void {
+    if (node.kind === 'bond') {
+      this.selectedAtomIds.set(new Set());
+      this.selectedBondId.set(node.id);
+      this.frameSelection(new Set(node.atomIds));
+    } else if (node.atomIds.length) {
+      this.selectedBondId.set(null);
+      this.selectedAtomIds.set(new Set(node.atomIds));
+      this.frameSelection(new Set(node.atomIds));
+    }
+    this.notify(`${node.label} localizado en el lienzo`);
+  }
+
+  protected reorderComponent(componentId: string, direction: -1 | 1): void {
+    this.mutate((document) => {
+      const components = document.components ?? [];
+      const index = components.findIndex((component) => component.id === componentId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= components.length) return;
+      [components[index], components[target]] = [components[target], components[index]];
+    }, 'Reordenar componente');
   }
 
   protected createReaction(): void {
@@ -2435,6 +2582,35 @@ export class App {
     );
   }
 
+  @HostListener('window:beforeinstallprompt', ['$event'])
+  protected onInstallPrompt(event: Event): void {
+    event.preventDefault();
+    this.installPrompt = event as InstallPromptEvent;
+    this.installAvailable.set(true);
+  }
+
+  @HostListener('window:online')
+  protected onOnline(): void {
+    this.online.set(true);
+  }
+
+  @HostListener('window:offline')
+  protected onOffline(): void {
+    this.online.set(false);
+  }
+
+  protected async installApplication(): Promise<void> {
+    if (!this.installPrompt) {
+      this.notify('La aplicación ya está instalada o el navegador no ofrece instalación directa');
+      return;
+    }
+    await this.installPrompt.prompt();
+    const choice = await this.installPrompt.userChoice;
+    if (choice.outcome === 'accepted') this.notify('Instalación de Molecular iniciada');
+    this.installPrompt = null;
+    this.installAvailable.set(false);
+  }
+
   @HostListener('window:keydown', ['$event'])
   protected onKeyDown(event: KeyboardEvent): void {
     const target = event.target as HTMLElement;
@@ -2457,6 +2633,16 @@ export class App {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
       event.preventDefault();
       this.redo();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+      event.preventDefault();
+      void this.copyMolecularContent(this.selectedAtomIds().size > 0);
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
+      event.preventDefault();
+      void this.pasteMolecularContent();
       return;
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
@@ -2627,6 +2813,37 @@ export class App {
     }
   }
 
+  private async initializeDatabase(): Promise<void> {
+    this.databaseStatus.set({ ...INITIAL_DATABASE_STATUS, state: 'loading' });
+    const status = await this.database.initialize();
+    this.databaseStatus.set(status);
+    if (status.state !== 'ready') return;
+
+    const localDocuments = this.savedDocuments();
+    localDocuments.forEach((stored) =>
+      this.database.saveDocument(stored.document, 'library', stored.savedAt),
+    );
+    this.database.saveDocument(this.molecule(), 'autosave');
+
+    const databaseDocuments = this.database.listDocuments('library');
+    if (databaseDocuments.length) {
+      const merged = [
+        ...databaseDocuments.map((stored) => ({
+          id: stored.id,
+          name: stored.name,
+          savedAt: stored.savedAt,
+          document: stored.document,
+        })),
+        ...localDocuments,
+      ].filter(
+        (stored, index, all) => all.findIndex((candidate) => candidate.id === stored.id) === index,
+      );
+      this.savedDocuments.set(merged.slice(0, 24));
+      localStorage.setItem(this.libraryKey, JSON.stringify(this.savedDocuments()));
+    }
+    this.databaseStatus.set(this.database.status);
+  }
+
   private applyTheme(mode: ThemeMode): void {
     if (typeof document === 'undefined') return;
     let coordinates: { latitude: number; longitude: number } | null = null;
@@ -2716,9 +2933,34 @@ export class App {
             arrow.y2 + offsetY,
           ),
         );
+        const electronArrows = (source.electronArrows ?? []).map((arrow) => ({
+          ...createElectronArrow(
+            arrow.kind,
+            arrow.x1 + offsetX,
+            arrow.y1 + offsetY,
+            arrow.x2 + offsetX,
+            arrow.y2 + offsetY,
+          ),
+          controlX: arrow.controlX + offsetX,
+          controlY: arrow.controlY + offsetY,
+        }));
+        const components = (source.components ?? []).map((component) => ({
+          ...createMolecularComponent(
+            component.atomIds.flatMap((id) => (idMap.has(id) ? [idMap.get(id)!] : [])),
+            component.name,
+          ),
+          locked: component.locked,
+          hidden: component.hidden,
+          role: component.role,
+          coefficient: component.coefficient,
+        }));
         document.atoms.push(...atoms);
         document.bonds.push(...bonds);
         document.arrows.push(...arrows);
+        document.electronArrows ??= [];
+        document.components ??= [];
+        document.electronArrows.push(...electronArrows);
+        document.components.push(...components);
         const translatedMaxX = bounds.maxX + offsetX;
         const translatedMaxY = bounds.maxY + offsetY;
         cursorX = translatedMaxX + 150;
@@ -2883,6 +3125,9 @@ export class App {
       localStorage.setItem(this.autosaveKey, JSON.stringify(this.molecule()));
     } catch {
       /* ignore */
+    }
+    if (this.databaseStatus().state === 'ready') {
+      this.databaseStatus.set(this.database.saveDocument(this.molecule(), 'autosave'));
     }
   }
 
@@ -3144,9 +3389,42 @@ export class App {
     if (!this.selectedBond()) this.selectedBondId.set(null);
   }
 
-  private createSvgMarkup(): string {
-    const molecule = this.molecule();
-    const margin = 90;
+  private exportDocument(): MoleculeDocument {
+    const source = cloneDocument(this.molecule());
+    const settings = this.exportSettings();
+    if (settings.scope === 'document') return source;
+
+    let atomIds = new Set(this.selectedAtomIds());
+    if (settings.scope === 'component') {
+      const selectedId = [...atomIds][0];
+      const component =
+        source.components?.find((candidate) => candidate.atomIds.includes(selectedId)) ??
+        source.components?.[0];
+      atomIds = new Set(component?.atomIds ?? []);
+    }
+    if (!atomIds.size) return source;
+
+    source.name += settings.scope === 'component' ? ' · componente' : ' · selección';
+    source.atoms = source.atoms.filter((atom) => atomIds.has(atom.id));
+    source.bonds = source.bonds.filter(
+      (bond) => atomIds.has(bond.atomA) && atomIds.has(bond.atomB),
+    );
+    source.components = (source.components ?? [])
+      .map((component) => ({
+        ...component,
+        atomIds: component.atomIds.filter((id) => atomIds.has(id)),
+      }))
+      .filter((component) => component.atomIds.length > 0);
+    source.arrows = [];
+    source.electronArrows = [];
+    source.reactions = [];
+    synchronizeComponents(source);
+    return source;
+  }
+
+  private createSvgMarkup(molecule = this.exportDocument()): string {
+    const settings = this.exportSettings();
+    const margin = settings.padding;
     const allX = [
       ...molecule.atoms.map((atom) => atom.x),
       ...molecule.arrows.flatMap((arrow) => [arrow.x1, arrow.x2]),
@@ -3157,12 +3435,31 @@ export class App {
       ...molecule.arrows.flatMap((arrow) => [arrow.y1, arrow.y2]),
       ...(molecule.electronArrows ?? []).flatMap((arrow) => [arrow.y1, arrow.controlY, arrow.y2]),
     ];
-    const minX = allX.length ? Math.min(...allX) - margin : 0;
-    const minY = allY.length ? Math.min(...allY) - margin : 0;
-    const maxX = allX.length ? Math.max(...allX) + margin : this.viewWidth;
-    const maxY = allY.length ? Math.max(...allY) + margin : this.viewHeight;
-    const width = Math.max(280, maxX - minX);
-    const height = Math.max(220, maxY - minY);
+    let minX = allX.length ? Math.min(...allX) - margin : 0;
+    let minY = allY.length ? Math.min(...allY) - margin : 0;
+    let maxX = allX.length ? Math.max(...allX) + margin : this.viewWidth;
+    let maxY = allY.length ? Math.max(...allY) + margin : this.viewHeight;
+    let width = Math.max(280, maxX - minX);
+    let height = Math.max(220, maxY - minY);
+    const aspectRatios: Partial<Record<ExportSettings['aspectRatio'], number>> = {
+      square: 1,
+      '4:3': 4 / 3,
+      '16:9': 16 / 9,
+    };
+    const targetRatio = aspectRatios[settings.aspectRatio];
+    if (targetRatio) {
+      if (width / height < targetRatio) {
+        const expansion = height * targetRatio - width;
+        minX -= expansion / 2;
+        maxX += expansion / 2;
+      } else {
+        const expansion = width / targetRatio - height;
+        minY -= expansion / 2;
+        maxY += expansion / 2;
+      }
+      width = maxX - minX;
+      height = maxY - minY;
+    }
     const bondMarkup = molecule.bonds
       .filter((bond) => !this.isBondHidden(bond))
       .map((bond) => this.createBondSvgMarkup(bond))
@@ -3181,19 +3478,24 @@ export class App {
         const radius = this.atomRadius(atom);
         const charge = this.atomChargeLabel(atom);
         const annotations = this.annotationLayout(atom);
-        const lonePairs = annotations.lonePairs
-          .map((pair) => {
-            const angle = (((pair.rotation ?? 0) - 90) * Math.PI) / 180;
-            const tangentX = Math.cos(angle) * 2.7;
-            const tangentY = Math.sin(angle) * 2.7;
-            return `<circle cx="${atom.x + pair.x - tangentX}" cy="${atom.y + pair.y - tangentY}" r="1.7"/><circle cx="${atom.x + pair.x + tangentX}" cy="${atom.y + pair.y + tangentY}" r="1.7"/>`;
-          })
-          .join('');
-        const radicals = annotations.radicals
-          .map(
-            (radical) => `<circle cx="${atom.x + radical.x}" cy="${atom.y + radical.y}" r="2.1"/>`,
-          )
-          .join('');
+        const lonePairs = settings.includeAnnotations
+          ? annotations.lonePairs
+              .map((pair) => {
+                const angle = (((pair.rotation ?? 0) - 90) * Math.PI) / 180;
+                const tangentX = Math.cos(angle) * 2.7;
+                const tangentY = Math.sin(angle) * 2.7;
+                return `<circle cx="${atom.x + pair.x - tangentX}" cy="${atom.y + pair.y - tangentY}" r="1.7"/><circle cx="${atom.x + pair.x + tangentX}" cy="${atom.y + pair.y + tangentY}" r="1.7"/>`;
+              })
+              .join('')
+          : '';
+        const radicals = settings.includeAnnotations
+          ? annotations.radicals
+              .map(
+                (radical) =>
+                  `<circle cx="${atom.x + radical.x}" cy="${atom.y + radical.y}" r="2.1"/>`,
+              )
+              .join('')
+          : '';
         const hydrogen = this.implicitHydrogenLabel(atom);
         return (
           '<g><circle cx="' +
@@ -3218,19 +3520,94 @@ export class App {
             : '') +
           (hydrogen &&
           annotations.hydrogen &&
+          settings.includeHydrogens &&
           this.layers.implicitHydrogens() &&
           !this.layers.skeletal()
             ? `<text x="${atom.x + annotations.hydrogen.x}" y="${atom.y + annotations.hydrogen.y + 5}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="13" font-weight="700" fill="#087c8c">${hydrogen}</text>`
             : '') +
           `<g fill="#6d3cc4">${lonePairs}</g>` +
           `<g fill="#c43f5a">${radicals}</g>` +
-          (atom.stereochemistry
+          (settings.includeAnnotations && atom.stereochemistry
             ? `<text x="${atom.x}" y="${atom.y - radius - 12}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700" fill="#2567d8">(${atom.stereochemistry})</text>`
             : '') +
           '</g>'
         );
       })
       .join('');
+    const background =
+      settings.background === 'transparent'
+        ? 'none'
+        : settings.background === 'custom'
+          ? settings.customBackground
+          : settings.background === 'theme'
+            ? this.resolvedTheme() === 'night'
+              ? '#101722'
+              : this.resolvedTheme() === 'afternoon'
+                ? '#fff7ea'
+                : '#f8fbff'
+            : '#ffffff';
+    const captionColor =
+      settings.background === 'theme' && this.resolvedTheme() === 'night' ? '#e8f0fa' : '#263142';
+    const stats = calculateStats(molecule);
+    const titleMarkup = settings.showTitle
+      ? '<text x="' +
+        (minX + 24) +
+        '" y="' +
+        (minY + 30) +
+        '" font-family="Inter,Arial,sans-serif" font-size="16" font-weight="700" fill="' +
+        captionColor +
+        '">' +
+        this.escapeMarkup(molecule.name) +
+        '</text>'
+      : '';
+    const formulaMarkup = settings.showFormula
+      ? '<text x="' +
+        (maxX - 24) +
+        '" y="' +
+        (minY + 30) +
+        '" text-anchor="end" font-family="ui-monospace,monospace" font-size="14" font-weight="700" fill="' +
+        captionColor +
+        '">' +
+        this.escapeMarkup(stats.formula) +
+        '</text>'
+      : '';
+    const metadataMarkup = settings.showMetadata
+      ? '<text x="' +
+        (minX + 24) +
+        '" y="' +
+        (maxY - 20) +
+        '" font-family="Inter,Arial,sans-serif" font-size="10" fill="' +
+        captionColor +
+        '">' +
+        stats.molecularMass.toFixed(3) +
+        ' g/mol · ' +
+        molecule.atoms.length +
+        ' átomos · ' +
+        molecule.bonds.length +
+        ' enlaces</text>'
+      : '';
+    const watermarkMarkup = settings.watermark.trim()
+      ? '<text x="' +
+        (maxX - 24) +
+        '" y="' +
+        (maxY - 20) +
+        '" text-anchor="end" font-family="Inter,Arial,sans-serif" font-size="9" fill="' +
+        captionColor +
+        '" opacity="0.55">' +
+        this.escapeMarkup(settings.watermark.trim()) +
+        '</text>'
+      : '';
+    const gridMarkup = settings.includeGrid
+      ? '<rect x="' +
+        minX +
+        '" y="' +
+        minY +
+        '" width="' +
+        width +
+        '" height="' +
+        height +
+        '" fill="url(#export-grid)" opacity="0.32"/>'
+      : '';
     return (
       '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="' +
       Math.round(width) +
@@ -3244,7 +3621,7 @@ export class App {
       width +
       ' ' +
       height +
-      '"><defs><marker id="export-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#263142"/></marker><marker id="export-arrow-start" markerWidth="9" markerHeight="9" refX="1" refY="4.5" orient="auto-start-reverse"><path d="M9,0 L0,4.5 L9,9 Z" fill="#263142"/></marker><marker id="export-electron-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#6d3cc4"/></marker><marker id="export-fishhook" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L1,4" fill="none" stroke="#6d3cc4" stroke-width="1.5"/></marker></defs><rect x="' +
+      '"><defs><pattern id="export-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#7890a8" stroke-width="0.7"/></pattern><marker id="export-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#263142"/></marker><marker id="export-arrow-start" markerWidth="9" markerHeight="9" refX="1" refY="4.5" orient="auto-start-reverse"><path d="M9,0 L0,4.5 L9,9 Z" fill="#263142"/></marker><marker id="export-electron-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#6d3cc4"/></marker><marker id="export-fishhook" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L1,4" fill="none" stroke="#6d3cc4" stroke-width="1.5"/></marker></defs><rect x="' +
       minX +
       '" y="' +
       minY +
@@ -3252,7 +3629,15 @@ export class App {
       width +
       '" height="' +
       height +
-      '" fill="#ffffff"/><g stroke="#58677b" stroke-width="4" stroke-linecap="round">' +
+      '" fill="' +
+      background +
+      '"/>' +
+      gridMarkup +
+      titleMarkup +
+      formulaMarkup +
+      metadataMarkup +
+      watermarkMarkup +
+      '<g stroke="#58677b" stroke-width="4" stroke-linecap="round">' +
       bondMarkup +
       '</g>' +
       '<g fill="none" stroke="#263142" stroke-width="3" stroke-linecap="round">' +

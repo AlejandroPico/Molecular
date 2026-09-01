@@ -15,7 +15,7 @@ describe('App', () => {
     aboutButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Acerca de Molecular');
-    expect(fixture.nativeElement.textContent).toContain('0.7.2');
+    expect(fixture.nativeElement.textContent).toContain('0.8.0');
   });
 
   it('starts with an editable molecular canvas and a coherent example', () => {
@@ -56,8 +56,8 @@ describe('App', () => {
 
     (root.querySelector('[aria-label="Capas"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(root.textContent).toContain('Componentes independientes');
-    expect(root.querySelectorAll('.component-card').length).toBe(1);
+    expect(root.textContent).toContain('Árbol de objetos');
+    expect(root.querySelectorAll('.object-tree-node').length).toBeGreaterThan(0);
 
     (root.querySelector('[aria-label="Editor de reacciones"]') as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -68,6 +68,24 @@ describe('App', () => {
     fixture.detectChanges();
     expect(root.textContent).toContain('MDL Molfile V2000');
     expect(root.textContent).toContain('Chemical Markup Language');
+    expect(root.querySelectorAll('.publication-templates button').length).toBe(5);
+  });
+
+  it('keeps laboratory navigation outside the scrollable analysis content', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    (root.querySelector('[aria-label="Laboratorio científico"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const workspace = root.querySelector('.science-workspace')!;
+    expect(workspace.querySelector(':scope > .science-tabs')).toBeTruthy();
+    expect(workspace.querySelector(':scope > .science-panel')).toBeTruthy();
+
+    const tabs = root.querySelectorAll<HTMLButtonElement>('.science-tabs button');
+    tabs[3].click();
+    fixture.detectChanges();
+    expect(root.querySelector('.identification-dashboard')).toBeTruthy();
+    expect(root.textContent).toContain('43 locales');
   });
 
   it('exposes the scientific analysis suite for suggestions 8 through 14', () => {

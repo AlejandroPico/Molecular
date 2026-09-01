@@ -1,6 +1,6 @@
 # Arquitectura de Molecular
 
-## Decisión de la versión 0.7.2
+## Decisión de la versión 0.8.0
 
 Molecular se publica en GitHub Pages. Ese alojamiento sirve archivos estáticos y no ejecuta procesos Python, Java, Go ni un servidor SQLite. Por ello, el primer núcleo se ejecuta íntegramente en el navegador:
 
@@ -8,7 +8,9 @@ Molecular se publica en GitHub Pages. Ese alojamiento sirve archivos estáticos 
 - **SVG** representa la estructura 2D y permite exportarla sin pérdida.
 - **Three.js/WebGL** representa la molécula tridimensional y gestiona la cámara.
 - **TypeScript** contiene el modelo químico, las reglas iniciales de valencia y los conversores.
-- **localStorage** conserva el autoguardado y una biblioteca privada del dispositivo.
+- **SQLite-WASM** aporta consultas y persistencia estructurada sin abandonar el navegador.
+- **localStorage** sustenta el VFS `JsStorageDb` y conserva respaldos de preferencias y progreso.
+- **Angular Service Worker** precarga el shell y permite instalar la aplicación o reabrirla sin conexión.
 
 Esta solución mantiene la aplicación rápida, desplegable en Pages y usable sin una cuenta o servidor.
 
@@ -28,6 +30,10 @@ src/app/
 │   ├── structure-library.data.ts # catálogo químico versionado
 │   ├── structure-identifier.ts   # isomorfismo y huella de similitud
 │   ├── tutorial.data.ts          # ejercicios didácticos verificables
+│   ├── object-tree.ts            # árbol navegable de objetos químicos
+│   ├── document-clipboard.ts     # fragmentos de intercambio versionados
+│   ├── publication.data.ts       # opciones y plantillas editoriales
+│   ├── local-database.ts         # SQLite-WASM y migración de documentos
 │   └── solar-theme.ts            # ventana solar y tema automático
 ├── shared/
 │   └── icon.component.ts         # iconografía SVG local
@@ -80,6 +86,14 @@ Una reacción referencia componentes por papel, no duplica átomos. Sus condicio
 
 Deshacer/Rehacer conserva pilas de documentos completos. El historial visual mantiene en memoria hasta 48 copias con etiqueta y fecha; una restauración registra primero el estado vigente, evitando que recuperar una miniatura destruya el trabajo actual.
 
+El árbol de objetos es una proyección derivada, no una segunda fuente de verdad. `object-tree.ts` recorre componentes y genera nodos para sus átomos y enlaces, además de flechas químicas y electrónicas. Buscar o contraer nodos solo cambia estado de interfaz; seleccionar localiza los identificadores originales en el lienzo. Reordenar, bloquear, ocultar o separar sí pasa por la mutación versionada del documento.
+
+## Portapapeles y publicación
+
+`document-clipboard.ts` define `molecular/clipboard+json` versión 1. Una copia de selección recorta átomos, enlaces internos y componentes; una copia completa conserva también flechas y reacciones. Al pegar, el editor crea identificadores nuevos, traslada el fragmento al espacio libre y lo registra como una sola operación reversible. El portapapeles del sistema se usa cuando el navegador da permiso y siempre existe un búfer local de respaldo.
+
+El exportador construye primero una vista inmutable del ámbito: documento, selección o componente. Las opciones editoriales solo afectan a esa vista y al SVG/PNG resultante. `publication.data.ts` reúne valores predeterminados y cinco plantillas; aplicar una plantilla copia sus ajustes y después permite modificarlos sin cambiar el documento químico. Los formatos MOL/SDF/SMILES/InChI/CML y JSON respetan también el ámbito escogido.
+
 ## Análisis molecular y balance
 
 `molecular-analysis.ts` construye una lista de adyacencia inmutable a partir del documento. Sobre ella reconoce subgrafos funcionales, enumera ciclos simples pequeños, evalúa conjugación y la condición 4n+2, calcula propiedades derivadas y produce incidencias seleccionables. Masa, fórmula, carga y composición proceden directamente de los átomos e hidrógenos implícitos; TPSA y logP usan contribuciones locales deliberadamente etiquetadas como estimaciones.
@@ -112,15 +126,24 @@ La enciclopedia es un conjunto TypeScript versionado de 18 capítulos narrativos
 
 El modo Automático calcula una ventana solar aproximada con fecha, zona horaria y, si el usuario lo autoriza expresamente, latitud y longitud. La ubicación queda en `localStorage`; no se transmite. Sin permiso se aplican franjas locales predecibles.
 
+## Persistencia local y PWA
+
+`local-database.ts` carga SQLite de forma diferida, crea las tablas `molecular_documents` y `molecular_settings` y utiliza el VFS oficial `JsStorageDb`. Ese VFS persiste el fichero lógico en el almacenamiento web del mismo origen y funciona en el hilo principal, por lo que es compatible con GitHub Pages. Durante la inicialización se migran el autoguardado y la biblioteca histórica; si WebAssembly no está disponible, la ruta `localStorage` anterior sigue funcionando.
+
+No se activa OPFS concurrente: la variante con Worker necesita aislamiento entre orígenes mediante COOP/COEP y GitHub Pages no permite definir esas cabeceras. Una futura migración podrá adoptarlo sin alterar el formato del documento cuando cambie el entorno de alojamiento.
+
+La compilación de producción copia `sqlite3.wasm`, genera `ngsw.json` y registra el service worker oficial de Angular. El manifiesto declara Molecular como aplicación independiente. El shell, los chunks, el WASM y los recursos públicos se almacenan en caché; los documentos permanecen privados en el dispositivo y no forman parte de esa caché pública.
+
 ## Evolución de datos y Python
 
 La evolución prevista tiene dos modos complementarios:
 
-1. **Modo estático:** SQLite compilado a WebAssembly, persistido mediante OPFS/IndexedDB. Permitirá catálogos grandes sin abandonar GitHub Pages.
-2. **Modo de cálculo opcional:** FastAPI + SQLite/PostgreSQL con RDKit u Open Babel para optimización geométrica, conversión de formatos, búsqueda estructural y propiedades avanzadas.
+1. **Modo estático actual:** SQLite compilado a WebAssembly mediante `JsStorageDb`, PWA y respaldo local, sin servidor.
+2. **Modo estático ampliado:** OPFS para bases grandes cuando el alojamiento pueda activar las cabeceras de aislamiento necesarias.
+3. **Modo de cálculo opcional:** FastAPI + SQLite/PostgreSQL con RDKit u Open Babel para optimización geométrica, conversión de formatos, búsqueda estructural y propiedades avanzadas.
 
 El modo de cálculo no será obligatorio para dibujar, guardar o visualizar. Así se evita convertir una herramienta educativa local en una aplicación dependiente de un servidor.
 
 ## Límites científicos actuales
 
-La 0.7.2 aplica reglas de valencia y coordinación simplificadas y genera geometrías 3D didácticas a partir de la topología. La aromaticidad y los grupos funcionales son una percepción local, y la identificación se limita a referencias incluidas: ninguna equivale a un modelo electrónico exhaustivo o a una determinación experimental. TPSA, logP, similitud e índice conformacional son orientativos. No realiza minimización energética, asignación CIP automática, orbitales ni dinámica molecular. Los formatos se orientan al intercambio educativo local; para identificadores canónicos, V3000 o investigación se necesita un motor especializado. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.
+La 0.8.0 aplica reglas de valencia y coordinación simplificadas y genera geometrías 3D didácticas a partir de la topología. La aromaticidad y los grupos funcionales son una percepción local, y la identificación se limita a referencias incluidas: ninguna equivale a un modelo electrónico exhaustivo o a una determinación experimental. TPSA, logP, similitud e índice conformacional son orientativos. No realiza minimización energética, asignación CIP automática, orbitales ni dinámica molecular. Los formatos se orientan al intercambio educativo local; para identificadores canónicos, V3000 o investigación se necesita un motor especializado. Por ello no sustituye software de química computacional ni debe utilizarse para validar resultados de investigación.

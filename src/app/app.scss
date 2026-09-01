@@ -1558,6 +1558,134 @@ select:focus-visible {
   color: var(--muted);
 }
 
+.floating-panel.export-panel {
+  width: min(780px, calc(100vw - 20px));
+}
+
+.export-studio,
+.publication-templates,
+.export-config,
+.export-output {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+}
+
+.publication-templates > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.publication-templates > div:last-child > button {
+  min-width: 0;
+  min-height: 94px;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: var(--surface-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.publication-templates button:hover,
+.publication-templates button.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.publication-templates strong {
+  font-size: 0.58rem;
+  line-height: 1.25;
+}
+
+.publication-templates small,
+.publication-templates i {
+  color: var(--muted);
+  font-size: 0.48rem;
+  font-style: normal;
+  line-height: 1.3;
+}
+
+.export-config {
+  padding: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.export-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.export-fields label {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.5rem;
+  font-weight: 700;
+}
+
+.export-fields select,
+.export-fields input[type='text'] {
+  min-width: 0;
+  height: 33px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: var(--surface);
+  font-size: 0.54rem;
+}
+
+.export-fields input[type='color'] {
+  width: 100%;
+  height: 33px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.export-padding,
+.export-watermark {
+  grid-column: span 2;
+}
+
+.export-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.export-toggles button {
+  min-height: 29px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  color: var(--muted-strong);
+  background: var(--surface);
+  font-size: 0.51rem;
+  cursor: pointer;
+}
+
+.export-toggles button.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.export-output .export-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.export-output .export-list button {
+  min-height: 61px;
+}
+
 .about-content {
   display: grid;
   gap: 12px;
@@ -3316,6 +3444,244 @@ select:focus-visible {
   border-top: 1px solid var(--border);
 }
 
+.document-exchange,
+.storage-status {
+  display: grid;
+  gap: 8px;
+}
+
+.document-exchange > div:not(.section-heading) {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.document-exchange > div > button {
+  min-width: 0;
+  min-height: 60px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: var(--surface-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.document-exchange > div > button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.document-exchange app-icon,
+.storage-status app-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--accent);
+}
+
+.document-exchange button span,
+.storage-status > div > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.document-exchange strong,
+.storage-status strong {
+  font-size: 0.56rem;
+}
+
+.document-exchange small,
+.storage-status small,
+.storage-status i {
+  color: var(--muted);
+  font-size: 0.48rem;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.storage-status > div:not(.section-heading) {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+}
+
+.storage-engine {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  font-size: 0.58rem;
+  font-weight: 800;
+}
+
+.storage-status > button {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: var(--surface-2);
+  font-size: 0.56rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.storage-status > button:disabled {
+  cursor: default;
+}
+
+.object-tree-search {
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.object-tree-search app-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+.object-tree-search input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+  font-size: 0.6rem;
+}
+
+.object-tree,
+.object-tree-node,
+.tree-children {
+  display: grid;
+}
+
+.object-tree {
+  gap: 5px;
+}
+
+.object-tree-node {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.object-tree-node.muted {
+  opacity: 0.58;
+}
+
+.tree-node-main {
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 4px;
+}
+
+.tree-collapse,
+.tree-actions button {
+  height: 27px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  color: var(--muted-strong);
+  background: transparent;
+  cursor: pointer;
+}
+
+.tree-collapse {
+  width: 24px;
+  font-size: 0.9rem;
+}
+
+.tree-label,
+.tree-children > button {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tree-label app-icon,
+.tree-children app-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--accent);
+}
+
+.tree-label span,
+.tree-children span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.tree-label strong,
+.tree-children strong {
+  overflow: hidden;
+  font-size: 0.61rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-label small,
+.tree-children small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.49rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-actions {
+  display: flex;
+}
+
+.tree-actions button {
+  width: 25px;
+  font-size: 0.55rem;
+}
+
+.tree-actions button:hover,
+.tree-actions button.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tree-children {
+  padding: 0 6px 6px 31px;
+}
+
+.tree-children > button {
+  min-height: 34px;
+  padding: 3px 7px;
+  border-top: 1px solid var(--border);
+}
+
 .group-selection-action,
 .checkpoint-action {
   min-height: 36px;
@@ -3558,16 +3924,29 @@ select:focus-visible {
   cursor: pointer;
 }
 
-/* Laboratorio científico · versión 0.6 */
+/* Laboratorio científico · espacio de trabajo 0.8 */
+.floating-panel.science-panel-shell {
+  width: min(900px, calc(100vw - 20px));
+  height: min(720px, calc(100vh - var(--header-height) - var(--status-height) - 18px));
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 .science-header {
-  border-bottom: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.science-workspace {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 154px minmax(0, 1fr);
 }
 
 .science-tabs {
-  display: flex;
-  min-height: 42px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--border);
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
   background: var(--surface-2);
   scrollbar-width: none;
 }
@@ -3577,15 +3956,16 @@ select:focus-visible {
 }
 
 .science-tabs > button {
-  min-width: max-content;
-  min-height: 42px;
+  width: 100%;
+  min-height: 47px;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 12px;
+  justify-content: space-between;
+  padding: 0 13px;
   border: 0;
-  border-right: 1px solid var(--border);
-  border-bottom: 2px solid transparent;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
   color: var(--muted-strong);
   background: transparent;
   font-size: 0.61rem;
@@ -3596,7 +3976,7 @@ select:focus-visible {
 .science-tabs > button:hover,
 .science-tabs > button.active {
   color: var(--accent);
-  border-bottom-color: var(--accent);
+  border-left-color: var(--accent);
   background: var(--accent-soft);
 }
 
@@ -3616,6 +3996,9 @@ select:focus-visible {
   display: grid;
   align-content: start;
   gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
 }
 
 .science-intro {
@@ -4427,6 +4810,7 @@ select:focus-visible {
 @media (max-width: 760px) {
   .floating-panel.formula-panel,
   .floating-panel.science-panel-shell,
+  .floating-panel.export-panel,
   .floating-panel.encyclopedia-panel {
     top: 54px;
     right: 0;
@@ -4439,8 +4823,53 @@ select:focus-visible {
     overflow: auto;
   }
 
+  .publication-templates > div:last-child {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .publication-templates > div:last-child > button:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .export-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .export-output .export-list {
+    grid-template-columns: 1fr;
+  }
+
   .floating-panel.science-panel-shell {
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .science-workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .science-tabs {
+    display: flex;
+    min-height: 44px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .science-tabs > button {
+    width: auto;
+    min-width: max-content;
+    min-height: 44px;
+    justify-content: flex-start;
+    border-right: 1px solid var(--border);
+    border-bottom: 2px solid transparent;
+    border-left: 0;
+  }
+
+  .science-tabs > button:hover,
+  .science-tabs > button.active {
+    border-bottom-color: var(--accent);
   }
 
   .floating-panel.science-panel-shell .science-panel {
@@ -4805,6 +5234,56 @@ select:focus-visible {
   padding: 9px 11px;
   border: 1px solid var(--border);
   background: var(--surface-2);
+}
+
+.identification-dashboard {
+  display: grid;
+  grid-template-columns: 48px repeat(3, minmax(86px, 1fr)) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  background: linear-gradient(100deg, var(--accent-soft), var(--surface-2) 42%);
+}
+
+.identification-dashboard > span:not(.science-mark) {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.identification-dashboard small {
+  color: var(--muted);
+  font-size: 0.48rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.identification-dashboard strong {
+  overflow: hidden;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identification-dashboard > button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: var(--surface);
+  font-size: 0.55rem;
+  font-weight: 740;
+  cursor: pointer;
+}
+
+.identification-dashboard > button app-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .identification-scope > span {
@@ -5317,6 +5796,19 @@ select:focus-visible {
 }
 
 @media (max-width: 760px) {
+  .identification-dashboard {
+    grid-template-columns: 42px repeat(2, minmax(72px, 1fr));
+  }
+
+  .identification-dashboard > span:nth-of-type(4) {
+    display: none;
+  }
+
+  .identification-dashboard > button {
+    grid-column: 2 / -1;
+    justify-content: center;
+  }
+
   .floating-panel.encyclopedia-panel {
     grid-template-rows: auto auto minmax(0, 1fr);
   }

@@ -1,6 +1,6 @@
 # Molecular
 
-**Versión 0.7.2**
+**Versión 0.8.0**
 
 Molecular es un estudio químico visual de Alejandro Pico para construir estructuras en dos dimensiones, comprobar reglas básicas de enlace y explorarlas como modelos tridimensionales. Toma como referencia conceptual el flujo 2D → 3D de herramientas educativas como [MolView](https://molview.org/), con interfaz, arquitectura y motor propios.
 
@@ -9,6 +9,19 @@ Molecular es un estudio químico visual de Alejandro Pico para construir estruct
 **GitHub Pages:** https://alejandropico.github.io/Molecular/
 
 El despliegue se actualiza automáticamente con cada publicación en `main`.
+
+## Novedades de la versión 0.8.0
+
+### Organización, intercambio y publicación: sugerencias 20–24
+
+- **Árbol de objetos avanzado** en Capas: busca, despliega y localiza componentes, átomos, enlaces y flechas; permite bloquear, ocultar, reordenar y separar componentes desde una jerarquía única.
+- **Portapapeles molecular entre documentos**: copia una selección o el documento completo mediante `Ctrl/Cmd+C`, conserva el grafo y lo pega junto al trabajo actual con `Ctrl/Cmd+V`, sin sustituir el lienzo.
+- **Exportador configurable** para documento, selección o componente, con margen, escala PNG 1×–4×, proporción automática/1:1/4:3/16:9, fondo, retícula, hidrógenos, anotaciones, título, fórmula, metadatos y marca opcional.
+- **Cinco plantillas de publicación**: estructura limpia, artículo científico, presentación, ficha de atlas y publicación cuadrada. Todas se pueden personalizar antes de generar SVG o PNG.
+- **SQLite-WASM local** para autoguardado y biblioteca, con respaldo compatible en `localStorage`, carga diferida y estado visible en Archivo. No requiere servidor ni transmite documentos.
+- **Aplicación web progresiva (PWA)** mediante el service worker oficial de Angular: recursos precargados, trabajo sin conexión tras la primera visita e instalación cuando el navegador la ofrece.
+- **Laboratorio científico rediseñado** como espacio amplio con navegación lateral en escritorio y horizontal en móvil. «Identificar» utiliza un resumen compacto separado del contenido, sin títulos superpuestos ni pestañas bloqueadas.
+- **Cobertura automatizada ampliada** a 67 pruebas y compilación de producción que incluye `sqlite3.wasm`, manifiesto y service worker.
 
 ## Novedades de la versión 0.7.2
 
@@ -98,9 +111,10 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 6. Abre Laboratorio para reconocer grupos, estudiar aromaticidad, consultar propiedades, identificar una estructura, configurar la validación o balancear una reacción.
 7. Usa la rueda o la pinza táctil para ampliar bajo el puntero y abre el visor 3D. Sus controles permiten medir 2/3/4 átomos y explorar conformaciones.
 8. Abre Reacciones para asignar papeles y condiciones; el balanceador usará esos componentes.
-9. Abre Exportar para obtener SVG, PNG, MOL, SDF, SMILES, CML, capa de fórmula InChI o documento editable.
-10. En Archivo explora la biblioteca de 36 estructuras o abre el Historial visual para guardar y restaurar puntos con miniatura.
-11. En Enciclopedia alterna entre el lector de 18 capítulos y los cinco ejercicios interactivos.
+9. Abre Exportar, elige una plantilla o configura ámbito, proporción, fondo, escala y anotaciones antes de obtener SVG, PNG o un formato químico.
+10. En Archivo copia y pega fragmentos entre documentos, explora la biblioteca de 36 estructuras, consulta SQLite local o instala la PWA.
+11. En Capas usa el árbol de objetos para localizar átomos/enlaces y organizar componentes; abre el Historial visual para recuperar estados.
+12. En Enciclopedia alterna entre el lector de 18 capítulos y los cinco ejercicios interactivos.
 
 ### Atajos
 
@@ -114,6 +128,8 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 | Borrar                        | `E`                      |
 | Enlace simple, doble o triple | `1`, `2`, `3`            |
 | Seleccionar todo              | `Ctrl + A`               |
+| Copiar selección o documento  | `Ctrl + C`               |
+| Pegar y añadir                | `Ctrl + V`               |
 | Deshacer / rehacer            | `Ctrl + Z` / `Ctrl + Y`  |
 | Eliminar selección            | `Supr` o `Retroceso`     |
 | Cancelar operación            | `Esc`                    |
@@ -123,17 +139,19 @@ El despliegue se actualiza automáticamente con cada publicación en `main`.
 - **Angular 22** y **TypeScript** para aplicación, estado y motor educativo.
 - **SVG** como superficie de edición 2D y formato vectorial.
 - **Three.js/WebGL** para la visualización 3D.
-- **localStorage** para autoguardado, biblioteca privada, configuración y progreso didáctico.
+- **SQLite-WASM** (`JsStorageDb`) para autoguardado y biblioteca SQL persistente en el navegador.
+- **localStorage** como soporte del VFS SQLite y respaldo para configuración, progreso y compatibilidad.
+- **Angular Service Worker + Web App Manifest** para instalación y funcionamiento PWA sin conexión.
 - **Vitest** para pruebas del motor y de la interfaz.
 - **GitHub Actions + GitHub Pages** para integración y despliegue continuos.
 
 ## Arquitectura sin servidor
 
-GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.7.2 funciona íntegramente en el navegador para mantener edición, análisis, identificación local, aprendizaje, validación, balance, conversión, generación, consulta, guardado y 3D inmediatos.
+GitHub Pages sirve archivos estáticos y no ejecuta Python, Java, Go ni un SQLite de servidor. La versión 0.8.0 funciona íntegramente en el navegador. SQLite se compila a WebAssembly y utiliza el VFS `JsStorageDb`, persistido localmente y compatible con Pages; Angular conserva el shell de la aplicación para trabajar sin conexión.
 
 La evolución prevista conserva dos vías:
 
-- SQLite compilado a WebAssembly y persistido con OPFS/IndexedDB para datos amplios manteniendo el alojamiento estático.
+- Evolución opcional desde `JsStorageDb` hacia OPFS para bases mayores cuando el alojamiento pueda enviar las cabeceras COOP/COEP requeridas por el modo concurrente.
 - Servicio opcional FastAPI con RDKit u Open Babel para SMILES, MOL/SDF, búsqueda estructural, optimización geométrica y cálculos avanzados.
 
 La decisión se detalla en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -178,6 +196,10 @@ Molecular/
 │   ├── structure-library.data.ts  # 36 plantillas y 43 referencias identificables
 │   ├── structure-identifier.ts    # isomorfismo y similitud estructural local
 │   ├── tutorial.data.ts           # cinco ejercicios guiados y verificables
+│   ├── object-tree.ts             # jerarquía navegable del documento
+│   ├── document-clipboard.ts      # intercambio versionado entre documentos
+│   ├── publication.data.ts        # configuración y plantillas de salida
+│   ├── local-database.ts          # SQLite-WASM y migración local
 │   └── solar-theme.ts             # amanecer, ocaso y tema ambiental
 ├── src/app/shared/                # iconografía SVG local
 ├── src/app/three-d-viewer/        # motor y panel 3D
@@ -188,7 +210,7 @@ Molecular/
 
 ## Alcance científico
 
-La validación 0.7.2 es educativa y configurable. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Los descriptores R/S y E/Z son asignaciones declaradas por la persona editora: Molecular no calcula todavía prioridades CIP ni demuestra que el descriptor elegido sea correcto.
+La validación 0.8.0 es educativa y configurable. Las capacidades de elementos representativos se basan en valencias covalentes habituales; para metales de transición y elementos pesados se usan límites de coordinación simplificados. Los descriptores R/S y E/Z son asignaciones declaradas por la persona editora: Molecular no calcula todavía prioridades CIP ni demuestra que el descriptor elegido sea correcto.
 
 Una fórmula molecular no contiene conectividad suficiente para identificar un isómero. El generador produce en ese caso un punto de partida editable; SMILES es la entrada apropiada cuando la conectividad debe ser inequívoca. La colocación 3D es una incrustación topológica relajada, no una optimización energética.
 
